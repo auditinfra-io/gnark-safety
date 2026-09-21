@@ -60,8 +60,8 @@ func TestGroth16CorrectedInvalidHintCannotProve(t *testing.T) {
 	if err != nil {
 		t.Fatalf("witness: %v", err)
 	}
-	override := solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), InvalidQuotientRemainderHint)
-	if _, err := groth16.Prove(ccs, pk, witness, backend.WithSolverOptions(override)); err == nil {
-		t.Fatal("corrected circuit produced a proof with r=7 and d=5")
-	}
+	tracked, completed := successfulHint(InvalidQuotientRemainderHint)
+	override := solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), tracked)
+	_, err = groth16.Prove(ccs, pk, witness, backend.WithSolverOptions(override))
+	requireConstraintRejection(t, err, completed)
 }
