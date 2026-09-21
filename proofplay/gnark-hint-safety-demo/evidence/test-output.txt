@@ -1,0 +1,56 @@
+=== RUN   TestRequiredHintSafetyMatrix
+=== RUN   TestRequiredHintSafetyMatrix/A_vulnerable_accepts_valid_output
+=== RUN   TestRequiredHintSafetyMatrix/B_corrected_accepts_valid_output
+=== RUN   TestRequiredHintSafetyMatrix/C_vulnerable_accepts_invalid_output
+=== RUN   TestRequiredHintSafetyMatrix/D_corrected_rejects_identical_invalid_output
+--- PASS: TestRequiredHintSafetyMatrix (0.01s)
+    --- PASS: TestRequiredHintSafetyMatrix/A_vulnerable_accepts_valid_output (0.00s)
+    --- PASS: TestRequiredHintSafetyMatrix/B_corrected_accepts_valid_output (0.00s)
+    --- PASS: TestRequiredHintSafetyMatrix/C_vulnerable_accepts_invalid_output (0.00s)
+    --- PASS: TestRequiredHintSafetyMatrix/D_corrected_rejects_identical_invalid_output (0.00s)
+=== RUN   TestBoundaryControls
+=== RUN   TestBoundaryControls/exact_division
+=== RUN   TestBoundaryControls/exact_division/vulnerable
+=== RUN   TestBoundaryControls/exact_division/corrected
+=== RUN   TestBoundaryControls/n_less_than_d
+=== RUN   TestBoundaryControls/n_less_than_d/vulnerable
+=== RUN   TestBoundaryControls/n_less_than_d/corrected
+=== RUN   TestBoundaryControls/lower_in-range
+=== RUN   TestBoundaryControls/lower_in-range/vulnerable
+=== RUN   TestBoundaryControls/lower_in-range/corrected
+=== RUN   TestBoundaryControls/upper_in-range_exact
+=== RUN   TestBoundaryControls/upper_in-range_exact/vulnerable
+=== RUN   TestBoundaryControls/upper_in-range_exact/corrected
+=== RUN   TestBoundaryControls/largest_quotient
+=== RUN   TestBoundaryControls/largest_quotient/vulnerable
+=== RUN   TestBoundaryControls/largest_quotient/corrected
+--- PASS: TestBoundaryControls (0.02s)
+    --- PASS: TestBoundaryControls/exact_division (0.00s)
+        --- PASS: TestBoundaryControls/exact_division/vulnerable (0.00s)
+        --- PASS: TestBoundaryControls/exact_division/corrected (0.00s)
+    --- PASS: TestBoundaryControls/n_less_than_d (0.00s)
+        --- PASS: TestBoundaryControls/n_less_than_d/vulnerable (0.00s)
+        --- PASS: TestBoundaryControls/n_less_than_d/corrected (0.00s)
+    --- PASS: TestBoundaryControls/lower_in-range (0.00s)
+        --- PASS: TestBoundaryControls/lower_in-range/vulnerable (0.00s)
+        --- PASS: TestBoundaryControls/lower_in-range/corrected (0.00s)
+    --- PASS: TestBoundaryControls/upper_in-range_exact (0.00s)
+        --- PASS: TestBoundaryControls/upper_in-range_exact/vulnerable (0.00s)
+        --- PASS: TestBoundaryControls/upper_in-range_exact/corrected (0.00s)
+    --- PASS: TestBoundaryControls/largest_quotient (0.00s)
+        --- PASS: TestBoundaryControls/largest_quotient/vulnerable (0.00s)
+        --- PASS: TestBoundaryControls/largest_quotient/corrected (0.00s)
+=== RUN   TestZeroDivisorRejected
+=== RUN   TestZeroDivisorRejected/vulnerable
+=== RUN   TestZeroDivisorRejected/corrected
+--- PASS: TestZeroDivisorRejected (0.00s)
+    --- PASS: TestZeroDivisorRejected/vulnerable (0.00s)
+    --- PASS: TestZeroDivisorRejected/corrected (0.00s)
+=== RUN   TestGroth16VulnerableInvalidHintProofVerifies
+--- PASS: TestGroth16VulnerableInvalidHintProofVerifies (0.04s)
+=== RUN   TestGroth16CorrectedValidHintProofVerifies
+--- PASS: TestGroth16CorrectedValidHintProofVerifies (0.04s)
+=== RUN   TestGroth16CorrectedInvalidHintCannotProve
+--- PASS: TestGroth16CorrectedInvalidHintCannotProve (0.03s)
+PASS
+ok  	github.com/auditinfra/gnark-hint-safety-demo	0.163s

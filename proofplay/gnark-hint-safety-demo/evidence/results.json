@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-09-21",
+  "repository_base_revision": "e5b0843bd2cf18fc9921e5e74dd4953717f57d73",
+  "working_tree_identifier": "base revision plus the gnark-hint-safety-demo files in this contribution",
+  "upstream_gnark_revision": "cfc7b2f907cc4212ec152077e022c6d0b4805759",
+  "environment": {
+    "os": "Linux",
+    "kernel": "6.18.44",
+    "architecture": "x86_64",
+    "go": "go1.25.7 linux/amd64",
+    "gnark": "v0.16.3",
+    "gnark_crypto": "v0.21.0",
+    "backend": "Groth16",
+    "curve": "BN254"
+  },
+  "commands": [
+    {
+      "command": "GOTOOLCHAIN=go1.25.7 go mod download",
+      "exit_code": 0
+    },
+    {
+      "command": "GOTOOLCHAIN=go1.25.7 go test -count=1 -v ./...",
+      "exit_code": 0
+    }
+  ],
+  "outcomes": {
+    "vulnerable_valid_solver": "accepted",
+    "corrected_valid_solver": "accepted",
+    "vulnerable_invalid_solver": "accepted",
+    "invalid_output_property_check": "q=2,r=7 reconstructs n=17 for d=5 and violates r<d",
+    "corrected_invalid_solver": "rejected",
+    "vulnerable_invalid_real_proof": "generated and verified",
+    "corrected_valid_real_proof": "generated and verified",
+    "corrected_invalid_real_proof": "proving rejected the unsatisfied witness",
+    "boundary_controls": "passed",
+    "zero_divisor": "rejected by both circuits"
+  },
+  "real_proof_generation_and_verification_ran": true,
+  "skipped_or_degraded_steps": [],
+  "retained_output": {
+    "path": "evidence/test-output.txt",
+    "sha256": "087e64c819e55dde638ab43a2e0a0e9049565cd20b4e932b33574306029f56d9"
+  }
+}
