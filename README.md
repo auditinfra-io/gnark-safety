@@ -1,4 +1,4 @@
-# gnark hint-safety demo
+# A reproducible gnark hint-safety demonstration
 
 A small, synthetic educational fixture showing that a gnark **hint computes a
 witness value but does not prove that the value has the intended meaning**. It
@@ -39,12 +39,14 @@ constraints, so every semantic property of hint outputs must be constrained.
 
 Prerequisites are Git and a Go installation capable of Go's toolchain
 auto-selection. The module pins gnark v0.16.3, whose `go.mod` requires Go
-1.25.7, and transitively pins gnark-crypto v0.21.0 in `go.sum`.
+1.25.7, and explicitly requires gnark-crypto v0.21.0 in `go.mod`. `go.sum` records module-content checksums; it does not select
+dependency versions.
 
 From the repository root:
 
 ```bash
-cd proofplay/gnark-hint-safety-demo
+git clone https://github.com/auditinfra-io/gnark-hint-safety-demo.git
+cd gnark-hint-safety-demo
 GOTOOLCHAIN=go1.25.7 go mod download
 GOTOOLCHAIN=go1.25.7 go test -count=1 -v ./...
 ```
@@ -67,16 +69,21 @@ Observed on 2026-09-21 on Linux/x86_64; see [`evidence/`](evidence/README.md).
 | Vulnerable, invalid | `q=2,r=7` | solver accepts; Groth16 proof verifies |
 | Corrected, same invalid | `q=2,r=7` | solver rejects; Groth16 proving fails |
 | Exact division, `n<d`, and representative 8-bit boundaries | honest | both circuits accept |
-| Zero divisor | no valid quotient/remainder | both circuits reject |
+| Vulnerable, zero divisor | adversarial `q=0,r=17` returned successfully | rejects on an unsatisfied constraint |
+
+The quotient and remainder are internal witness values: this demonstrates that a
+proof built from a noncanonical quotient/remainder witness verifies against an
+underspecified circuit, not a false public quotient claim or an exploitable
+application.
 
 The vulnerable and corrected circuits are compiled and set up separately. No
 claim is made that a proof or key from one circuit works with the other.
 
 ## Scope and limits
 
-This demonstration isolates public educational code under the repository's
-existing `proofplay` experimental area. It includes no scanner detector,
-proprietary invariant pack, customer finding, or general-purpose analysis.
+This standalone repository contains only the public educational demonstration.
+It includes no scanner detector, proprietary invariant pack, customer finding,
+or general-purpose analysis.
 
 One deliberately incomplete relation does not establish a general method for
 finding underconstrained circuits or measure any scanner's accuracy. It also

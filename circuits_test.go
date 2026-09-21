@@ -2,6 +2,8 @@ package hintsafetydemo
 
 import (
 	"math/big"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -18,6 +20,32 @@ func compileCircuit(t *testing.T, circuit frontend.Circuit) constraint.Constrain
 		t.Fatalf("compile circuit: %v", err)
 	}
 	return ccs
+}
+
+// successfulHint wraps adversarial advice so a rejection test can distinguish
+// an unsatisfied constraint from a failure to invoke or execute the hint.
+func successfulHint(hint solver.Hint) (solver.Hint, *atomic.Bool) {
+	var completed atomic.Bool
+	return func(field *big.Int, inputs, outputs []*big.Int) error {
+		if err := hint(field, inputs, outputs); err != nil {
+			return err
+		}
+		completed.Store(true)
+		return nil
+	}, &completed
+}
+
+func requireConstraintRejection(t *testing.T, err error, hintCompleted *atomic.Bool) {
+	t.Helper()
+	if !hintCompleted.Load() {
+		t.Fatal("adversarial hint did not run to successful completion")
+	}
+	if err == nil {
+		t.Fatal("circuit accepted adversarial hint output")
+	}
+	if message := err.Error(); !strings.Contains(message, "constraint") || !strings.Contains(message, "is not satisfied") {
+		t.Fatalf("expected an unsatisfied-constraint error, got: %v", err)
+	}
 }
 
 func solve(t *testing.T, ccs constraint.ConstraintSystem, assignment frontend.Circuit, opts ...solver.Option) error {
@@ -63,9 +91,10 @@ func TestRequiredHintSafetyMatrix(t *testing.T) {
 		}
 	})
 	t.Run("D corrected rejects identical invalid output", func(t *testing.T) {
-		if err := solve(t, corrected, validCorrected, override); err == nil {
-			t.Fatal("corrected circuit accepted r=7 with d=5; expected r<d constraint failure")
-		}
+		tracked, completed := successfulHint(InvalidQuotientRemainderHint)
+		override := solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), tracked)
+		err := solve(t, corrected, validCorrected, override)
+		requireConstraintRejection(t, err, completed)
 	})
 }
 
@@ -103,20 +132,9 @@ func TestBoundaryControls(t *testing.T) {
 }
 
 func TestZeroDivisorRejected(t *testing.T) {
-	fixtures := []struct {
-		name       string
-		circuit    frontend.Circuit
-		assignment frontend.Circuit
-	}{
-		{name: "vulnerable", circuit: &VulnerableCircuit{}, assignment: &VulnerableCircuit{N: 17, D: 0}},
-		{name: "corrected", circuit: &CorrectedCircuit{}, assignment: &CorrectedCircuit{N: 17, D: 0}},
-	}
-	for _, fixture := range fixtures {
-		t.Run(fixture.name, func(t *testing.T) {
-			ccs := compileCircuit(t, fixture.circuit)
-			if err := solve(t, ccs, fixture.assignment, solver.WithHints(QuotientRemainderHint)); err == nil {
-				t.Fatal("zero divisor unexpectedly satisfied the circuit")
-			}
-		})
-	}
+	ccs := compileCircuit(t, &VulnerableCircuit{})
+	tracked, completed := successfulHint(ZeroDivisorHint)
+	override := solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), tracked)
+	err := solve(t, ccs, &VulnerableCircuit{N: 17, D: 0}, override)
+	requireConstraintRejection(t, err, completed)
 }

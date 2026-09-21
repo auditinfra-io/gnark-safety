@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "observed_at_utc": "2026-09-21",
+  "source_binding": {
+    "method": "sha256",
+    "files": {
+      "circuits.go": "e4defb409adead2e091fe0b6e23b2b21b374acfd4a72a13179e2b5371af0bea5",
+      "circuits_test.go": "c3e25281bf47ac996394e6aa5c09c629d4653f6bd33e35ea56eae6670a70de94",
+      "hints.go": "387f9f1648d11c1fffbf3251671650ecc52a05802326c6927f4f11850dca8b45",
+      "proof_test.go": "650552f133f8b25f1bbd3b14fc4e7ee84021e514a01465f2a78d4ef8f2c7e827",
+      "go.mod": "dd1c9a986677b9fcdcd4a1190ff538e2289058f718467256a11378a4b2a6648f",
+      "go.sum": "516fc76ba4dc194aad5d1e3bdd95f426cafcc1031104e741145fdad5d75daba1"
+    }
+  },
+  "upstream_gnark_revision": "cfc7b2f907cc4212ec152077e022c6d0b4805759",
+  "environment": {
+    "os": "Linux",
+    "kernel": "6.18.44",
+    "architecture": "x86_64",
+    "go": "go1.25.7 linux/amd64",
+    "gnark": "v0.16.3",
+    "gnark_crypto": "v0.21.0",
+    "backend": "Groth16",
+    "curve": "BN254"
+  },
+  "commands": [
+    {"command": "GOTOOLCHAIN=go1.25.7 go mod download", "exit_code": 0},
+    {"command": "GOTOOLCHAIN=go1.25.7 go test -count=1 -v ./...", "exit_code": 0}
+  ],
+  "outcomes": {
+    "vulnerable_valid_solver": "accepted",
+    "corrected_valid_solver": "accepted",
+    "vulnerable_invalid_solver": "accepted",
+    "invalid_output_property_check": "q=2,r=7 reconstructs n=17 for d=5 and violates r<d",
+    "corrected_invalid_solver": "malicious hint completed successfully; rejected by an unsatisfied constraint",
+    "vulnerable_zero_divisor_solver": "malicious q=0,r=17 hint completed successfully; rejected by an unsatisfied constraint",
+    "vulnerable_invalid_real_proof": "generated and verified",
+    "corrected_valid_real_proof": "generated and verified",
+    "corrected_invalid_real_proof": "malicious hint completed successfully; proving rejected the unsatisfied witness",
+    "boundary_controls": "passed"
+  },
+  "real_proof_generation_and_verification_ran": true,
+  "skipped_or_degraded_steps": [],
+  "retained_output": {"path": "evidence/test-output.txt", "sha256": "3a4ff60fe07196e0bfbce1495f90f7f54786969176853c3db775c0b36620400a"}
+}

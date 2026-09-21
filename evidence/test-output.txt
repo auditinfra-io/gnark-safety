@@ -41,11 +41,7 @@
         --- PASS: TestBoundaryControls/largest_quotient/vulnerable (0.00s)
         --- PASS: TestBoundaryControls/largest_quotient/corrected (0.00s)
 === RUN   TestZeroDivisorRejected
-=== RUN   TestZeroDivisorRejected/vulnerable
-=== RUN   TestZeroDivisorRejected/corrected
 --- PASS: TestZeroDivisorRejected (0.00s)
-    --- PASS: TestZeroDivisorRejected/vulnerable (0.00s)
-    --- PASS: TestZeroDivisorRejected/corrected (0.00s)
 === RUN   TestGroth16VulnerableInvalidHintProofVerifies
 --- PASS: TestGroth16VulnerableInvalidHintProofVerifies (0.04s)
 === RUN   TestGroth16CorrectedValidHintProofVerifies
@@ -53,4 +49,4 @@
 === RUN   TestGroth16CorrectedInvalidHintCannotProve
 --- PASS: TestGroth16CorrectedInvalidHintCannotProve (0.03s)
 PASS
-ok  	github.com/auditinfra/gnark-hint-safety-demo	0.163s
+ok  	github.com/auditinfra-io/gnark-hint-safety-demo	0.163s
