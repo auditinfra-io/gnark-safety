@@ -1,0 +1,885 @@
+diff --git a/proofplay/gnark-hint-safety-demo.zip b/proofplay/gnark-hint-safety-demo.zip
+new file mode 100644
+index 0000000000000000000000000000000000000000..8b03f2f74997cde806f49fcf89d73399cb92f3a6
+GIT binary patch
+literal 11965
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/proofplay/gnark-hint-safety-demo/README.md b/proofplay/gnark-hint-safety-demo/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..9050b479604e261b3f4dd46413a06735a641db84
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/README.md
+@@ -0,0 +1,85 @@
++# gnark hint-safety demo
++
++A small, synthetic educational fixture showing that a gnark **hint computes a
++witness value but does not prove that the value has the intended meaning**. It
++is not a report of a gnark vulnerability. The two circuits differ by one
++semantic check, making the consequence visible both to the constraint solver
++and to a real Groth16 verifier.
++
++## Intended arithmetic
++
++For public unsigned integers `n` (dividend) and `d` (divisor), the private hint
++outputs `q` (quotient) and `r` (remainder). The intended relation is:
++
++```text
++n = q*d + r,  d > 0,  0 <= r < d
++```
++
++All four values are constrained to 8 bits (`0..255`). Consequently the largest
++right-hand side allowed by those individual ranges is
++`255*255+255 = 65,280`, vastly smaller than the BN254 scalar-field modulus.
++Thus field wraparound cannot masquerade as the integer equality used here.
++
++`VulnerableCircuit` checks the 8-bit ranges, nonzero divisor, and reconstruction
++but intentionally omits `r < d`. Both hint outputs still participate in
++constraints. `CorrectedCircuit` is otherwise identical and adds the missing
++bounded comparison.
++
++For `n=17,d=5`, honest advice is `q=3,r=2`. The adversarial test replacement
++returns `q=2,r=7`: it still reconstructs 17, but 7 is not a valid remainder for
++divisor 5. gnark's supported `solver.OverrideHint` option replaces only this
++fixture's quotient/remainder hint. It models prover-controlled witness advice;
++it does not alter verification, bypass gnark, or propose an attack on gnark.
++
++An honest hint implementation is useful for constructing a witness, but it does
++not make the constraint system sound. A proof establishes only the encoded
++constraints, so every semantic property of hint outputs must be constrained.
++
++## Reproduce
++
++Prerequisites are Git and a Go installation capable of Go's toolchain
++auto-selection. The module pins gnark v0.16.3, whose `go.mod` requires Go
++1.25.7, and transitively pins gnark-crypto v0.21.0 in `go.sum`.
++
++From the repository root:
++
++```bash
++cd proofplay/gnark-hint-safety-demo
++GOTOOLCHAIN=go1.25.7 go mod download
++GOTOOLCHAIN=go1.25.7 go test -count=1 -v ./...
++```
++
++To run just the solver matrix or real-proof checks:
++
++```bash
++GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestRequiredHintSafetyMatrix
++GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestGroth16
++```
++
++## Observed outcomes
++
++Observed on 2026-09-21 on Linux/x86_64; see [`evidence/`](evidence/README.md).
++
++| Case | Hint output | Observed result |
++|---|---|---|
++| Vulnerable, valid | `q=3,r=2` | solver accepts |
++| Corrected, valid | `q=3,r=2` | solver accepts |
++| Vulnerable, invalid | `q=2,r=7` | solver accepts; Groth16 proof verifies |
++| Corrected, same invalid | `q=2,r=7` | solver rejects; Groth16 proving fails |
++| Exact division, `n<d`, and representative 8-bit boundaries | honest | both circuits accept |
++| Zero divisor | no valid quotient/remainder | both circuits reject |
++
++The vulnerable and corrected circuits are compiled and set up separately. No
++claim is made that a proof or key from one circuit works with the other.
++
++## Scope and limits
++
++This demonstration isolates public educational code under the repository's
++existing `proofplay` experimental area. It includes no scanner detector,
++proprietary invariant pack, customer finding, or general-purpose analysis.
++
++One deliberately incomplete relation does not establish a general method for
++finding underconstrained circuits or measure any scanner's accuracy. It also
++does not exhaust gnark hint risks, curves, backends, or comparison gadgets. See
++[`docs/upstream-comparison.md`](docs/upstream-comparison.md) for what gnark
++already documents and tests, and the narrower value this paired fixture adds.
+diff --git a/proofplay/gnark-hint-safety-demo/circuits.go b/proofplay/gnark-hint-safety-demo/circuits.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..3241008e14fd3fc2a8d8dd5d0a973d72e6561050
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/circuits.go
+@@ -0,0 +1,55 @@
++package hintsafetydemo
++
++import (
++	"math/big"
++
++	"github.com/consensys/gnark/frontend"
++	"github.com/consensys/gnark/std/math/cmp"
++)
++
++const valueBits = 8
++
++// VulnerableCircuit demonstrates an incomplete hint-output check. N and D are
++// public; Q and R are private variables produced by QuotientRemainderHint.
++type VulnerableCircuit struct {
++	N frontend.Variable `gnark:",public"`
++	D frontend.Variable `gnark:",public"`
++}
++
++func constrainDivision(api frontend.API, n, d frontend.Variable, enforceCanonicalRemainder bool) error {
++	qr, err := api.Compiler().NewHint(QuotientRemainderHint, 2, n, d)
++	if err != nil {
++		return err
++	}
++	q, r := qr[0], qr[1]
++
++	// Every value is an unsigned 8-bit integer. Thus q*d+r <= 255*255+255
++	// = 65,280, far below BN254's scalar-field modulus, so the equality cannot
++	// hold merely by wrapping around the field.
++	api.ToBinary(n, valueBits)
++	api.ToBinary(d, valueBits)
++	api.ToBinary(q, valueBits)
++	api.ToBinary(r, valueBits)
++	api.AssertIsDifferent(d, 0)
++	api.AssertIsEqual(n, api.Add(api.Mul(q, d), r))
++
++	if enforceCanonicalRemainder {
++		// Since r and d are in [0,255], |r-d| <= 255.
++		cmp.NewBoundedComparator(api, big.NewInt(255), false).AssertIsLess(r, d)
++	}
++	return nil
++}
++
++func (c *VulnerableCircuit) Define(api frontend.API) error {
++	return constrainDivision(api, c.N, c.D, false) // deliberately omits r < d
++}
++
++// CorrectedCircuit is identical except that it enforces the missing r < d rule.
++type CorrectedCircuit struct {
++	N frontend.Variable `gnark:",public"`
++	D frontend.Variable `gnark:",public"`
++}
++
++func (c *CorrectedCircuit) Define(api frontend.API) error {
++	return constrainDivision(api, c.N, c.D, true)
++}
+diff --git a/proofplay/gnark-hint-safety-demo/circuits_test.go b/proofplay/gnark-hint-safety-demo/circuits_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..eae3315f8e65d6deeaeb4735e73026da6762b480
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/circuits_test.go
+@@ -0,0 +1,122 @@
++package hintsafetydemo
++
++import (
++	"math/big"
++	"testing"
++
++	"github.com/consensys/gnark-crypto/ecc"
++	"github.com/consensys/gnark/constraint"
++	"github.com/consensys/gnark/constraint/solver"
++	"github.com/consensys/gnark/frontend"
++	"github.com/consensys/gnark/frontend/cs/r1cs"
++)
++
++func compileCircuit(t *testing.T, circuit frontend.Circuit) constraint.ConstraintSystem {
++	t.Helper()
++	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
++	if err != nil {
++		t.Fatalf("compile circuit: %v", err)
++	}
++	return ccs
++}
++
++func solve(t *testing.T, ccs constraint.ConstraintSystem, assignment frontend.Circuit, opts ...solver.Option) error {
++	t.Helper()
++	witness, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
++	if err != nil {
++		t.Fatalf("build witness: %v", err)
++	}
++	return ccs.IsSolved(witness, opts...)
++}
++
++func TestRequiredHintSafetyMatrix(t *testing.T) {
++	vulnerable := compileCircuit(t, &VulnerableCircuit{})
++	corrected := compileCircuit(t, &CorrectedCircuit{})
++	validVulnerable := &VulnerableCircuit{N: 17, D: 5}
++	validCorrected := &CorrectedCircuit{N: 17, D: 5}
++	override := solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), InvalidQuotientRemainderHint)
++
++	t.Run("A vulnerable accepts valid output", func(t *testing.T) {
++		if err := solve(t, vulnerable, validVulnerable, solver.WithHints(QuotientRemainderHint)); err != nil {
++			t.Fatalf("valid output rejected: %v", err)
++		}
++	})
++	t.Run("B corrected accepts valid output", func(t *testing.T) {
++		if err := solve(t, corrected, validCorrected, solver.WithHints(QuotientRemainderHint)); err != nil {
++			t.Fatalf("valid output rejected: %v", err)
++		}
++	})
++	t.Run("C vulnerable accepts invalid output", func(t *testing.T) {
++		outputs := []*big.Int{new(big.Int), new(big.Int)}
++		if err := InvalidQuotientRemainderHint(nil, []*big.Int{big.NewInt(17), big.NewInt(5)}, outputs); err != nil {
++			t.Fatal(err)
++		}
++		reconstructed := new(big.Int).Add(new(big.Int).Mul(outputs[0], big.NewInt(5)), outputs[1])
++		if reconstructed.Cmp(big.NewInt(17)) != 0 {
++			t.Fatalf("test fixture does not preserve reconstruction: got %s", reconstructed)
++		}
++		if outputs[1].Cmp(big.NewInt(5)) < 0 {
++			t.Fatalf("test fixture is not adversarial: remainder %s is less than divisor 5", outputs[1])
++		}
++		if err := solve(t, vulnerable, validVulnerable, override); err != nil {
++			t.Fatalf("underconstrained circuit rejected reconstruction-preserving output: %v", err)
++		}
++	})
++	t.Run("D corrected rejects identical invalid output", func(t *testing.T) {
++		if err := solve(t, corrected, validCorrected, override); err == nil {
++			t.Fatal("corrected circuit accepted r=7 with d=5; expected r<d constraint failure")
++		}
++	})
++}
++
++func TestBoundaryControls(t *testing.T) {
++	cases := []struct {
++		name string
++		n, d int
++	}{
++		{name: "exact division", n: 20, d: 5},
++		{name: "n less than d", n: 3, d: 5},
++		{name: "lower in-range", n: 0, d: 1},
++		{name: "upper in-range exact", n: 255, d: 255},
++		{name: "largest quotient", n: 255, d: 1},
++	}
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			fixtures := []struct {
++				name       string
++				circuit    frontend.Circuit
++				assignment frontend.Circuit
++			}{
++				{name: "vulnerable", circuit: &VulnerableCircuit{}, assignment: &VulnerableCircuit{N: tc.n, D: tc.d}},
++				{name: "corrected", circuit: &CorrectedCircuit{}, assignment: &CorrectedCircuit{N: tc.n, D: tc.d}},
++			}
++			for _, fixture := range fixtures {
++				t.Run(fixture.name, func(t *testing.T) {
++					ccs := compileCircuit(t, fixture.circuit)
++					if err := solve(t, ccs, fixture.assignment, solver.WithHints(QuotientRemainderHint)); err != nil {
++						t.Fatalf("n=%d d=%d rejected: %v", tc.n, tc.d, err)
++					}
++				})
++			}
++		})
++	}
++}
++
++func TestZeroDivisorRejected(t *testing.T) {
++	fixtures := []struct {
++		name       string
++		circuit    frontend.Circuit
++		assignment frontend.Circuit
++	}{
++		{name: "vulnerable", circuit: &VulnerableCircuit{}, assignment: &VulnerableCircuit{N: 17, D: 0}},
++		{name: "corrected", circuit: &CorrectedCircuit{}, assignment: &CorrectedCircuit{N: 17, D: 0}},
++	}
++	for _, fixture := range fixtures {
++		t.Run(fixture.name, func(t *testing.T) {
++			ccs := compileCircuit(t, fixture.circuit)
++			if err := solve(t, ccs, fixture.assignment, solver.WithHints(QuotientRemainderHint)); err == nil {
++				t.Fatal("zero divisor unexpectedly satisfied the circuit")
++			}
++		})
++	}
++}
+diff --git a/proofplay/gnark-hint-safety-demo/docs/upstream-comparison.md b/proofplay/gnark-hint-safety-demo/docs/upstream-comparison.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..1d518deb329ff3d91f699df56fbe7b533e3984a2
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/docs/upstream-comparison.md
+@@ -0,0 +1,59 @@
++# Upstream comparison
++
++Research was performed against gnark **v0.16.3**, commit
++[`cfc7b2f907cc4212ec152077e022c6d0b4805759`](https://github.com/Consensys/gnark/tree/cfc7b2f907cc4212ec152077e022c6d0b4805759).
++URLs below are commit-pinned so that later API changes do not silently change
++the basis of this fixture.
++
++## What already exists
++
++- gnark's [`solver.Hint` documentation](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/constraint/solver/hint.go#L11-L94)
++  explicitly says hint results are unconstrained by default and the circuit
++  developer must add the necessary constraints. Its factorization example also
++  explains that a constraint can be true while remaining semantically too weak.
++- [`solver.OverrideHint`](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/constraint/solver/options.go#L42-L48)
++  is the supported solver option used here to replace the function associated
++  with exactly one hint ID.
++- The regression tests for
++  [issue 836](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/internal/regression_tests/issue_836_test.go#L80-L171)
++  already substitute a malicious internal `nBits` hint to ensure comparison
++  gadgets reject problematic decompositions. Other focused tests similarly use
++  `OverrideHint`, including an
++  [emulated-field test](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/std/math/emulated/smallfield_test.go#L601-L616)
++  and a
++  [G2 preimage test](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/std/algebra/emulated/sw_bn254/g2_test.go#L329-L341).
++- gnark has a complete
++  [hint plus Groth16 example](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/std/math/emulated/field_hint_example_test.go#L24-L110)
++  that constrains the hint result and passes enabled hints into proving.
++
++These sources already establish both the safety rule and the replacement API.
++This repository does not claim either as new.
++
++## What this fixture adds
++
++The contribution is presentation and paired regression value rather than a new
++library technique:
++
++1. one small quotient/remainder relation with an explicit developer-facing
++   specification;
++2. vulnerable and corrected circuits that differ only in `r < d`;
++3. the same public inputs and the same replacement output in both negative
++   cases;
++4. an ordinary-Go check showing that the replacement really violates the stated
++   property;
++5. both solver-level outcomes and end-to-end Groth16/BN254 proof outcomes; and
++6. fixed integer bounds with an explicit no-wraparound argument.
++
++Unlike the upstream issue-836 regression, this intentionally shows a user
++circuit that *accepts* semantically bad advice before the missing constraint is
++added. Unlike the upstream hint example, it places the incomplete and complete
++versions side by side and retains reproducibility evidence.
++
++## Remaining uncertainty
++
++Maintainers may reasonably prefer this as documentation rather than an upstream
++regression test: gnark already documents that hints are unconstrained and tests
++malicious replacements in real gadgets. The synthetic vulnerable half does not
++pin a gnark defect. The best next step is therefore a documentation/example
++contribution, subject to maintainer interest; further investigation should come
++before proposing it as a library regression test.
+diff --git a/proofplay/gnark-hint-safety-demo/evidence/README.md b/proofplay/gnark-hint-safety-demo/evidence/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..91ec920ae661f3d1de73a935633b2bf19abd1645
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/evidence/README.md
+@@ -0,0 +1,13 @@
++# Reproduction evidence
++
++This directory retains concise output from the documented run. It is evidence
++of one local execution, not a proof of correctness or a reproducible-build
++attestation.
++
++- `results.json` records environment, versions, commands, exit codes, and the
++  semantic outcomes asserted by named tests.
++- `test-output.txt` is the raw verbose output of the full Go test command.
++
++The output file SHA-256 is recorded only as an integrity convenience. It does
++not prove that the code is sound, that a third party reproduced it, or that the
++result generalizes beyond this fixture.
+diff --git a/proofplay/gnark-hint-safety-demo/evidence/results.json b/proofplay/gnark-hint-safety-demo/evidence/results.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ccb5820c94c0b0821e51641f21db63f0966feffe
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/evidence/results.json
+@@ -0,0 +1,45 @@
++{
++  "schema_version": 1,
++  "observed_at_utc": "2026-09-21",
++  "repository_base_revision": "e5b0843bd2cf18fc9921e5e74dd4953717f57d73",
++  "working_tree_identifier": "base revision plus the gnark-hint-safety-demo files in this contribution",
++  "upstream_gnark_revision": "cfc7b2f907cc4212ec152077e022c6d0b4805759",
++  "environment": {
++    "os": "Linux",
++    "kernel": "6.18.44",
++    "architecture": "x86_64",
++    "go": "go1.25.7 linux/amd64",
++    "gnark": "v0.16.3",
++    "gnark_crypto": "v0.21.0",
++    "backend": "Groth16",
++    "curve": "BN254"
++  },
++  "commands": [
++    {
++      "command": "GOTOOLCHAIN=go1.25.7 go mod download",
++      "exit_code": 0
++    },
++    {
++      "command": "GOTOOLCHAIN=go1.25.7 go test -count=1 -v ./...",
++      "exit_code": 0
++    }
++  ],
++  "outcomes": {
++    "vulnerable_valid_solver": "accepted",
++    "corrected_valid_solver": "accepted",
++    "vulnerable_invalid_solver": "accepted",
++    "invalid_output_property_check": "q=2,r=7 reconstructs n=17 for d=5 and violates r<d",
++    "corrected_invalid_solver": "rejected",
++    "vulnerable_invalid_real_proof": "generated and verified",
++    "corrected_valid_real_proof": "generated and verified",
++    "corrected_invalid_real_proof": "proving rejected the unsatisfied witness",
++    "boundary_controls": "passed",
++    "zero_divisor": "rejected by both circuits"
++  },
++  "real_proof_generation_and_verification_ran": true,
++  "skipped_or_degraded_steps": [],
++  "retained_output": {
++    "path": "evidence/test-output.txt",
++    "sha256": "087e64c819e55dde638ab43a2e0a0e9049565cd20b4e932b33574306029f56d9"
++  }
++}
+diff --git a/proofplay/gnark-hint-safety-demo/evidence/test-output.txt b/proofplay/gnark-hint-safety-demo/evidence/test-output.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c0907d99462efebb839089dfd4e7ac262e6f2fc
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/evidence/test-output.txt
+@@ -0,0 +1,56 @@
++=== RUN   TestRequiredHintSafetyMatrix
++=== RUN   TestRequiredHintSafetyMatrix/A_vulnerable_accepts_valid_output
++=== RUN   TestRequiredHintSafetyMatrix/B_corrected_accepts_valid_output
++=== RUN   TestRequiredHintSafetyMatrix/C_vulnerable_accepts_invalid_output
++=== RUN   TestRequiredHintSafetyMatrix/D_corrected_rejects_identical_invalid_output
++--- PASS: TestRequiredHintSafetyMatrix (0.01s)
++    --- PASS: TestRequiredHintSafetyMatrix/A_vulnerable_accepts_valid_output (0.00s)
++    --- PASS: TestRequiredHintSafetyMatrix/B_corrected_accepts_valid_output (0.00s)
++    --- PASS: TestRequiredHintSafetyMatrix/C_vulnerable_accepts_invalid_output (0.00s)
++    --- PASS: TestRequiredHintSafetyMatrix/D_corrected_rejects_identical_invalid_output (0.00s)
++=== RUN   TestBoundaryControls
++=== RUN   TestBoundaryControls/exact_division
++=== RUN   TestBoundaryControls/exact_division/vulnerable
++=== RUN   TestBoundaryControls/exact_division/corrected
++=== RUN   TestBoundaryControls/n_less_than_d
++=== RUN   TestBoundaryControls/n_less_than_d/vulnerable
++=== RUN   TestBoundaryControls/n_less_than_d/corrected
++=== RUN   TestBoundaryControls/lower_in-range
++=== RUN   TestBoundaryControls/lower_in-range/vulnerable
++=== RUN   TestBoundaryControls/lower_in-range/corrected
++=== RUN   TestBoundaryControls/upper_in-range_exact
++=== RUN   TestBoundaryControls/upper_in-range_exact/vulnerable
++=== RUN   TestBoundaryControls/upper_in-range_exact/corrected
++=== RUN   TestBoundaryControls/largest_quotient
++=== RUN   TestBoundaryControls/largest_quotient/vulnerable
++=== RUN   TestBoundaryControls/largest_quotient/corrected
++--- PASS: TestBoundaryControls (0.02s)
++    --- PASS: TestBoundaryControls/exact_division (0.00s)
++        --- PASS: TestBoundaryControls/exact_division/vulnerable (0.00s)
++        --- PASS: TestBoundaryControls/exact_division/corrected (0.00s)
++    --- PASS: TestBoundaryControls/n_less_than_d (0.00s)
++        --- PASS: TestBoundaryControls/n_less_than_d/vulnerable (0.00s)
++        --- PASS: TestBoundaryControls/n_less_than_d/corrected (0.00s)
++    --- PASS: TestBoundaryControls/lower_in-range (0.00s)
++        --- PASS: TestBoundaryControls/lower_in-range/vulnerable (0.00s)
++        --- PASS: TestBoundaryControls/lower_in-range/corrected (0.00s)
++    --- PASS: TestBoundaryControls/upper_in-range_exact (0.00s)
++        --- PASS: TestBoundaryControls/upper_in-range_exact/vulnerable (0.00s)
++        --- PASS: TestBoundaryControls/upper_in-range_exact/corrected (0.00s)
++    --- PASS: TestBoundaryControls/largest_quotient (0.00s)
++        --- PASS: TestBoundaryControls/largest_quotient/vulnerable (0.00s)
++        --- PASS: TestBoundaryControls/largest_quotient/corrected (0.00s)
++=== RUN   TestZeroDivisorRejected
++=== RUN   TestZeroDivisorRejected/vulnerable
++=== RUN   TestZeroDivisorRejected/corrected
++--- PASS: TestZeroDivisorRejected (0.00s)
++    --- PASS: TestZeroDivisorRejected/vulnerable (0.00s)
++    --- PASS: TestZeroDivisorRejected/corrected (0.00s)
++=== RUN   TestGroth16VulnerableInvalidHintProofVerifies
++--- PASS: TestGroth16VulnerableInvalidHintProofVerifies (0.04s)
++=== RUN   TestGroth16CorrectedValidHintProofVerifies
++--- PASS: TestGroth16CorrectedValidHintProofVerifies (0.04s)
++=== RUN   TestGroth16CorrectedInvalidHintCannotProve
++--- PASS: TestGroth16CorrectedInvalidHintCannotProve (0.03s)
++PASS
++ok  	github.com/auditinfra/gnark-hint-safety-demo	0.163s
+diff --git a/proofplay/gnark-hint-safety-demo/go.mod b/proofplay/gnark-hint-safety-demo/go.mod
+new file mode 100644
+index 0000000000000000000000000000000000000000..f0c7c4a04337d068a86b26422c42e06cb44c7977
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/go.mod
+@@ -0,0 +1,23 @@
++module github.com/auditinfra/gnark-hint-safety-demo
++
++go 1.25.7
++
++require (
++	github.com/consensys/gnark v0.16.3
++	github.com/consensys/gnark-crypto v0.21.0
++)
++
++require (
++	github.com/bits-and-blooms/bitset v1.24.6 // indirect
++	github.com/blang/semver/v4 v4.0.0 // indirect
++	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
++	github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3 // indirect
++	github.com/mattn/go-colorable v0.1.15 // indirect
++	github.com/mattn/go-isatty v0.0.24 // indirect
++	github.com/ronanh/intcomp v1.1.1 // indirect
++	github.com/rs/zerolog v1.35.1 // indirect
++	github.com/x448/float16 v0.8.4 // indirect
++	golang.org/x/crypto v0.54.0 // indirect
++	golang.org/x/sync v0.22.0 // indirect
++	golang.org/x/sys v0.47.0 // indirect
++)
+diff --git a/proofplay/gnark-hint-safety-demo/go.sum b/proofplay/gnark-hint-safety-demo/go.sum
+new file mode 100644
+index 0000000000000000000000000000000000000000..bdd3812873418a3212089ac11ba2dc684c2217ef
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/go.sum
+@@ -0,0 +1,42 @@
++github.com/bits-and-blooms/bitset v1.24.6 h1:qcrftZUVBIwfs+m+nhoCBAPT+ZPZZjti8SbHbDQQkZ4=
++github.com/bits-and-blooms/bitset v1.24.6/go.mod h1:7hO7Gc7Pp1vODcmWvKMRA9BNmbv6a/7QIWpPxHddWR8=
++github.com/blang/semver/v4 v4.0.0 h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM=
++github.com/blang/semver/v4 v4.0.0/go.mod h1:IbckMUScFkM3pff0VJDNKRiT6TG/YpiHIM2yvyW5YoQ=
++github.com/consensys/gnark v0.16.3 h1:S7BtIQSX2WLHV2857HrLmrQ5xIl0ZRL8kT6rcLn8gow=
++github.com/consensys/gnark v0.16.3/go.mod h1:ChMGCGi8KztMtuQXgxprorLVJY29FPnKkjN19RXB/KU=
++github.com/consensys/gnark-crypto v0.21.0 h1:FDHibVIk4T5LkOKAkiN38g8gEvOxNcM10mLHOqvFTD0=
++github.com/consensys/gnark-crypto v0.21.0/go.mod h1:hdTjDNjdkYJ1oVuc8emh9XEhfM1SbyZhJigFqItiOLk=
++github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
++github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
++github.com/fxamacker/cbor/v2 v2.9.2 h1:X4Ksno9+x3cz0TZv69ec1hxP/+tymuR8PXQJyDwfh78=
++github.com/fxamacker/cbor/v2 v2.9.2/go.mod h1:vM4b+DJCtHn+zz7h3FFp/hDAI9WNWCsZj23V5ytsSxQ=
++github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
++github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
++github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3 h1:LMLX+LgTNWpfvCBdFebv6EsYotImrt/Ppc5cXIriCSo=
++github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3/go.mod h1:jl5iWTm0/hd5PjEYEOuwAJ57L/CibdZfrqZ5XA5GrCk=
++github.com/leanovate/gopter v0.2.11 h1:vRjThO1EKPb/1NsDXuDrzldR28RLkBflWYcU9CvzWu4=
++github.com/leanovate/gopter v0.2.11/go.mod h1:aK3tzZP/C+p1m3SPRE4SYZFGP7jjkuSI4f7Xvpt0S9c=
++github.com/mattn/go-colorable v0.1.15 h1:+u9SLTRGnXv73cEsnsmoZBom+dMU88B2M0aDcWy0/jY=
++github.com/mattn/go-colorable v0.1.15/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
++github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=
++github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
++github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
++github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
++github.com/ronanh/intcomp v1.1.1 h1:+1bGV/wEBiHI0FvzS7RHgzqOpfbBJzLIxkqMJ9e6yxY=
++github.com/ronanh/intcomp v1.1.1/go.mod h1:7FOLy3P3Zj3er/kVrU/pl+Ql7JFZj7bwliMGketo0IU=
++github.com/rs/zerolog v1.35.1 h1:m7xQeoiLIiV0BCEY4Hs+j2NG4Gp2o2KPKmhnnLiazKI=
++github.com/rs/zerolog v1.35.1/go.mod h1:EjML9kdfa/RMA7h/6z6pYmq1ykOuA8/mjWaEvGI+jcw=
++github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
++github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
++github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
++github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
++golang.org/x/crypto v0.54.0 h1:YLIA59K4fiNzHzjnZt2tUJQjQtUWfWbeHBqKtk3eScw=
++golang.org/x/crypto v0.54.0/go.mod h1:KWL8ny2AZdGR2cWmzeHrp2azQPGogOv+HeQaVEXC2dk=
++golang.org/x/sync v0.22.0 h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=
++golang.org/x/sync v0.22.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=
++golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=
++golang.org/x/sys v0.47.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
++gopkg.in/yaml.v2 v2.4.0 h1:D8xgwECY7CYvx+Y2n4sBz93Jn9JRvxdiyyo8CTfuKaY=
++gopkg.in/yaml.v2 v2.4.0/go.mod h1:RDklbk79AGWmwhnvt/jBztapEOGDOx6ZbXqjP6csGnQ=
++gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
++gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+diff --git a/proofplay/gnark-hint-safety-demo/hints.go b/proofplay/gnark-hint-safety-demo/hints.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..1d2c9a1215bc0763a91429c7d7b5128611615757
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/hints.go
+@@ -0,0 +1,33 @@
++package hintsafetydemo
++
++import (
++	"fmt"
++	"math/big"
++)
++
++// QuotientRemainderHint computes Euclidean quotient and remainder as witness
++// values. Its result is advice only: circuits must constrain both outputs.
++func QuotientRemainderHint(_ *big.Int, inputs, outputs []*big.Int) error {
++	if len(inputs) != 2 || len(outputs) != 2 {
++		return fmt.Errorf("quotient/remainder hint expects 2 inputs and 2 outputs")
++	}
++	if inputs[1].Sign() == 0 {
++		return fmt.Errorf("division by zero")
++	}
++	outputs[0].QuoRem(inputs[0], inputs[1], outputs[1])
++	return nil
++}
++
++// InvalidQuotientRemainderHint is test-only adversarial advice for n=17,d=5.
++// It preserves reconstruction (2*5+7=17) but violates the Euclidean r<d rule.
++func InvalidQuotientRemainderHint(_ *big.Int, inputs, outputs []*big.Int) error {
++	if len(inputs) != 2 || len(outputs) != 2 {
++		return fmt.Errorf("quotient/remainder hint expects 2 inputs and 2 outputs")
++	}
++	if inputs[0].Cmp(big.NewInt(17)) != 0 || inputs[1].Cmp(big.NewInt(5)) != 0 {
++		return fmt.Errorf("adversarial hint only supports n=17,d=5")
++	}
++	outputs[0].SetUint64(2)
++	outputs[1].SetUint64(7)
++	return nil
++}
+diff --git a/proofplay/gnark-hint-safety-demo/proof_test.go b/proofplay/gnark-hint-safety-demo/proof_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..4d58b00d48badc8a49fbadb122e5feba04c8301c
+--- /dev/null
++++ b/proofplay/gnark-hint-safety-demo/proof_test.go
+@@ -0,0 +1,67 @@
++package hintsafetydemo
++
++import (
++	"testing"
++
++	"github.com/consensys/gnark-crypto/ecc"
++	"github.com/consensys/gnark/backend"
++	"github.com/consensys/gnark/backend/groth16"
++	"github.com/consensys/gnark/constraint/solver"
++	"github.com/consensys/gnark/frontend"
++	"github.com/consensys/gnark/frontend/cs/r1cs"
++)
++
++func proveAndVerify(t *testing.T, circuit, assignment frontend.Circuit, opts ...solver.Option) {
++	t.Helper()
++	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
++	if err != nil {
++		t.Fatalf("compile: %v", err)
++	}
++	pk, vk, err := groth16.Setup(ccs)
++	if err != nil {
++		t.Fatalf("setup: %v", err)
++	}
++	fullWitness, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
++	if err != nil {
++		t.Fatalf("full witness: %v", err)
++	}
++	publicWitness, err := fullWitness.Public()
++	if err != nil {
++		t.Fatalf("public witness: %v", err)
++	}
++	proof, err := groth16.Prove(ccs, pk, fullWitness, backend.WithSolverOptions(opts...))
++	if err != nil {
++		t.Fatalf("prove: %v", err)
++	}
++	if err := groth16.Verify(proof, vk, publicWitness); err != nil {
++		t.Fatalf("verify: %v", err)
++	}
++}
++
++func TestGroth16VulnerableInvalidHintProofVerifies(t *testing.T) {
++	override := solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), InvalidQuotientRemainderHint)
++	proveAndVerify(t, &VulnerableCircuit{}, &VulnerableCircuit{N: 17, D: 5}, override)
++}
++
++func TestGroth16CorrectedValidHintProofVerifies(t *testing.T) {
++	proveAndVerify(t, &CorrectedCircuit{}, &CorrectedCircuit{N: 17, D: 5}, solver.WithHints(QuotientRemainderHint))
++}
++
++func TestGroth16CorrectedInvalidHintCannotProve(t *testing.T) {
++	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &CorrectedCircuit{})
++	if err != nil {
++		t.Fatalf("compile: %v", err)
++	}
++	pk, _, err := groth16.Setup(ccs)
++	if err != nil {
++		t.Fatalf("setup: %v", err)
++	}
++	witness, err := frontend.NewWitness(&CorrectedCircuit{N: 17, D: 5}, ecc.BN254.ScalarField())
++	if err != nil {
++		t.Fatalf("witness: %v", err)
++	}
++	override := solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), InvalidQuotientRemainderHint)
++	if _, err := groth16.Prove(ccs, pk, witness, backend.WithSolverOptions(override)); err == nil {
++		t.Fatal("corrected circuit produced a proof with r=7 and d=5")
++	}
++}
