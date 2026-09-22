@@ -8,8 +8,10 @@ import (
 	"testing"
 )
 
+const repoRoot = "../.."
+
 func TestFixtureInventory(t *testing.T) {
-	r, err := scan("../../..", []string{"./cmd/gnark-hint-scan/testdata/fixture"})
+	r, err := scan(repoRoot, []string{"./cmd/gnark-hint-scan/testdata/fixture"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +57,7 @@ func value(v unknownInt) int {
 }
 
 func TestDemoIntegration(t *testing.T) {
-	r, err := scan("../../..", []string{"."})
+	r, err := scan(repoRoot, []string{"."})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +71,7 @@ func TestDemoIntegration(t *testing.T) {
 
 func TestNoHintsText(t *testing.T) {
 	var out, stderr bytes.Buffer
-	if code := run([]string{"scan", "./cmd/gnark-hint-scan/testdata/nohint"}, &out, &stderr, "../../.."); code != 0 {
+	if code := run([]string{"scan", "./cmd/gnark-hint-scan/testdata/nohint"}, &out, &stderr, repoRoot); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
 	if !strings.Contains(out.String(), "No direct gnark hint calls found in the scanned packages.") || !strings.Contains(out.String(), "Inventory only:") {
@@ -79,7 +81,7 @@ func TestNoHintsText(t *testing.T) {
 
 func TestPackageLoadingFailure(t *testing.T) {
 	var out, stderr bytes.Buffer
-	if code := run([]string{"scan", "./does-not-exist"}, &out, &stderr, "../../.."); code != 2 {
+	if code := run([]string{"scan", "./does-not-exist"}, &out, &stderr, repoRoot); code != 2 {
 		t.Fatalf("exit %d, want 2", code)
 	}
 }
@@ -87,11 +89,11 @@ func TestPackageLoadingFailure(t *testing.T) {
 func TestJSONDeterministicAndValid(t *testing.T) {
 	args := []string{"scan", "--format", "json", "./cmd/gnark-hint-scan/testdata/fixture"}
 	var first, second, stderr bytes.Buffer
-	if code := run(args, &first, &stderr, "../../.."); code != 0 {
+	if code := run(args, &first, &stderr, repoRoot); code != 0 {
 		t.Fatalf("first exit %d: %s", code, stderr.String())
 	}
 	stderr.Reset()
-	if code := run(args, &second, &stderr, "../../.."); code != 0 {
+	if code := run(args, &second, &stderr, repoRoot); code != 0 {
 		t.Fatalf("second exit %d: %s", code, stderr.String())
 	}
 	if !bytes.Equal(first.Bytes(), second.Bytes()) {
@@ -105,8 +107,8 @@ func TestJSONDeterministicAndValid(t *testing.T) {
 		t.Fatalf("incomplete report: %#v", got)
 	}
 	// A second scan also protects deterministic ordering, independent of JSON whitespace.
-	a, _ := scan("../../..", args[3:])
-	b, _ := scan("../../..", args[3:])
+	a, _ := scan(repoRoot, args[3:])
+	b, _ := scan(repoRoot, args[3:])
 	if !reflect.DeepEqual(a, b) {
 		t.Fatal("scan results differ")
 	}
@@ -114,7 +116,7 @@ func TestJSONDeterministicAndValid(t *testing.T) {
 
 func TestInvalidArguments(t *testing.T) {
 	for _, args := range [][]string{nil, {"scan"}, {"scan", "--format", "xml", "."}} {
-		if code := run(args, &bytes.Buffer{}, &bytes.Buffer{}, "../../.."); code != 2 {
+		if code := run(args, &bytes.Buffer{}, &bytes.Buffer{}, repoRoot); code != 2 {
 			t.Errorf("run(%q)=%d", args, code)
 		}
 	}
