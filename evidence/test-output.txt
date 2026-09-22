@@ -24,14 +24,14 @@
 === RUN   TestBoundaryControls/largest_quotient
 === RUN   TestBoundaryControls/largest_quotient/vulnerable
 === RUN   TestBoundaryControls/largest_quotient/corrected
---- PASS: TestBoundaryControls (0.01s)
+--- PASS: TestBoundaryControls (0.04s)
     --- PASS: TestBoundaryControls/exact_division (0.00s)
         --- PASS: TestBoundaryControls/exact_division/vulnerable (0.00s)
         --- PASS: TestBoundaryControls/exact_division/corrected (0.00s)
-    --- PASS: TestBoundaryControls/n_less_than_d (0.00s)
+    --- PASS: TestBoundaryControls/n_less_than_d (0.01s)
         --- PASS: TestBoundaryControls/n_less_than_d/vulnerable (0.00s)
-        --- PASS: TestBoundaryControls/n_less_than_d/corrected (0.00s)
-    --- PASS: TestBoundaryControls/lower_in-range (0.00s)
+        --- PASS: TestBoundaryControls/n_less_than_d/corrected (0.01s)
+    --- PASS: TestBoundaryControls/lower_in-range (0.02s)
         --- PASS: TestBoundaryControls/lower_in-range/vulnerable (0.00s)
         --- PASS: TestBoundaryControls/lower_in-range/corrected (0.00s)
     --- PASS: TestBoundaryControls/upper_in-range_exact (0.00s)
@@ -59,11 +59,11 @@
 === RUN   TestZeroDivisorRejected
 --- PASS: TestZeroDivisorRejected (0.00s)
 === RUN   TestGroth16VulnerableInvalidHintProofVerifies
---- PASS: TestGroth16VulnerableInvalidHintProofVerifies (0.03s)
+--- PASS: TestGroth16VulnerableInvalidHintProofVerifies (0.04s)
 === RUN   TestGroth16CorrectedValidHintProofVerifies
---- PASS: TestGroth16CorrectedValidHintProofVerifies (0.03s)
+--- PASS: TestGroth16CorrectedValidHintProofVerifies (0.06s)
 === RUN   TestGroth16CorrectedInvalidHintCannotProve
---- PASS: TestGroth16CorrectedInvalidHintCannotProve (0.02s)
+--- PASS: TestGroth16CorrectedInvalidHintCannotProve (0.03s)
 === RUN   FuzzQuotientRemainderHint
 === RUN   FuzzQuotientRemainderHint/seed#0
 === RUN   FuzzQuotientRemainderHint/seed#1
@@ -77,5 +77,10 @@
     --- PASS: FuzzQuotientRemainderHint/seed#3 (0.00s)
     --- PASS: FuzzQuotientRemainderHint/seed#4 (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety	0.141s
-?   	github.com/auditinfra-io/gnark-safety/cmd/reproduce	[no test files]
+ok  	github.com/auditinfra-io/gnark-safety	0.227s
+=== RUN   TestDiscoverSourceFilesIncludesUntrackedGoFiles
+--- PASS: TestDiscoverSourceFilesIncludesUntrackedGoFiles (0.06s)
+=== RUN   TestPublishEvidenceReplacesBothArtifacts
+--- PASS: TestPublishEvidenceReplacesBothArtifacts (0.00s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.075s
