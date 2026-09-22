@@ -1,4 +1,4 @@
-package hintsafetydemo
+package gnarksafety
 
 import (
 	"math/big"

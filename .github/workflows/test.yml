@@ -1,4 +1,4 @@
-name: test
+name: quality
 
 on:
   push:
@@ -9,11 +9,40 @@ permissions:
 
 jobs:
   test:
+    strategy:
+      matrix:
+        go: ["1.25.7", "stable"]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@c0137caad775660c0844396c52da96e560aba63d # v6.0.0
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -count=1 -race -coverprofile=coverage.out ./...
+
+  analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@c0137caad775660c0844396c52da96e560aba63d # v6.0.0
         with:
           go-version-file: go.mod
           cache: true
-      - run: go test -count=1 -v ./...
+      - name: Staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.6.1 ./...
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@c0137caad775660c0844396c52da96e560aba63d # v6.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -run '^$' -fuzz '^FuzzQuotientRemainderHint$' -fuzztime 30s
