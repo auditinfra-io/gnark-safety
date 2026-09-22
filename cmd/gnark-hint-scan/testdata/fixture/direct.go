@@ -32,6 +32,24 @@ func expanded(api frontend.API, inputs []frontend.Variable) {
 	api.Compiler().NewHint(knownHint, 1, inputs...)
 }
 
+func methodExpression(api frontend.API, input frontend.Variable) {
+	frontend.Compiler.NewHint(api.Compiler(), knownHint, 2, input)
+}
+
+func genericHint[T any](_ *big.Int, _ []*big.Int, _ []*big.Int) error { return nil }
+
+func instantiated(api frontend.API) {
+	api.Compiler().NewHint(genericHint[int], 1)
+}
+
+type hintHandler struct{}
+
+func (hintHandler) Compute(_ *big.Int, _ []*big.Int, _ []*big.Int) error { return nil }
+
+func methodValue(api frontend.API, handler hintHandler) {
+	api.Compiler().NewHint(handler.Compute, 1)
+}
+
 type unrelated struct{}
 
 func (unrelated) NewHint(any, int, ...any) {}

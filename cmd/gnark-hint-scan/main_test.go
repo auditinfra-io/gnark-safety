@@ -13,10 +13,10 @@ func TestFixtureInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := len(r.Hints), 7; got != want {
+	if got, want := len(r.Hints), 10; got != want {
 		t.Fatalf("got %d hints, want %d: %#v", got, want, r.Hints)
 	}
-	var unknownHint, unknownOutput, unknownInputs bool
+	var unknownHint, unknownOutput, unknownInputs, methodExpression, generic, methodValue bool
 	for _, h := range r.Hints {
 		if h.Hint == "unknown" {
 			unknownHint = true
@@ -30,10 +30,28 @@ func TestFixtureInventory(t *testing.T) {
 		if strings.Contains(h.Function, "ignored") {
 			t.Error("unrelated NewHint was reported")
 		}
+		switch h.Function {
+		case "methodExpression":
+			methodExpression = h.Hint == "github.com/auditinfra-io/gnark-safety/cmd/gnark-hint-scan/testdata/fixture.knownHint" && value(h.OutputCount) == 2 && value(h.InputCount) == 1
+		case "instantiated":
+			generic = h.Hint == "github.com/auditinfra-io/gnark-safety/cmd/gnark-hint-scan/testdata/fixture.genericHint"
+		case "methodValue":
+			methodValue = h.Hint == "(github.com/auditinfra-io/gnark-safety/cmd/gnark-hint-scan/testdata/fixture.hintHandler).Compute"
+		}
 	}
 	if !unknownHint || !unknownOutput || !unknownInputs {
 		t.Fatalf("missing explicit unknown cases: hint=%v output=%v inputs=%v", unknownHint, unknownOutput, unknownInputs)
 	}
+	if !methodExpression || !generic || !methodValue {
+		t.Fatalf("special call forms not reported correctly: method expression=%v generic=%v method value=%v", methodExpression, generic, methodValue)
+	}
+}
+
+func value(v unknownInt) int {
+	if v.Value == nil {
+		return -1
+	}
+	return *v.Value
 }
 
 func TestDemoIntegration(t *testing.T) {

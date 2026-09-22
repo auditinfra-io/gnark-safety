@@ -175,17 +175,24 @@ func inspectFile(r *report, p *packages.Package, file *ast.File, fset *token.Fil
 		if sel == nil || !isGnarkNewHint(sel.Obj()) {
 			return true
 		}
+		// A method expression (Compiler.NewHint(compiler, ...)) has an explicit
+		// receiver as its first argument. A method value (compiler.NewHint(...))
+		// does not.
+		argOffset := 0
+		if sel.Kind() == types.MethodExpr {
+			argOffset = 1
+		}
 		pos := fset.Position(call.Lparen)
 		path := pos.Filename
 		if rel, err := filepath.Rel(dir, path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			path = rel
 		}
 		h := hintRecord{Package: p.PkgPath, File: filepath.ToSlash(path), Line: pos.Line, Column: pos.Column, Function: enclosing(stack), Hint: "unknown"}
-		if len(call.Args) > 0 {
-			h.Hint = hintIdentity(p.TypesInfo, call.Args[0])
+		if len(call.Args) > argOffset {
+			h.Hint = hintIdentity(p.TypesInfo, call.Args[argOffset])
 		}
-		if len(call.Args) > 1 {
-			if v := p.TypesInfo.Types[call.Args[1]].Value; v != nil && v.Kind() == constant.Int {
+		if len(call.Args) > argOffset+1 {
+			if v := p.TypesInfo.Types[call.Args[argOffset+1]].Value; v != nil && v.Kind() == constant.Int {
 				if x, ok := constant.Int64Val(v); ok && int64(int(x)) == x {
 					n := int(x)
 					h.OutputCount.Value = &n
@@ -193,7 +200,7 @@ func inspectFile(r *report, p *packages.Package, file *ast.File, fset *token.Fil
 			}
 		}
 		if call.Ellipsis == token.NoPos {
-			n := len(call.Args) - 2
+			n := len(call.Args) - argOffset - 2
 			if n < 0 {
 				n = 0
 			}
@@ -221,8 +228,13 @@ func isGnarkNewHint(obj types.Object) bool {
 }
 
 func hintIdentity(info *types.Info, e ast.Expr) string {
-	if par, ok := e.(*ast.ParenExpr); ok {
-		return hintIdentity(info, par.X)
+	switch x := e.(type) {
+	case *ast.ParenExpr:
+		return hintIdentity(info, x.X)
+	case *ast.IndexExpr:
+		return hintIdentity(info, x.X)
+	case *ast.IndexListExpr:
+		return hintIdentity(info, x.X)
 	}
 	var obj types.Object
 	switch x := e.(type) {
@@ -234,6 +246,10 @@ func hintIdentity(info *types.Info, e ast.Expr) string {
 	f, ok := obj.(*types.Func)
 	if !ok || f.Pkg() == nil {
 		return "unknown"
+	}
+	if sig, ok := f.Type().(*types.Signature); ok && sig.Recv() != nil {
+		receiver := types.TypeString(sig.Recv().Type(), func(p *types.Package) string { return p.Path() })
+		return "(" + receiver + ")." + f.Name()
 	}
 	return f.Pkg().Path() + "." + f.Name()
 }
