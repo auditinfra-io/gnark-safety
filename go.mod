@@ -5,6 +5,7 @@ go 1.25.7
 require (
 	github.com/consensys/gnark v0.16.3
 	github.com/consensys/gnark-crypto v0.21.0
+	golang.org/x/tools v0.34.0
 )
 
 require (
