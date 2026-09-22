@@ -45,10 +45,17 @@ dependency versions.
 From the repository root:
 
 ```bash
-git clone https://github.com/auditinfra-io/gnark-hint-safety-demo.git
-cd gnark-hint-safety-demo
+git clone https://github.com/auditinfra-io/gnark-safety.git
+cd gnark-safety
 GOTOOLCHAIN=go1.25.7 go mod download
 GOTOOLCHAIN=go1.25.7 go test -count=1 -v ./...
+```
+
+Regenerate the machine-readable environment, source hashes, and retained test
+output with:
+
+```bash
+GOTOOLCHAIN=go1.25.7 go run ./cmd/reproduce
 ```
 
 To run just the solver matrix or real-proof checks:

@@ -1,4 +1,4 @@
-module github.com/auditinfra-io/gnark-hint-safety-demo
+module github.com/auditinfra-io/gnark-safety
 
 go 1.25.7
 

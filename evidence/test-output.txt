@@ -24,14 +24,14 @@
 === RUN   TestBoundaryControls/largest_quotient
 === RUN   TestBoundaryControls/largest_quotient/vulnerable
 === RUN   TestBoundaryControls/largest_quotient/corrected
---- PASS: TestBoundaryControls (0.02s)
+--- PASS: TestBoundaryControls (0.04s)
     --- PASS: TestBoundaryControls/exact_division (0.00s)
         --- PASS: TestBoundaryControls/exact_division/vulnerable (0.00s)
         --- PASS: TestBoundaryControls/exact_division/corrected (0.00s)
-    --- PASS: TestBoundaryControls/n_less_than_d (0.00s)
+    --- PASS: TestBoundaryControls/n_less_than_d (0.01s)
         --- PASS: TestBoundaryControls/n_less_than_d/vulnerable (0.00s)
-        --- PASS: TestBoundaryControls/n_less_than_d/corrected (0.00s)
-    --- PASS: TestBoundaryControls/lower_in-range (0.00s)
+        --- PASS: TestBoundaryControls/n_less_than_d/corrected (0.01s)
+    --- PASS: TestBoundaryControls/lower_in-range (0.02s)
         --- PASS: TestBoundaryControls/lower_in-range/vulnerable (0.00s)
         --- PASS: TestBoundaryControls/lower_in-range/corrected (0.00s)
     --- PASS: TestBoundaryControls/upper_in-range_exact (0.00s)
@@ -40,13 +40,47 @@
     --- PASS: TestBoundaryControls/largest_quotient (0.00s)
         --- PASS: TestBoundaryControls/largest_quotient/vulnerable (0.00s)
         --- PASS: TestBoundaryControls/largest_quotient/corrected (0.00s)
+=== RUN   TestAdversarialSafetyMatrix
+=== RUN   TestAdversarialSafetyMatrix/remainder_equals_divisor
+=== RUN   TestAdversarialSafetyMatrix/remainder_greater_than_divisor
+=== RUN   TestAdversarialSafetyMatrix/divisor_one
+=== RUN   TestAdversarialSafetyMatrix/quotient_zero
+=== RUN   TestAdversarialSafetyMatrix/n_less_than_d
+=== RUN   TestAdversarialSafetyMatrix/outside_eight_bits
+=== RUN   TestAdversarialSafetyMatrix/negative_output
+--- PASS: TestAdversarialSafetyMatrix (0.01s)
+    --- PASS: TestAdversarialSafetyMatrix/remainder_equals_divisor (0.00s)
+    --- PASS: TestAdversarialSafetyMatrix/remainder_greater_than_divisor (0.00s)
+    --- PASS: TestAdversarialSafetyMatrix/divisor_one (0.00s)
+    --- PASS: TestAdversarialSafetyMatrix/quotient_zero (0.00s)
+    --- PASS: TestAdversarialSafetyMatrix/n_less_than_d (0.00s)
+    --- PASS: TestAdversarialSafetyMatrix/outside_eight_bits (0.00s)
+    --- PASS: TestAdversarialSafetyMatrix/negative_output (0.00s)
 === RUN   TestZeroDivisorRejected
 --- PASS: TestZeroDivisorRejected (0.00s)
 === RUN   TestGroth16VulnerableInvalidHintProofVerifies
 --- PASS: TestGroth16VulnerableInvalidHintProofVerifies (0.04s)
 === RUN   TestGroth16CorrectedValidHintProofVerifies
---- PASS: TestGroth16CorrectedValidHintProofVerifies (0.04s)
+--- PASS: TestGroth16CorrectedValidHintProofVerifies (0.06s)
 === RUN   TestGroth16CorrectedInvalidHintCannotProve
 --- PASS: TestGroth16CorrectedInvalidHintCannotProve (0.03s)
+=== RUN   FuzzQuotientRemainderHint
+=== RUN   FuzzQuotientRemainderHint/seed#0
+=== RUN   FuzzQuotientRemainderHint/seed#1
+=== RUN   FuzzQuotientRemainderHint/seed#2
+=== RUN   FuzzQuotientRemainderHint/seed#3
+=== RUN   FuzzQuotientRemainderHint/seed#4
+--- PASS: FuzzQuotientRemainderHint (0.00s)
+    --- PASS: FuzzQuotientRemainderHint/seed#0 (0.00s)
+    --- PASS: FuzzQuotientRemainderHint/seed#1 (0.00s)
+    --- PASS: FuzzQuotientRemainderHint/seed#2 (0.00s)
+    --- PASS: FuzzQuotientRemainderHint/seed#3 (0.00s)
+    --- PASS: FuzzQuotientRemainderHint/seed#4 (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-hint-safety-demo	0.163s
+ok  	github.com/auditinfra-io/gnark-safety	0.227s
+=== RUN   TestDiscoverSourceFilesIncludesUntrackedGoFiles
+--- PASS: TestDiscoverSourceFilesIncludesUntrackedGoFiles (0.06s)
+=== RUN   TestPublishEvidenceReplacesBothArtifacts
+--- PASS: TestPublishEvidenceReplacesBothArtifacts (0.00s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.075s

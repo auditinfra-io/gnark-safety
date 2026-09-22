@@ -1,45 +1,44 @@
 {
-  "schema_version": 2,
-  "observed_at_utc": "2026-09-21",
-  "source_binding": {
-    "method": "sha256",
-    "files": {
-      "circuits.go": "e4defb409adead2e091fe0b6e23b2b21b374acfd4a72a13179e2b5371af0bea5",
-      "circuits_test.go": "c3e25281bf47ac996394e6aa5c09c629d4653f6bd33e35ea56eae6670a70de94",
-      "hints.go": "387f9f1648d11c1fffbf3251671650ecc52a05802326c6927f4f11850dca8b45",
-      "proof_test.go": "650552f133f8b25f1bbd3b14fc4e7ee84021e514a01465f2a78d4ef8f2c7e827",
-      "go.mod": "dd1c9a986677b9fcdcd4a1190ff538e2289058f718467256a11378a4b2a6648f",
-      "go.sum": "516fc76ba4dc194aad5d1e3bdd95f426cafcc1031104e741145fdad5d75daba1"
-    }
+  "command": {
+    "exit_code": 0,
+    "value": "go test -count=1 -v ./..."
   },
-  "upstream_gnark_revision": "cfc7b2f907cc4212ec152077e022c6d0b4805759",
   "environment": {
-    "os": "Linux",
-    "kernel": "6.18.44",
-    "architecture": "x86_64",
-    "go": "go1.25.7 linux/amd64",
+    "architecture": "amd64",
+    "backend": "Groth16",
+    "curve": "BN254",
     "gnark": "v0.16.3",
     "gnark_crypto": "v0.21.0",
-    "backend": "Groth16",
-    "curve": "BN254"
+    "go": "go1.25.7",
+    "kernel": "6.18.44",
+    "os": "linux"
   },
-  "commands": [
-    {"command": "GOTOOLCHAIN=go1.25.7 go mod download", "exit_code": 0},
-    {"command": "GOTOOLCHAIN=go1.25.7 go test -count=1 -v ./...", "exit_code": 0}
-  ],
-  "outcomes": {
-    "vulnerable_valid_solver": "accepted",
-    "corrected_valid_solver": "accepted",
-    "vulnerable_invalid_solver": "accepted",
-    "invalid_output_property_check": "q=2,r=7 reconstructs n=17 for d=5 and violates r<d",
-    "corrected_invalid_solver": "malicious hint completed successfully; rejected by an unsatisfied constraint",
-    "vulnerable_zero_divisor_solver": "malicious q=0,r=17 hint completed successfully; rejected by an unsatisfied constraint",
-    "vulnerable_invalid_real_proof": "generated and verified",
-    "corrected_valid_real_proof": "generated and verified",
-    "corrected_invalid_real_proof": "malicious hint completed successfully; proving rejected the unsatisfied witness",
-    "boundary_controls": "passed"
+  "generated_at_utc": "2026-09-22T10:04:02Z",
+  "generator": "go run ./cmd/reproduce",
+  "retained_output": {
+    "path": "evidence/test-output.txt",
+    "sha256": "571911fe037edb17671346d77d8862c34e80eaeb1605b69f4dedb1eb3cf02264"
   },
-  "real_proof_generation_and_verification_ran": true,
-  "skipped_or_degraded_steps": [],
-  "retained_output": {"path": "evidence/test-output.txt", "sha256": "3a4ff60fe07196e0bfbce1495f90f7f54786969176853c3db775c0b36620400a"}
+  "schema_version": 3,
+  "semantic_outcomes": {
+    "groth16_corrected_invalid_proof": "proving rejects the witness",
+    "groth16_vulnerable_invalid_proof": "generated and verified",
+    "honest_advice": "both circuits accept",
+    "invalid_range_or_zero_divisor_advice": "both circuits reject",
+    "reconstruction_preserving_noncanonical_advice": "vulnerable accepts; corrected rejects"
+  },
+  "source_binding": {
+    "files": {
+      "adversarial_hints_test.go": "4951dc14478c686c4a942e6f5b1f8f770b7b6a8e1032df1a354ce9f114a48f22",
+      "circuits.go": "55e29d16044caf12ceaca5fcb2d2f47556e0a3c2e278c36ebbb57f99f2aee263",
+      "circuits_test.go": "4bcefd3e741fc55fee0ea5cdc91af3b77a4b95111ab72176998b3eebcdf2da87",
+      "cmd/reproduce/main.go": "08ac24e122337aa83a1152d55bd5b865c92bea80f1b2038f45a9686694bb89fc",
+      "cmd/reproduce/main_test.go": "a932cae0c2fd057ed950e4f85658e8491920c00c6ae90c67101a29c52005c406",
+      "go.mod": "2c245991d24e6a0d5e300492efebca9646f97dc85fcbb895598ca46e6d17918e",
+      "go.sum": "516fc76ba4dc194aad5d1e3bdd95f426cafcc1031104e741145fdad5d75daba1",
+      "hints.go": "23af89b292944cc2fda601d8e11797a48573b92bca6d7ea54efbe32eecb4769c",
+      "proof_test.go": "44fa162ef2c40efd83e16446f3eb65b4cee97f82e82394458ae620dfe25e08e0"
+    },
+    "method": "sha256"
+  }
 }

@@ -1,4 +1,4 @@
-package hintsafetydemo
+package gnarksafety
 
 import (
 	"math/big"
@@ -129,6 +129,72 @@ func TestBoundaryControls(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAdversarialSafetyMatrix(t *testing.T) {
+	cases := []struct {
+		name       string
+		n, d, q, r int64
+		vulnerable bool
+	}{
+		{name: "remainder equals divisor", n: 15, d: 5, q: 2, r: 5, vulnerable: true},
+		{name: "remainder greater than divisor", n: 17, d: 2, q: 7, r: 3, vulnerable: true},
+		{name: "divisor one", n: 255, d: 1, q: 254, r: 1, vulnerable: true},
+		{name: "quotient zero", n: 3, d: 2, q: 0, r: 3, vulnerable: true},
+		{name: "n less than d", n: 3, d: 5, q: 0, r: 3, vulnerable: true},
+		{name: "outside eight bits", n: 255, d: 255, q: -1, r: 510, vulnerable: false},
+		{name: "negative output", n: 0, d: 2, q: -1, r: 2, vulnerable: false},
+	}
+
+	vulnerable := compileCircuit(t, &VulnerableCircuit{})
+	corrected := compileCircuit(t, &CorrectedCircuit{})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hint := fixedHint(tc.n, tc.d, tc.q, tc.r)
+			override := solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), hint)
+			vulnerableErr := solve(t, vulnerable, &VulnerableCircuit{N: tc.n, D: tc.d}, override)
+			if tc.vulnerable && vulnerableErr != nil {
+				t.Fatalf("vulnerable circuit should accept reconstruction-preserving advice: %v", vulnerableErr)
+			}
+			if !tc.vulnerable && vulnerableErr == nil {
+				t.Fatal("vulnerable circuit accepted advice that violates a constrained property")
+			}
+			tracked, completed := successfulHint(hint)
+			override = solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), tracked)
+			err := solve(t, corrected, &CorrectedCircuit{N: tc.n, D: tc.d}, override)
+			if tc.name == "n less than d" {
+				if err != nil {
+					t.Fatalf("canonical quotient-zero advice rejected: %v", err)
+				}
+				return
+			}
+			requireConstraintRejection(t, err, completed)
+		})
+	}
+}
+
+func FuzzQuotientRemainderHint(f *testing.F) {
+	for _, seed := range [][2]uint8{{0, 1}, {17, 5}, {255, 1}, {255, 254}, {255, 255}} {
+		f.Add(seed[0], seed[1])
+	}
+	f.Fuzz(func(t *testing.T, n, d uint8) {
+		inputs := []*big.Int{new(big.Int).SetUint64(uint64(n)), new(big.Int).SetUint64(uint64(d))}
+		outputs := []*big.Int{new(big.Int), new(big.Int)}
+		err := QuotientRemainderHint(nil, inputs, outputs)
+		if d == 0 {
+			if err == nil {
+				t.Fatal("zero divisor unexpectedly succeeded")
+			}
+			return
+		}
+		if err != nil {
+			t.Fatalf("valid inputs failed: %v", err)
+		}
+		reconstructed := new(big.Int).Add(new(big.Int).Mul(outputs[0], inputs[1]), outputs[1])
+		if reconstructed.Cmp(inputs[0]) != 0 || outputs[1].Sign() < 0 || outputs[1].Cmp(inputs[1]) >= 0 {
+			t.Fatalf("invalid q=%s r=%s for n=%d d=%d", outputs[0], outputs[1], n, d)
+		}
+	})
 }
 
 func TestZeroDivisorRejected(t *testing.T) {
