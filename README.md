@@ -65,6 +65,39 @@ GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestRequiredHintSafetyMatrix
 GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestGroth16
 ```
 
+## Hint-call inventory CLI
+
+`gnark-hint-scan` is a small source inventory tool. Build it and scan this
+module from the repository root with:
+
+```bash
+GOTOOLCHAIN=go1.25.7 go build -o ./gnark-hint-scan ./cmd/gnark-hint-scan
+./gnark-hint-scan scan ./...
+./gnark-hint-scan scan --format json ./...
+```
+
+The text inventory for the demonstration includes its single source call site
+(both circuits share this helper):
+
+```text
+circuits.go:20:35: github.com/auditinfra-io/gnark-safety: constrainDivision (hint=github.com/auditinfra-io/gnark-safety.QuotientRemainderHint, outputs=2, inputs=2)
+Inventory only: constraint completeness and circuit soundness were not analyzed.
+```
+
+The scanner examines every function and method in the requested non-test Go
+packages, including helpers. It identifies direct calls to gnark's resolved
+`frontend.Compiler.NewHint` method, so import aliases work and unrelated
+methods with that name are ignored. Dependencies are loaded for type resolution
+but are not themselves reported unless a requested package pattern includes
+them. Package loading invokes the Go toolchain and may resolve dependencies.
+
+This release does not analyze call-graph reachability, trace constraints,
+detect missing constraints, establish circuit soundness, or execute circuit or
+hint code. A dynamically selected hint function, a non-constant output count,
+or variadic input expansion is explicitly shown as `unknown`. JSON output uses
+the versioned `1.0` schema and includes `hints`, `diagnostics`, and
+`limitations`.
+
 ## Observed outcomes
 
 Observed on 2026-09-21 on Linux/x86_64; see [`evidence/`](evidence/README.md).
@@ -88,9 +121,10 @@ claim is made that a proof or key from one circuit works with the other.
 
 ## Scope and limits
 
-This standalone repository contains only the public educational demonstration.
-It includes no scanner detector, proprietary invariant pack, customer finding,
-or general-purpose analysis.
+This standalone repository contains the public educational demonstration and
+the narrow hint-call inventory CLI described above. It includes no constraint
+scanner detector, proprietary invariant pack, customer finding, or
+general-purpose safety analysis.
 
 One deliberately incomplete relation does not establish a general method for
 finding underconstrained circuits or measure any scanner's accuracy. It also
