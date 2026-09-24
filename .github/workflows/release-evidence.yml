@@ -19,6 +19,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Release preflight
+        run: bash scripts/release-preflight.sh "${GITHUB_REF_NAME}"
       - name: Verify modules
         run: go mod verify
       - name: Run tests and retain output
@@ -26,20 +28,26 @@ jobs:
           mkdir -p dist/release-evidence
           set -o pipefail
           go test -count=1 -v ./... | tee dist/release-evidence/test-output.txt
+      - name: Build release binaries
+        run: |
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" bash scripts/build-release.sh "${GITHUB_REF_NAME}" dist/binaries
+          cp dist/binaries/gnark-safety-binaries.sha256 dist/release-evidence/
       - name: Generate evidence
         run: |
           SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" go run -ldflags "-X github.com/auditinfra-io/gnark-safety/internal/version.override=${GITHUB_REF_NAME}" ./cmd/release-evidence --output dist/release-evidence
           cd dist/release-evidence
-          sha256sum analysis.sarif sbom.spdx.json source-hashes.json test-output.txt toolchain.json > SHA256SUMS
+          sha256sum analysis.sarif gnark-safety-binaries.sha256 sbom.spdx.json source-hashes.json test-output.txt toolchain.json > SHA256SUMS
           tar --sort=name --mtime="@0" --owner=0 --group=0 --numeric-owner -czf ../gnark-safety-release-evidence.tar.gz .
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-evidence
-          path: dist/gnark-safety-release-evidence.tar.gz
+          path: |
+            dist/gnark-safety-release-evidence.tar.gz
+            dist/binaries/
           if-no-files-found: error
       - name: Attach to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes
-          gh release upload "${GITHUB_REF_NAME}" dist/gnark-safety-release-evidence.tar.gz --clobber
+          gh release upload "${GITHUB_REF_NAME}" dist/gnark-safety-release-evidence.tar.gz dist/binaries/* --clobber
