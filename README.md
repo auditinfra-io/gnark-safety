@@ -65,6 +65,19 @@ GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestRequiredHintSafetyMatrix
 GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestGroth16
 ```
 
+The differential suite exhaustively checks the hint against the ordinary-Go
+8-bit division specification, then checks a smaller valid/adversarial corpus
+against R1CS and sparse R1CS on BN254 and BLS12-381. The proof matrix generates
+and verifies corrected-circuit proofs with Groth16 and PLONK on both curves:
+
+```bash
+GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run 'TestHintMatchesSpecificationExhaustively|TestCorrectedCircuitMatchesSpecificationMatrix'
+GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestCorrectedProofBackendCurveMatrix
+```
+
+PLONK setup in the proof matrix uses gnark's explicitly test-only `unsafekzg`
+SRS generator. It must not be copied as production trusted-setup guidance.
+
 ## Hint-call inventory CLI
 
 `gnark-hint-scan` is a small source inventory tool. Build it and scan this

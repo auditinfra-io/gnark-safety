@@ -85,6 +85,15 @@ successful early return, and in unconditional versus conditional helper calls.
 
 ### 4. Differential-test specifications and proof systems
 
+**Implemented for the demonstration relation:** an ordinary integer predicate
+is the independent semantic oracle. All 65,280 valid 8-bit `(n,d)` pairs are
+checked against the honest hint, including a noncanonical alternative whenever
+the quotient is positive. A boundary/adversarial corpus then compares the
+corrected circuit with the predicate under both R1CS and sparse R1CS on BN254
+and BLS12-381. Finally, valid end-to-end proofs are generated and verified with
+Groth16 and PLONK on both curves. PLONK's test-only SRS is generated with
+gnark's `unsafekzg` package and is not production ceremony guidance.
+
 For each demonstration relation, keep an ordinary-Go reference predicate and
 compare it with circuit acceptance over bounded exhaustive domains where
 feasible. Then run a smaller corpus through constraint solving and end-to-end
@@ -118,7 +127,7 @@ service suitable for arbitrary repositories.
 A useful next release should build on the mutation registry with: (1) generated
 test skeletons for newly discovered hints, (2) summaries for deeper acyclic
 local call graphs, (3) additional invariant recognizers beyond the initial
-relation shape, (4) a multi-backend proof matrix, and (5) release artifacts
-containing SARIF and an SBOM. Until then,
+relation shape, (4) a larger differential corpus for future relations, and (5)
+release artifacts containing SARIF and an SBOM. Until then,
 reports must continue to state that absence of findings is not proof of circuit
 soundness.
