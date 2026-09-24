@@ -26,9 +26,12 @@ Two defects need fixing first:
 1. **The build was broken on `main`.** `go.mod` pinned `golang.org/x/tools
    v0.34.0`, but gnark v0.16.3 and gnark-crypto v0.21.0 require v0.48.0.
    Minimal version selection picks v0.48.0, which had no `go.sum` entry, so
-   every package importing `go/packages` failed to build. The `quality` workflow
-   is red on `main` and on both open Dependabot PRs. **Fixed on this branch**
-   with `go mod tidy`; `go vet` and the full test suite pass afterwards.
+   every package importing `go/packages` failed to build (reproduced locally).
+   **Fixed on this branch** with `go mod tidy`; `go vet` and the full test
+   suite pass afterwards. CI never reported this: every recent `quality` job,
+   on `main` and on pull requests, failed before a runner was assigned. In a
+   private repository that points at an account-level Actions block, such as
+   exhausted minutes or a spending limit, which only the owner can clear.
 2. **Deprecated `api.NewHint` calls are invisible to the analyzer.** The
    analyzer matches only `frontend.Compiler.NewHint`, but gnark v0.16.3 still
    exposes the deprecated `frontend.API.NewHint` shortcut (`frontend/api.go:146-148`).
@@ -309,6 +312,8 @@ Not applicable to gnark, recorded so nobody ports it by mistake:
 - [ ] Regenerate `evidence/`: 5 of its 9 hashed files, including `go.mod` and
   `go.sum`, no longer match. Add a CI check so stale evidence fails the build
   instead of drifting.
+- [ ] Restore Actions runner allocation for this private repository (owner
+  action: billing or spending limit), then confirm `quality` runs green.
 - [ ] Rebase or close Dependabot PRs #7 and #8 once `main` is green.
 
 **Phase 1 (v0.1.0): productize what exists**
