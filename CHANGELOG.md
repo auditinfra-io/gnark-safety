@@ -8,6 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`GNARK_HINT_OUTPUT_UNUSED` reported 172 false positives on gnark's own
+  `std/` library.** It counted only constant-index reads as uses. Outputs
+  passed on as a sub-slice (`assignE12(e, out[:12])`), copied, read by a
+  dynamic index, or stored into struct fields (`w.C0.B0.A0 = hint[0]`) were
+  all reported as unused, contradicting the rule's documented limit that
+  such uses stay unknown. Any reference to the output slice other than a
+  constant-index read now makes the result unknown (no finding). Only an
+  assignment to a variable declared in the same function is treated as an
+  alias; a store into a field, a slice, or a package variable counts as a
+  use. Found by the new gnark `std/` canary.
 - **Circuits that call the deprecated `api.NewHint` were invisible.** The
   analyzer and `gnark-hint-scan` matched only `frontend.Compiler.NewHint`, but
   gnark v0.16.3 still exports the deprecated `frontend.API.NewHint` shortcut.

@@ -370,3 +370,25 @@ func TestPathBase(t *testing.T) {
 		t.Fatalf("suppressions must match under a rebased path: %#v", r.Suppressed)
 	}
 }
+
+func TestUnusedOutputClassification(t *testing.T) {
+	r, err := Scan("../..", []string{"./internal/analyzer/testdata/unused"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]string{}
+	for _, f := range r.Findings {
+		got[f.Function] = append(got[f.Function], f.Message)
+	}
+	want := map[string][]string{
+		"discarded": {"Hint output 1 is never used after extraction."},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for function, messages := range want {
+		if strings.Join(got[function], "|") != strings.Join(messages, "|") {
+			t.Errorf("%s: got %v, want %v", function, got[function], messages)
+		}
+	}
+}

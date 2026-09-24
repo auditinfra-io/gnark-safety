@@ -368,6 +368,10 @@ func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, fil
 	return nil
 }
 
+// unusedOutputs returns the indexes of hint outputs that are extracted and
+// never used. It answers only when every reference to the output slice is a
+// constant-index read: a slice expression, a dynamic index, or passing the
+// slice along could use any output, so the result is then unknown (nil).
 func unusedOutputs(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, outputCount int) []int {
 	if outputCount <= 0 || outputCount > defaultMaxHints {
 		return nil
@@ -376,42 +380,97 @@ func unusedOutputs(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info
 	if relation.outputs == nil {
 		return nil
 	}
-	aliasInitializers := make(map[*ast.IndexExpr]bool)
+	used := make([]bool, outputCount)
+	aliases := map[types.Object]int{}
+	unknown := false
+	var stack []ast.Node
 	ast.Inspect(body, func(n ast.Node) bool {
-		assignment, ok := n.(*ast.AssignStmt)
-		if !ok {
+		if n == nil {
+			stack = stack[:len(stack)-1]
 			return true
 		}
-		for _, expression := range assignment.Rhs {
-			if index, ok := expression.(*ast.IndexExpr); ok && objectOf(info, index.X) == relation.outputs {
-				aliasInitializers[index] = true
+		stack = append(stack, n)
+		id, ok := n.(*ast.Ident)
+		if !ok || unknown || info.Uses[id] != relation.outputs {
+			return true
+		}
+		// The slice itself (not one element) is referenced: only a constant
+		// index read below it keeps the analysis precise.
+		index, ok := stack[len(stack)-2].(*ast.IndexExpr)
+		output := -1
+		if ok && index.X == id {
+			output = constantIndex(index.Index, info)
+		}
+		if output < 0 || output >= outputCount {
+			unknown = true
+			return true
+		}
+		switch target := aliasTarget(stack[:len(stack)-2], index); {
+		case target == nil:
+			used[output] = true // read in any other context: an argument, a field store, a return
+		case target.Name == "_":
+			// discarded explicitly
+		default:
+			// Only a variable declared in this function is an alias whose
+			// uses can all be seen here; storing into anything else is a use.
+			obj := info.Defs[target]
+			if obj == nil {
+				obj = info.Uses[target]
+			}
+			if obj != nil && obj.Pos() >= body.Pos() && obj.Pos() < body.End() {
+				aliases[obj] = output
+			} else {
+				used[output] = true
 			}
 		}
 		return true
 	})
-	used := make([]bool, outputCount)
+	if unknown {
+		return nil
+	}
 	ast.Inspect(body, func(n ast.Node) bool {
-		switch expression := n.(type) {
-		case *ast.IndexExpr:
-			if !aliasInitializers[expression] && objectOf(info, expression.X) == relation.outputs {
-				if index := constantIndex(expression.Index, info); index >= 0 && index < outputCount {
-					used[index] = true
-				}
-			}
-		case *ast.Ident:
-			if index, ok := relation.aliases[info.Uses[expression]]; ok && index >= 0 && index < outputCount {
-				used[index] = true
+		if id, ok := n.(*ast.Ident); ok {
+			if output, ok := aliases[info.Uses[id]]; ok && info.Uses[id] != nil {
+				used[output] = true
 			}
 		}
 		return true
 	})
 	var result []int
-	for index, isUsed := range used {
+	for output, isUsed := range used {
 		if !isUsed {
-			result = append(result, index)
+			result = append(result, output)
 		}
 	}
 	return result
+}
+
+// aliasTarget returns the plain identifier an indexed output is assigned to
+// (x := out[0], var x = out[0], or x = out[0]), or nil when the element is
+// used in any other way, including a store into a field or another slice.
+func aliasTarget(ancestors []ast.Node, element ast.Expr) *ast.Ident {
+	if len(ancestors) == 0 {
+		return nil
+	}
+	switch parent := ancestors[len(ancestors)-1].(type) {
+	case *ast.AssignStmt:
+		if len(parent.Lhs) != len(parent.Rhs) {
+			return nil
+		}
+		for i, rhs := range parent.Rhs {
+			if rhs == element {
+				id, _ := parent.Lhs[i].(*ast.Ident)
+				return id
+			}
+		}
+	case *ast.ValueSpec:
+		for i, value := range parent.Values {
+			if value == element && i < len(parent.Names) {
+				return parent.Names[i]
+			}
+		}
+	}
+	return nil
 }
 
 var invariantKinds = []string{"participation", "range", "relation", "canonicality", "field_safety"}
