@@ -74,10 +74,15 @@ var specs = []Spec{
 			"different bound do not count as coverage. A comparison inside an `if`/`else`, loop, switch, select, or function " +
 			"literal, or after a successful early return, is not universal coverage because that region may not execute. " +
 			"The finding points to the hint call and records the hint identity, the observed reconstruction, and the missing " +
-			"canonical bound as evidence.",
+			"canonical bound as evidence. When the bound runs only under `if p` (or `!p`, or in the `else` branch) for a bool " +
+			"parameter `p` that the function never reassigns, and every use of the function in its package is a direct call " +
+			"with a constant for `p`, the finding moves to each call that disables the bound, and calls that enable it are not " +
+			"reported. A shared helper therefore reports the vulnerable caller rather than the helper.",
 		Limitations: "One level of unconditional, direct, package-local helper calls is summarized. Deeper, recursive, external, " +
 			"or dynamically dispatched helpers, other aliasing, and alternative comparison gadgets remain unknown. Algebraically " +
-			"neutral wrappers such as `Sub(x, 0)` are not simplified. A quiet result is not evidence of soundness.",
+			"neutral wrappers such as `Sub(x, 0)` are not simplified. Call-site specialization needs every use of the function to " +
+			"be a direct call in the same package with a constant guard; an escaping function value, a runtime argument, a method " +
+			"expression, or callers in other packages keep the finding at the hint. A quiet result is not evidence of soundness.",
 	},
 	{
 		ID:         HintOutputUnused,

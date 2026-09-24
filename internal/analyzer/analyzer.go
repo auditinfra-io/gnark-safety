@@ -217,10 +217,7 @@ func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, fil
 		if !ok || fn.Body == nil {
 			continue
 		}
-		function := fn.Name.Name
-		if fn.Recv != nil && len(fn.Recv.List) > 0 {
-			function = "(" + types.ExprString(fn.Recv.List[0].Type) + ")." + function
-		}
+		function := functionName(fn)
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
 			if inspectErr != nil {
 				return false
@@ -289,8 +286,8 @@ func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, fil
 					r.Findings = append(r.Findings, report.Finding{RuleID: unusedOutputRule, Severity: report.SeverityMedium, Confidence: "high", File: path, Line: pos.Line, Column: pos.Column, Function: function, Message: fmt.Sprintf("Hint output %d is never used after extraction.", index), Evidence: []string{"hint output: " + h.Hint, fmt.Sprintf("unused output index: %d", index)}, Limitations: []string{}})
 				}
 			}
-			if h.OutputCount != nil && *h.OutputCount == 2 && incompleteRelation(fn.Body, call, p.TypesInfo, helpers) {
-				r.Findings = append(r.Findings, report.Finding{RuleID: relationRule, Severity: report.SeverityHigh, Confidence: "high", File: path, Line: pos.Line, Column: pos.Column, Function: function, Message: "Hint outputs participate in reconstruction, but the canonical remainder bound r < d is not constrained.", Evidence: []string{"hint output: " + h.Hint, "constraint: n = q*d + r", "missing constraint: r < d"}, Limitations: []string{}})
+			if h.OutputCount != nil && *h.OutputCount == 2 {
+				r.Findings = append(r.Findings, relationFindings(p, fset, dir, fn, call, h, helpers)...)
 			}
 			return true
 		})
@@ -436,15 +433,6 @@ func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.I
 	return result
 }
 
-// incompleteRelation recognizes the deliberately narrow first rule: a
-// two-output hint whose indexed outputs occur in one n=q*d+r equality, with
-// no unconditional AssertIsLess(r, d). It intentionally declines more complex
-// aliases rather than claiming general soundness.
-func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, helpers map[*types.Func]*ast.FuncDecl) bool {
-	relation := analyzeRelation(body, hintCall, info, helpers)
-	return relation.divisor != nil && !relation.hasBound
-}
-
 type relationAnalysis struct {
 	outputs       types.Object
 	aliases       map[types.Object]int
@@ -514,29 +502,34 @@ func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.In
 		return result
 	}
 	result.divisor = divisor
-	hasBound := false
-	ast.Inspect(body, func(n ast.Node) bool {
+	result.hasBound, result.boundEvidence = boundWithin(body, info, helpers, outputs, aliases, divisor)
+	return result
+}
+
+// boundWithin reports whether scope unconditionally constrains r < d, either
+// directly or through one direct local helper call. "Unconditionally" is
+// relative to scope, so callers can ask about the body of a branch.
+func boundWithin(scope *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, outputs types.Object, aliases map[types.Object]int, divisor ast.Expr) (bool, string) {
+	found, evidence := false, ""
+	ast.Inspect(scope, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || len(call.Args) != 2 || conditionallyExecuted(body, call) {
+		if !ok || len(call.Args) != 2 || conditionallyExecuted(scope, call) {
 			return true
 		}
 		if outputIndex(info, call.Args[0], outputs, aliases) != 1 {
 			return true
 		}
 		if isComparatorCall(info, call, "AssertIsLess") && sameValue(info, call.Args[1], divisor) {
-			hasBound = true
-			result.boundEvidence = "unconditional constraint: r < d"
+			found, evidence = true, "unconditional constraint: r < d"
 		} else if isFrontendCall(info, call, "AssertIsLessOrEqual") && oneLessThan(info, call.Args[1], divisor) {
-			hasBound = true
-			result.boundEvidence = "unconditional equivalent constraint: r <= d-1"
+			found, evidence = true, "unconditional equivalent constraint: r <= d-1"
 		}
 		return true
 	})
-	if !hasBound {
-		hasBound, result.boundEvidence = helperProvidesBound(body, info, helpers, outputs, aliases, divisor)
+	if !found {
+		found, evidence = helperProvidesBound(scope, info, helpers, outputs, aliases, divisor)
 	}
-	result.hasBound = hasBound
-	return result
+	return found, evidence
 }
 
 func unconditionalOutputBitBound(body *ast.BlockStmt, outputs types.Object, aliases map[types.Object]int, index int, info *types.Info, helpers map[*types.Func]*ast.FuncDecl) (int, bool) {

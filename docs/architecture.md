@@ -22,7 +22,10 @@ The experimental analyzer is split at stable data boundaries:
    deterministic exit policy.
 
 The current pass follows one level of direct, package-local helper calls for
-recognized bounds. It does not model reflection, generated code, external or
+recognized bounds. When a bound is guarded by a bool parameter, it also
+resolves that parameter at every package-local call site with a constant
+argument and reports the calls that disable the bound (see
+`internal/analyzer/specialize.go`). It does not model reflection, generated code, external or
 recursive helpers, complex aliases, or dynamic hint selection. These limits
 are emitted in every report. Later dataflow and deeper call-graph passes can
 consume the report model without changing the command-line schema.

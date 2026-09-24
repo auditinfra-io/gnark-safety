@@ -37,7 +37,9 @@ func TestCanonicalFixture(t *testing.T) {
 		t.Fatalf("got %d findings, want 1: %#v", len(r.Findings), r.Findings)
 	}
 	f := r.Findings[0]
-	if f.RuleID != relationRule || f.Function != "constrainDivision" {
+	// The shared helper guards r < d with a bool; the finding belongs to the
+	// caller that passes false, not to the helper or the corrected caller.
+	if f.RuleID != relationRule || f.Function != "(*VulnerableCircuit).Define" || !strings.Contains(f.Message, "enforceCanonicalRemainder=false") {
 		t.Fatalf("unexpected finding: %#v", f)
 	}
 	assertInvariant(t, r.Hints[0].Invariants, 0, "participation", report.InvariantSatisfied, "n = q*d + r")
@@ -303,5 +305,47 @@ func TestSuppressions(t *testing.T) {
 	}
 	if got := strings.Count(diagnostics, "matched no finding"); got != 3 {
 		t.Errorf("got %d unused-directive diagnostics, want 3:\n%s", got, diagnostics)
+	}
+}
+
+func TestCallSiteSpecialization(t *testing.T) {
+	r, err := Scan("../..", []string{"./internal/analyzer/testdata/specialize"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, f := range r.Findings {
+		if f.RuleID != relationRule {
+			t.Fatalf("unexpected rule: %#v", f)
+		}
+		got[f.Function] = f.Message
+	}
+	// Call sites that disable the bound carry the finding; the hint in the
+	// shared helper does not.
+	for function, argument := range map[string]string{
+		"(*Vulnerable).Define": "enforce=false",
+		"skipsBound":           "skip=true",
+		"relaxedCaller":        "relaxed=true",
+	} {
+		if !strings.Contains(got[function], argument) {
+			t.Errorf("%s: want a call-site finding mentioning %q, got %q", function, argument, got[function])
+		}
+	}
+	// Unresolvable guards keep the finding at the hint.
+	for _, function := range []string{"escaping", "dynamic", "reassigned", "Uncalled"} {
+		if got[function] != relationMessage {
+			t.Errorf("%s: want a hint-site finding, got %q", function, got[function])
+		}
+	}
+	if len(got) != 7 || len(r.Findings) != 7 {
+		t.Fatalf("got findings %v", got)
+	}
+	for _, f := range r.Findings {
+		if f.Function == "dynamic" && !strings.Contains(strings.Join(f.Evidence, " "), "enforced only when parameter enforce is true") {
+			t.Errorf("hint-site finding for a guarded bound should explain the guard: %#v", f.Evidence)
+		}
+		if f.Function == "(*Vulnerable).Define" && !strings.Contains(strings.Join(f.Evidence, " "), "in guarded") {
+			t.Errorf("call-site finding should point back to the hint: %#v", f.Evidence)
+		}
 	}
 }
