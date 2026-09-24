@@ -1,6 +1,28 @@
 package analyzer
 
-import "testing"
+import (
+	"context"
+	"math/big"
+	"strings"
+	"testing"
+
+	"github.com/auditinfra-io/gnark-safety/pkg/report"
+	"github.com/consensys/gnark-crypto/ecc"
+)
+
+func TestScanResourceLimits(t *testing.T) {
+	_, err := ScanContext(context.Background(), "../..", []string{"./internal/analyzer/testdata/relation"}, Options{MaxHints: 1})
+	if err == nil || !strings.Contains(err.Error(), "hint limit exceeded") {
+		t.Fatalf("expected hint limit error, got %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = ScanContext(ctx, "../..", []string{"."}, Options{})
+	if err == nil || !strings.Contains(err.Error(), "canceled") {
+		t.Fatalf("expected cancellation error, got %v", err)
+	}
+}
 
 func TestCanonicalFixture(t *testing.T) {
 	r, err := Scan("../..", []string{"."})
@@ -17,6 +39,39 @@ func TestCanonicalFixture(t *testing.T) {
 	if f.RuleID != relationRule || f.Function != "constrainDivision" {
 		t.Fatalf("unexpected finding: %#v", f)
 	}
+	assertInvariant(t, r.Hints[0].Invariants, 0, "participation", report.InvariantSatisfied, "n = q*d + r")
+	assertInvariant(t, r.Hints[0].Invariants, 0, "range", report.InvariantSatisfied, "width: 8")
+	assertInvariant(t, r.Hints[0].Invariants, 1, "relation", report.InvariantSatisfied, "n = q*d + r")
+	assertInvariant(t, r.Hints[0].Invariants, 1, "canonicality", report.InvariantMissing, "r < d")
+	assertInvariant(t, r.Hints[0].Invariants, 0, "field_safety", report.InvariantUnknown, "65280")
+}
+
+func TestConfiguredFieldAssessment(t *testing.T) {
+	r, err := ScanContext(context.Background(), "../..", []string{"."}, Options{FieldModulus: ecc.BN254.ScalarField(), FieldName: "BN254 scalar field"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertInvariant(t, r.Hints[0].Invariants, 0, "field_safety", report.InvariantSatisfied, "below BN254 scalar field modulus")
+
+	r, err = ScanContext(context.Background(), "../..", []string{"."}, Options{FieldModulus: big.NewInt(101), FieldName: "test field"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertInvariant(t, r.Hints[0].Invariants, 0, "field_safety", report.InvariantMissing, "not below test field modulus")
+}
+
+func assertInvariant(t *testing.T, invariants []report.Invariant, output int, kind string, status report.InvariantStatus, evidence string) {
+	t.Helper()
+	for _, invariant := range invariants {
+		if invariant.OutputIndex != output || invariant.Kind != kind {
+			continue
+		}
+		if invariant.Status != status || !strings.Contains(strings.Join(invariant.Evidence, " "), evidence) {
+			t.Fatalf("unexpected invariant: %#v; want status=%s evidence containing %q", invariant, status, evidence)
+		}
+		return
+	}
+	t.Fatalf("missing invariant output=%d kind=%s in %#v", output, kind, invariants)
 }
 
 func TestRelationShapeAndCoverage(t *testing.T) {
@@ -25,21 +80,51 @@ func TestRelationShapeAndCoverage(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := map[string]bool{}
+	rules := map[string]string{}
 	for _, f := range r.Findings {
 		got[f.Function] = true
+		rules[f.Function] = f.RuleID
 	}
-	for _, name := range []string{"wrongBound", "invertedBound", "elseBound", "loopBound", "directIndex"} {
+	for _, name := range []string{"wrongBound", "invertedBound", "elseBound", "loopBound", "directIndex", "helperConditional", "successfulEarlyReturn"} {
 		if !got[name] {
 			t.Errorf("missing finding for %s", name)
 		}
 	}
-	for _, name := range []string{"separateAssertions", "safe"} {
+	for _, name := range []string{"separateAssertions", "safe", "helperSafe", "lessOrEqualSafe", "helperLessOrEqualSafe"} {
 		if got[name] {
 			t.Errorf("unexpected finding for %s", name)
 		}
 	}
-	if len(r.Findings) != 5 {
-		t.Fatalf("got %d findings, want 5: %#v", len(r.Findings), r.Findings)
+	if len(r.Findings) != 8 {
+		t.Fatalf("got %d findings, want 8: %#v", len(r.Findings), r.Findings)
+	}
+	if rules["unusedRemainder"] != unusedOutputRule {
+		t.Errorf("missing unused-output finding: %#v", r.Findings)
+	}
+	for _, hint := range r.Hints {
+		status := report.InvariantMissing
+		if hint.Function == "safe" || hint.Function == "helperSafe" || hint.Function == "lessOrEqualSafe" || hint.Function == "helperLessOrEqualSafe" {
+			status = report.InvariantSatisfied
+		}
+		if hint.Function == "separateAssertions" || hint.Function == "unusedRemainder" {
+			status = report.InvariantUnknown
+		}
+		assertInvariant(t, hint.Invariants, 1, "canonicality", status, map[report.InvariantStatus]string{
+			report.InvariantMissing:   "missing unconditional constraint",
+			report.InvariantSatisfied: "constraint",
+			report.InvariantUnknown:   "reconstruction not found",
+		}[status])
+		if hint.Function == "helperSafe" {
+			assertInvariant(t, hint.Invariants, 1, "canonicality", report.InvariantSatisfied, "helper assertCanonical")
+			assertInvariant(t, hint.Invariants, 0, "range", report.InvariantSatisfied, "width: 8")
+			assertInvariant(t, hint.Invariants, 0, "field_safety", report.InvariantUnknown, "65280")
+		}
+		if hint.Function == "lessOrEqualSafe" {
+			assertInvariant(t, hint.Invariants, 1, "canonicality", report.InvariantSatisfied, "r <= d-1")
+		}
+		if hint.Function == "helperLessOrEqualSafe" {
+			assertInvariant(t, hint.Invariants, 1, "canonicality", report.InvariantSatisfied, "helper assertCanonicalLessOrEqual")
+		}
 	}
 }
 
@@ -49,5 +134,14 @@ func TestRuleHelp(t *testing.T) {
 	}
 	if _, ok := RuleHelp("NO_SUCH_RULE"); ok {
 		t.Fatal("unknown rule was accepted")
+	}
+	if _, ok := RuleHelp(unusedOutputRule); !ok {
+		t.Fatal("unused-output rule help is missing")
+	}
+}
+
+func TestUnknownInvariantsRejectsNegativeOutputCount(t *testing.T) {
+	if got := unknownInvariants(-1, "invalid"); got == nil || len(got) != 0 {
+		t.Fatalf("negative output count produced invariants: %#v", got)
 	}
 }

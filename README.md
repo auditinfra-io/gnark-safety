@@ -65,6 +65,19 @@ GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestRequiredHintSafetyMatrix
 GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestGroth16
 ```
 
+The differential suite exhaustively checks the hint against the ordinary-Go
+8-bit division specification, then checks a smaller valid/adversarial corpus
+against R1CS and sparse R1CS on BN254 and BLS12-381. The proof matrix generates
+and verifies corrected-circuit proofs with Groth16 and PLONK on both curves:
+
+```bash
+GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run 'TestHintMatchesSpecificationExhaustively|TestCorrectedCircuitMatchesSpecificationMatrix'
+GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestCorrectedProofBackendCurveMatrix
+```
+
+PLONK setup in the proof matrix uses gnark's explicitly test-only `unsafekzg`
+SRS generator. It must not be copied as production trusted-setup guidance.
+
 ## Hint-call inventory CLI
 
 `gnark-hint-scan` is a small source inventory tool. Build it and scan this
@@ -102,24 +115,56 @@ the versioned `1.0` schema and includes `hints`, `diagnostics`, and
 
 `gnark-safety` is the type-aware successor to the inventory command. Its first
 rule recognizes two-output hints whose outputs are used in a reconstruction
-equality without an unconditional canonical remainder comparison:
+equality without an unconditional canonical remainder comparison. A separate
+review rule reports statically indexed hint outputs that are never used after
+extraction:
 
 ```bash
 GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --fail-on none ./...
 GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --format json --fail-on none ./...
 GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --format sarif --output results.sarif --fail-on none ./...
 GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety explain GNARK_HINT_RELATION_INCOMPLETE
+GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety explain GNARK_HINT_OUTPUT_UNUSED
 ```
+
+Scans default to a two-minute timeout, 10,000 hint call sites, and 16 MiB of
+rendered output. Override these with `--timeout`, `--max-hints`, and
+`--max-output-bytes`. These are defense-in-depth limits, not a sandbox; follow
+[`docs/untrusted-scanning.md`](docs/untrusted-scanning.md) before analyzing a
+repository outside your trust boundary.
+
+Use `--field bn254` or `--field bls12-381` when the compilation field is known.
+The analyzer will compare a recognized bounded reconstruction maximum with that
+scalar-field modulus. The default `--field unknown` makes no field-safety claim.
 
 The default `--fail-on high` policy exits 1 for a high-severity finding; use
 `--fail-on none` for inventory/report-only runs. Invalid configuration and
 package-loading failures exit 2. The JSON report retains the hint inventory and
-adds stable findings; SARIF 2.1.0 output is suitable for code-scanning import.
+adds stable findings. Schema 1.1 also records independent per-output
+participation, range, relation, canonicality, and field-safety assessments;
+unsupported conclusions remain explicitly `unknown`. SARIF 2.1.0 output is
+suitable for code-scanning import.
 
 This is deliberately not a claim of full circuit soundness. The initial rule
-is intra-function and reports its unsupported constructs in the top-level
-`limitations` field. See [`docs/architecture.md`](docs/architecture.md) and
-[`docs/rules.md`](docs/rules.md).
+follows only one level of direct local helper calls and reports unsupported
+constructs in the top-level `limitations` field. See
+[`docs/architecture.md`](docs/architecture.md) and [`docs/rules.md`](docs/rules.md).
+
+## Security and audit research
+
+[`docs/security-roadmap.md`](docs/security-roadmap.md) maps themes from gnark's
+published audits and security guidance to concrete next steps for this project.
+The highest-value follow-ups are adversarial-hint mutation testing, explicit
+field/range reasoning, interprocedural analysis, and differential tests against
+ordinary Go specifications. This is a research roadmap, not an assertion that
+an upstream audit finding affects this fixture.
+
+Please report a suspected vulnerability privately as described in
+[`SECURITY.md`](SECURITY.md). Dependency updates are monitored through
+Dependabot and CI runs vulnerability, race, static-analysis, and fuzz checks.
+Tagged releases additionally publish an SPDX SBOM, SARIF, source hashes,
+toolchain metadata, and retained test output; see
+[`docs/releases.md`](docs/releases.md) for reproduction and signature guidance.
 
 ## Observed outcomes
 
@@ -144,10 +189,10 @@ claim is made that a proof or key from one circuit works with the other.
 
 ## Scope and limits
 
-This standalone repository contains the public educational demonstration and
-the narrow hint-call inventory CLI described above. It includes no constraint
-scanner detector, proprietary invariant pack, customer finding, or
-general-purpose safety analysis.
+This standalone repository contains the public educational demonstration, the
+hint-call inventory CLI, and one deliberately narrow experimental detector. It
+includes no proprietary invariant pack, customer finding, or general-purpose
+safety analysis.
 
 One deliberately incomplete relation does not establish a general method for
 finding underconstrained circuits or measure any scanner's accuracy. It also

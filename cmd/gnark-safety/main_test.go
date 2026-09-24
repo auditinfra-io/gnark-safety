@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/auditinfra-io/gnark-safety/pkg/report"
 )
 
 func TestJSONAndExitPolicy(t *testing.T) {
@@ -17,13 +19,22 @@ func TestJSONAndExitPolicy(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if doc["schema_version"] != "1.0" {
+	if doc["schema_version"] != "1.1" {
 		t.Fatalf("unexpected report: %s", out.String())
 	}
 	out.Reset()
 	stderr.Reset()
 	if code := run([]string{"scan", "--fail-on", "none", "."}, &out, &stderr, "../.."); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+}
+
+func TestHighThresholdIgnoresReviewFindings(t *testing.T) {
+	if hasHighFinding(report.Report{Findings: []report.Finding{{Severity: report.SeverityReview}}}) {
+		t.Fatal("review-only report crossed high threshold")
+	}
+	if !hasHighFinding(report.Report{Findings: []report.Finding{{Severity: report.SeverityHigh}}}) {
+		t.Fatal("high finding did not cross high threshold")
 	}
 }
 
@@ -41,5 +52,25 @@ func TestExplain(t *testing.T) {
 	var out, stderr bytes.Buffer
 	if code := run([]string{"explain", "GNARK_HINT_RELATION_INCOMPLETE"}, &out, &stderr, "."); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+}
+
+func TestResourceLimitValidationAndOutputLimit(t *testing.T) {
+	for _, args := range [][]string{
+		{"scan", "--timeout=0", "."},
+		{"scan", "--max-hints=0", "."},
+		{"scan", "--max-output-bytes=0", "."},
+		{"scan", "--field=no-such-field", "."},
+	} {
+		var out, stderr bytes.Buffer
+		if code := run(args, &out, &stderr, "../.."); code != 2 {
+			t.Fatalf("run(%v) exit=%d, want 2", args, code)
+		}
+	}
+
+	var out, stderr bytes.Buffer
+	code := run([]string{"scan", "--format=json", "--max-output-bytes=1", "."}, &out, &stderr, "../..")
+	if code != 2 || !strings.Contains(stderr.String(), "output limit exceeded") || out.Len() != 0 {
+		t.Fatalf("unexpected limited output: exit=%d stdout=%q stderr=%q", code, out.String(), stderr.String())
 	}
 }
