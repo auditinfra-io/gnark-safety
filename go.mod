@@ -2,6 +2,8 @@ module github.com/auditinfra-io/gnark-safety
 
 go 1.25.7
 
+toolchain go1.27.1
+
 require (
 	github.com/consensys/gnark v0.16.3
 	github.com/consensys/gnark-crypto v0.21.0

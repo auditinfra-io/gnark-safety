@@ -8,6 +8,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **CI and release builds used Go 1.25.7, whose standard library has three
+  vulnerabilities reachable from this repository**: GO-2026-4601 and
+  GO-2026-6218 in `net/url`, and GO-2026-4602 in `os`, fixed in Go 1.25.8
+  and 1.25.13. They are reachable from `gnark-safety-vet` through
+  `unitchecker`; `gnark-safety` and the other commands do not reach them.
+  `govulncheck` in CI would have failed on them. `go.mod` now names `toolchain go1.27.1`, which CI's
+  analysis, fuzz, and canary jobs and the release workflow install; the
+  minimum Go version for `go install` stays 1.25.7, and the test matrix
+  still runs on it. CI's staticcheck moves from v0.6.1, which cannot read Go
+  1.27 export data, to v0.8.1.
+- **A `gnark-safety` binary failed with unexplained type errors when the
+  `go` command on `PATH` was newer than the Go it was built with** (after a
+  Go upgrade, say), even on code written for older Go: the analyzer
+  type-checks that command's standard library. The error now names both versions and says how to rebuild, and
+  release binaries are built with the newest stable Go (see
+  [`docs/releases.md`](docs/releases.md)).
+- The `actions/setup-go` pin labelled `v6.0.0` named the commit before that
+  release (identical code). It now names the v6.0.0 commit, so the label is
+  true and Dependabot can update it.
 - **`GNARK_HINT_OUTPUT_UNUSED` reported 172 false positives on gnark's own
   `std/` library.** It counted only constant-index reads as uses. Outputs
   passed on as a sub-slice (`assignE12(e, out[:12])`), copied, read by a
@@ -72,7 +91,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `uses:` (or installs a named release), scans once, uploads SARIF to code
   scanning whenever the scan completed, and fails the job at `fail-on`. A scan
   that cannot run fails the job without uploading. Inputs reach its scripts
-  only through the environment; see the README for inputs and outputs.
+  only through the environment; see the README for inputs and outputs. It
+  sets up the latest stable Go by default (`go-version`), because the
+  analyzer must be at least as new as the Go of the module it scans.
 - **pre-commit hook** (`.pre-commit-hooks.yaml`, id `gnark-safety`).
 - **Release binaries.** Tagged releases attach reproducible archives for
   Linux, macOS, and Windows on amd64 and arm64

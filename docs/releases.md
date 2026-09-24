@@ -15,6 +15,14 @@ contains the binary, `LICENSE`, `README.md`, and `CHANGELOG.md`.
 
 `gnark-safety --version` reports the tag.
 
+The toolchain is the `toolchain` line in `go.mod` (Go 1.27.1), which the
+release workflow installs; the `go` line (1.25.7) stays the minimum for
+`go install`. Building with the newest stable Go matters for prebuilt
+binaries: the analyzer type-checks the standard library of the `go` command
+on the user's `PATH`, and a type checker older than that release cannot load
+it. A binary built with Go 1.27 scans code for Go 1.27 and earlier; with a
+newer `go` command, it reports the mismatch and asks for a rebuild.
+
 The evidence bundle contains:
 
 - `gnark-safety-binaries.sha256`: SHA-256 checksums of every release archive;

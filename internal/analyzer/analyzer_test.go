@@ -392,3 +392,31 @@ func TestUnusedOutputClassification(t *testing.T) {
 		}
 	}
 }
+
+func TestToolchainSkewHint(t *testing.T) {
+	for _, tc := range []struct {
+		built, goCommand string
+		hint             bool
+	}{
+		{"go1.25.14", "go1.27.1", true},
+		{"go1.25.7", "go1.26.0", true},
+		{"go1.27.1", "go1.25.7", false},
+		{"go1.27.0", "go1.27.1", false}, // a patch release adds no language features
+		{"go1.25.7", "go1.25.7", false},
+		{"devel go1.28-abcdef", "go1.27.1", false},
+		{"go1.25.7", "", false},
+	} {
+		hint := toolchainSkewHint(tc.built, tc.goCommand)
+		if (hint != "") != tc.hint {
+			t.Errorf("toolchainSkewHint(%q, %q) = %q, want hint: %v", tc.built, tc.goCommand, hint, tc.hint)
+		}
+		if tc.hint && !strings.Contains(hint, "Rebuild gnark-safety with "+goversionLang(tc.goCommand)) {
+			t.Errorf("hint %q does not name the required release", hint)
+		}
+	}
+}
+
+func goversionLang(v string) string {
+	parts := strings.SplitN(strings.TrimPrefix(v, "go"), ".", 3)
+	return "go" + parts[0] + "." + parts[1]
+}

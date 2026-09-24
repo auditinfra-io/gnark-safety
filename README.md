@@ -21,7 +21,10 @@ go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@latest
 
 Go 1.25.7 or newer is required. The analyzer type-checks the packages you
 scan, so they must build, and their module dependencies must be downloadable
-or already in the module cache.
+or already in the module cache. It must also be built with a Go release at
+least as new as the `go` command on your `PATH`, because it type-checks that
+release's standard library: `go install` guarantees this, and a prebuilt
+binary reports the mismatch and how to fix it.
 
 Tagged releases also publish reproducible prebuilt archives for Linux, macOS,
 and Windows (amd64 and arm64), with a checksum list in the release evidence;
@@ -160,7 +163,7 @@ jobs:
 | `allow-empty` | `false` | Pass even when no scanned package imports gnark. |
 | `field` | `unknown` | Scalar field for bound checks: `unknown`, `bn254`, or `bls12-381`. |
 | `version` | empty | Release to `go install`, such as `v0.2.0`. Empty builds the analyzer from the action at the ref in `uses:`. |
-| `go-version` | `1.25.7` | Go version for `actions/setup-go`; empty uses the Go already on `PATH`. |
+| `go-version` | `stable` | Go version for `actions/setup-go`. The analyzer is built and run with it, so it must be at least your module's `go` version. Empty uses the Go already on `PATH`. |
 
 The action's outputs are `sarif-file` and `exit-code`. An upload runs whenever
 the scan completed, including when it failed the gate, so the findings that

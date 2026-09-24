@@ -13,11 +13,11 @@
     "kernel": "6.18.44-fc-v37",
     "os": "linux"
   },
-  "generated_at_utc": "2026-09-24T19:37:00Z",
+  "generated_at_utc": "2026-09-24T20:20:35Z",
   "generator": "go run ./cmd/reproduce",
   "retained_output": {
     "path": "evidence/test-output.txt",
-    "sha256": "6d68d6545c5d3dbf6bfebd09dd0b2814639297f014a27bd84059c5fe4f3a7ba5"
+    "sha256": "f09bf83d9871770ad8eca3141128364c9ff42f1fc26a3c2482f2e2f816a406d0"
   },
   "schema_version": 3,
   "semantic_outcomes": {
@@ -50,10 +50,10 @@
       "examples/divmod/hint_inventory_test.go": "a9ee7f71a92381dc9e2a17c764d855133d3bbc3ecd03e4a76b742578e1fd39c3",
       "examples/divmod/hints.go": "b0853ba2ed8f35f3f69ff76a526d5c5c2c3fbd86021de6d9d33beed2231f9524",
       "examples/divmod/proof_test.go": "108bdd087aea1064a31bbd950e2fa0c843b614896c51cb210684cff3498f9279",
-      "go.mod": "7f9e18b5735b271d14954a986171ad48591df3618ccfa2353250b729c559bf4a",
+      "go.mod": "534e7d038b3733d4b3e42d8c6d91e2836af132c0a666530c8d113ea4b3a1598c",
       "go.sum": "0c01ef75500cd3c51630b6d240706ecd1b591ee5bf25760a9b725f9f8c36e1dc",
-      "internal/analyzer/analyzer.go": "9517424f1edd4ea62fb1bc6093ec395f5c28a6ed6e32d2e6b8700fbeeff6ec22",
-      "internal/analyzer/analyzer_test.go": "0bb07f119da7f4fd2d41939c75882d1ada420a97ebae8f6fc64bd6068a4bfe25",
+      "internal/analyzer/analyzer.go": "7c6a299861c6a83537fcb52e39f4f4565043b992cb3f18cc9d3ce3043c1a7af7",
+      "internal/analyzer/analyzer_test.go": "1efde62e47db33148ff273bfc38b71845265129f552c8ce248aea81201b46d1d",
       "internal/analyzer/corpus_test.go": "244c78f7cfe87c13c12ab669762b1052362600b2eacca6a92fa00a5d455c20e0",
       "internal/analyzer/metamorphic_test.go": "78551b95546c861d756840662729aa1eaa6b3e2e4748ade5b42da275fee73613",
       "internal/analyzer/specialize.go": "9a2fcee62d3e30e33ca0c9b6c32c22bc9636018d102408e2d4646b480f1b88e5",

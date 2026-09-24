@@ -10,8 +10,11 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	goversion "go/version"
 	"math/big"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -103,6 +106,33 @@ func isGnarkPath(path string) bool {
 
 const defaultMaxHints = 10000
 
+// goCommandVersion returns the version of the go command that go/packages
+// runs in dir, after any toolchain switch, or "" if it cannot be determined.
+func goCommandVersion(ctx context.Context, dir string) string {
+	cmd := exec.CommandContext(ctx, "go", "env", "GOVERSION")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// toolchainSkewHint explains the load failures that follow from running
+// gnark-safety with a go command newer than the Go it was built with: its type
+// checker then reads a standard library written for a language version it
+// does not know, and reports errors that do not name the cause. It returns ""
+// when either version is unknown or the go command is not newer.
+func toolchainSkewHint(built, goCommand string) string {
+	if !goversion.IsValid(built) || !goversion.IsValid(goCommand) {
+		return ""
+	}
+	if goversion.Compare(goversion.Lang(goCommand), goversion.Lang(built)) <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("gnark-safety was built with %s, but the go command is %s: a type checker older than the go command cannot load its standard library. Rebuild gnark-safety with %s or newer, for example with go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@<version>.", built, goCommand, goversion.Lang(goCommand))
+}
+
 // ScanContext is Scan with cancellation and resource ceilings for callers that
 // process repositories outside their trust boundary.
 func ScanContext(ctx context.Context, dir string, patterns []string, opts Options) (report.Report, error) {
@@ -130,7 +160,11 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 	})
 	if len(loadErrs) > 0 {
 		sort.Strings(loadErrs)
-		return r, fmt.Errorf("package loading/type checking failed:\n%s", strings.Join(loadErrs, "\n"))
+		msg := "package loading/type checking failed:\n" + strings.Join(loadErrs, "\n")
+		if hint := toolchainSkewHint(runtime.Version(), goCommandVersion(ctx, dir)); hint != "" {
+			msg += "\n" + hint
+		}
+		return r, errors.New(msg)
 	}
 	base := dir
 	if opts.PathBase != "" {

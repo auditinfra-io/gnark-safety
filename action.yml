@@ -47,9 +47,9 @@ inputs:
     required: false
     default: ''
   go-version:
-    description: 'Go version for actions/setup-go. Empty uses the Go already on PATH, which must be 1.25.7 or newer.'
+    description: 'Go version for actions/setup-go. The analyzer is built and run with it, so it must be at least the go version of the scanned module. Empty uses the Go already on PATH.'
     required: false
-    default: '1.25.7'
+    default: 'stable'
 
 outputs:
   sarif-file:
@@ -64,7 +64,7 @@ runs:
   steps:
     - name: Set up Go
       if: ${{ inputs.go-version != '' }}
-      uses: actions/setup-go@c0137caad775660c0844396c52da96e560aba63d # v6.0.0
+      uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
       with:
         go-version: ${{ inputs.go-version }}
         cache: false
