@@ -11,6 +11,8 @@ import (
 
 	"github.com/auditinfra-io/gnark-safety/internal/analyzer"
 	"github.com/auditinfra-io/gnark-safety/internal/output"
+	"github.com/auditinfra-io/gnark-safety/pkg/report"
+	"github.com/consensys/gnark-crypto/ecc"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, ".")) }
@@ -36,13 +38,20 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	timeout := fs.Duration("timeout", 2*time.Minute, "package loading and analysis timeout")
 	maxHints := fs.Int("max-hints", 10000, "maximum hint call sites")
 	maxOutput := fs.Int64("max-output-bytes", 16<<20, "maximum rendered output size")
-	if fs.Parse(args[1:]) != nil || fs.NArg() == 0 || (*format != "text" && *format != "json" && *format != "sarif") || (*failOn != "high" && *failOn != "none") || *timeout <= 0 || *maxHints <= 0 || *maxOutput <= 0 {
+	field := fs.String("field", "unknown", "unknown, bn254, or bls12-381")
+	if fs.Parse(args[1:]) != nil || fs.NArg() == 0 || (*format != "text" && *format != "json" && *format != "sarif") || (*failOn != "high" && *failOn != "none") || *timeout <= 0 || *maxHints <= 0 || *maxOutput <= 0 || (*field != "unknown" && *field != "bn254" && *field != "bls12-381") {
 		usage(stderr)
 		return 2
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
-	r, err := analyzer.ScanContext(ctx, dir, fs.Args(), analyzer.Options{MaxHints: *maxHints})
+	opts := analyzer.Options{MaxHints: *maxHints}
+	if *field == "bn254" {
+		opts.FieldModulus, opts.FieldName = ecc.BN254.ScalarField(), "BN254 scalar field"
+	} else if *field == "bls12-381" {
+		opts.FieldModulus, opts.FieldName = ecc.BLS12_381.ScalarField(), "BLS12-381 scalar field"
+	}
+	r, err := analyzer.ScanContext(ctx, dir, fs.Args(), opts)
 	if err != nil {
 		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
 		return 2
@@ -70,13 +79,24 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
 		return 2
 	}
-	if *failOn == "high" && len(r.Findings) > 0 {
-		return 1
+	if *failOn == "high" {
+		if hasHighFinding(r) {
+			return 1
+		}
 	}
 	return 0
 }
+
+func hasHighFinding(r report.Report) bool {
+	for _, finding := range r.Findings {
+		if finding.Severity == report.SeverityHigh {
+			return true
+		}
+	}
+	return false
+}
 func usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: gnark-safety scan [--format text|json|sarif] [--output file] [--fail-on high|none] [--timeout duration] [--max-hints n] [--max-output-bytes n] <package patterns...>\n       gnark-safety explain <rule-id>")
+	fmt.Fprintln(w, "usage: gnark-safety scan [--format text|json|sarif] [--output file] [--fail-on high|none] [--field unknown|bn254|bls12-381] [--timeout duration] [--max-hints n] [--max-output-bytes n] <package patterns...>\n       gnark-safety explain <rule-id>")
 }
 
 type limitedWriter struct {

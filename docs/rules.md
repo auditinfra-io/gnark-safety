@@ -6,9 +6,10 @@
 
 The first rule identifies a direct, type-resolved two-output `NewHint` call
 when one `AssertIsEqual` contains the typed `Add(Mul(q, d), r)` reconstruction
-but the function has no unconditional, type-resolved `AssertIsLess(r, d)`.
-Indexed outputs may be used directly or through local aliases. Comparisons with
-the wrong operand order or a different bound do not count as coverage. A
+but the function has no unconditional, type-resolved `AssertIsLess(r, d)` or
+equivalent `AssertIsLessOrEqual(r, api.Sub(d, 1))`. Indexed outputs may use
+literals, named constants, constant expressions, or local aliases. Comparisons
+with the wrong operand order or a different bound do not count as coverage. A
 comparison inside an `if`/`else`, loop, switch, select, or function literal is
 not considered universal coverage because that region may not execute.
 
@@ -36,4 +37,23 @@ provides range evidence, the reconstruction provides participation/relation
 evidence, and an unconditional `r < d` provides canonicality evidence. The
 analyzer calculates the bounded maximum of `q*d+r`, but reports field safety as
 unknown because the circuit's compilation field is not selected inside the
-analyzed function.
+analyzed function. Passing `--field bn254` or `--field bls12-381` compares that
+maximum with the selected scalar-field modulus and reports field safety as
+`satisfied` or `missing`. This does not change the missing-canonicality finding:
+field non-wraparound and uniqueness of integer quotient/remainder are separate
+properties.
+
+The reconstruction matcher deliberately requires the normalized
+`Add(Mul(q,d),r)` shape, with commutative operand order. Algebraically neutral
+wrappers such as `Sub(x,0)` or `Mul(1,x)` remain unsupported instead of being
+simplified speculatively.
+
+## `GNARK_HINT_OUTPUT_UNUSED`
+
+**Severity:** review. **Confidence:** high for direct indexed outputs.
+
+This rule reports a hint output that is extracted from the returned slice but
+never subsequently referenced, either directly or through its local alias. An
+unused prover-computed value often indicates a forgotten constraint, but it can
+also be intentional API padding, so the rule requests review rather than
+claiming a vulnerability. Dynamic indexes and complex aliasing remain unknown.

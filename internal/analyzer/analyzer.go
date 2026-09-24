@@ -20,6 +20,8 @@ import (
 )
 
 const relationRule = "GNARK_HINT_RELATION_INCOMPLETE"
+const unusedOutputRule = "GNARK_HINT_OUTPUT_UNUSED"
+const maximumAnalyzedBitWidth = 4096
 
 var limitations = []string{
 	"Analysis follows one level of unconditional direct local helper calls; deeper or recursive call graphs are not modeled.",
@@ -35,6 +37,10 @@ func Scan(dir string, patterns []string) (report.Report, error) {
 type Options struct {
 	// MaxHints bounds reported call sites. Zero uses the default ceiling.
 	MaxHints int
+	// FieldModulus enables a concrete modular-wraparound assessment. It is
+	// copied before use; callers may reuse their big.Int after ScanContext.
+	FieldModulus *big.Int
+	FieldName    string
 }
 
 const defaultMaxHints = 10000
@@ -78,7 +84,7 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 		}
 		helpers := packageFunctions(p)
 		for _, file := range p.Syntax {
-			if err := inspectFile(ctx, &r, p, file, fset, absDir, helpers, maxHints); err != nil {
+			if err := inspectFile(ctx, &r, p, file, fset, absDir, helpers, maxHints, opts); err != nil {
 				return r, err
 			}
 		}
@@ -89,7 +95,16 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 	})
 	sort.Slice(r.Findings, func(i, j int) bool {
 		a, b := r.Findings[i], r.Findings[j]
-		return a.File < b.File || a.File == b.File && (a.Line < b.Line || a.Line == b.Line && a.Column < b.Column)
+		if a.File != b.File {
+			return a.File < b.File
+		}
+		if a.Line != b.Line {
+			return a.Line < b.Line
+		}
+		if a.Column != b.Column {
+			return a.Column < b.Column
+		}
+		return a.RuleID < b.RuleID
 	})
 	return r, nil
 }
@@ -110,7 +125,7 @@ func packageFunctions(p *packages.Package) map[*types.Func]*ast.FuncDecl {
 	return functions
 }
 
-func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, file *ast.File, fset *token.FileSet, dir string, helpers map[*types.Func]*ast.FuncDecl, maxHints int) error {
+func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, file *ast.File, fset *token.FileSet, dir string, helpers map[*types.Func]*ast.FuncDecl, maxHints int, opts Options) error {
 	var inspectErr error
 	for _, decl := range file.Decls {
 		if err := ctx.Err(); err != nil {
@@ -182,11 +197,16 @@ func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, fil
 				h.Unknown = append(h.Unknown, "input_count")
 			}
 			if h.OutputCount != nil {
-				h.Invariants = assessInvariants(fn.Body, call, p.TypesInfo, *h.OutputCount, helpers)
+				h.Invariants = assessInvariants(fn.Body, call, p.TypesInfo, *h.OutputCount, helpers, opts)
 			} else {
 				h.Invariants = []report.Invariant{}
 			}
 			r.Hints = append(r.Hints, h)
+			if h.OutputCount != nil {
+				for _, index := range unusedOutputs(fn.Body, call, p.TypesInfo, *h.OutputCount) {
+					r.Findings = append(r.Findings, report.Finding{RuleID: unusedOutputRule, Severity: report.SeverityReview, Confidence: "high", File: path, Line: pos.Line, Column: pos.Column, Function: function, Message: fmt.Sprintf("Hint output %d is never used after extraction.", index), Evidence: []string{"hint output: " + h.Hint, fmt.Sprintf("unused output index: %d", index)}, Limitations: []string{}})
+				}
+			}
 			if h.OutputCount != nil && *h.OutputCount == 2 && incompleteRelation(fn.Body, call, p.TypesInfo, helpers) {
 				r.Findings = append(r.Findings, report.Finding{RuleID: relationRule, Severity: report.SeverityHigh, Confidence: "high", File: path, Line: pos.Line, Column: pos.Column, Function: function, Message: "Hint outputs participate in reconstruction, but the canonical remainder bound r < d is not constrained.", Evidence: []string{"hint output: " + h.Hint, "constraint: n = q*d + r", "missing constraint: r < d"}, Limitations: []string{}})
 			}
@@ -197,6 +217,52 @@ func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, fil
 		}
 	}
 	return nil
+}
+
+func unusedOutputs(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, outputCount int) []int {
+	if outputCount <= 0 || outputCount > defaultMaxHints {
+		return nil
+	}
+	relation := analyzeRelation(body, hintCall, info, nil)
+	if relation.outputs == nil {
+		return nil
+	}
+	aliasInitializers := make(map[*ast.IndexExpr]bool)
+	ast.Inspect(body, func(n ast.Node) bool {
+		assignment, ok := n.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for _, expression := range assignment.Rhs {
+			if index, ok := expression.(*ast.IndexExpr); ok && objectOf(info, index.X) == relation.outputs {
+				aliasInitializers[index] = true
+			}
+		}
+		return true
+	})
+	used := make([]bool, outputCount)
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch expression := n.(type) {
+		case *ast.IndexExpr:
+			if !aliasInitializers[expression] && objectOf(info, expression.X) == relation.outputs {
+				if index := constantIndex(expression.Index, info); index >= 0 && index < outputCount {
+					used[index] = true
+				}
+			}
+		case *ast.Ident:
+			if index, ok := relation.aliases[info.Uses[expression]]; ok && index >= 0 && index < outputCount {
+				used[index] = true
+			}
+		}
+		return true
+	})
+	var result []int
+	for index, isUsed := range used {
+		if !isUsed {
+			result = append(result, index)
+		}
+	}
+	return result
 }
 
 var invariantKinds = []string{"participation", "range", "relation", "canonicality", "field_safety"}
@@ -218,7 +284,7 @@ func unknownInvariants(outputCount int, reason string) []report.Invariant {
 // constraint” into “safe”. It remains deliberately narrow: detailed statuses
 // are emitted only for the quotient/remainder reconstruction recognized by the
 // first rule, and unsupported shapes stay explicitly unknown.
-func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, outputCount int, helpers map[*types.Func]*ast.FuncDecl) []report.Invariant {
+func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, outputCount int, helpers map[*types.Func]*ast.FuncDecl, opts Options) []report.Invariant {
 	if outputCount != 2 {
 		return unknownInvariants(outputCount, "unsupported output count")
 	}
@@ -231,13 +297,30 @@ func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.I
 	rBits, rBounded := unconditionalOutputBitBound(body, relation.outputs, relation.aliases, 1, info, helpers)
 	dBits, dBounded := unconditionalBitBound(body, relation.divisor, info, helpers)
 	fieldEvidence := "compilation field is selected outside the analyzed function"
-	const maximumAnalyzedBitWidth = 4096
+	fieldStatus := report.InvariantUnknown
+	var fieldModulus *big.Int
+	if opts.FieldModulus != nil {
+		fieldModulus = new(big.Int).Set(opts.FieldModulus)
+	}
 	if qBounded && rBounded && dBounded && qBits <= maximumAnalyzedBitWidth && rBits <= maximumAnalyzedBitWidth && dBits <= maximumAnalyzedBitWidth {
 		maximum := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(qBits)), big.NewInt(1))
 		dMax := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(dBits)), big.NewInt(1))
 		rMax := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(rBits)), big.NewInt(1))
 		maximum.Mul(maximum, dMax).Add(maximum, rMax)
 		fieldEvidence = "bounded reconstruction maximum: " + maximum.String() + "; compilation field is selected outside the analyzed function"
+		if fieldModulus != nil {
+			name := opts.FieldName
+			if name == "" {
+				name = "configured field"
+			}
+			if maximum.Cmp(fieldModulus) < 0 {
+				fieldStatus = report.InvariantSatisfied
+				fieldEvidence = "bounded reconstruction maximum: " + maximum.String() + "; below " + name + " modulus: " + fieldModulus.String()
+			} else {
+				fieldStatus = report.InvariantMissing
+				fieldEvidence = "bounded reconstruction maximum: " + maximum.String() + "; not below " + name + " modulus: " + fieldModulus.String()
+			}
+		}
 	} else if qBounded && rBounded && dBounded {
 		fieldEvidence = fmt.Sprintf("bounded reconstruction maximum omitted: bit width exceeds analysis limit %d; compilation field is selected outside the analyzed function", maximumAnalyzedBitWidth)
 	}
@@ -265,7 +348,7 @@ func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.I
 		}
 		result = append(result,
 			report.Invariant{OutputIndex: output, Kind: "canonicality", Status: canonicalStatus, Evidence: []string{canonicalEvidence}},
-			report.Invariant{OutputIndex: output, Kind: "field_safety", Status: report.InvariantUnknown, Evidence: []string{fieldEvidence}},
+			report.Invariant{OutputIndex: output, Kind: "field_safety", Status: fieldStatus, Evidence: []string{fieldEvidence}},
 		)
 	}
 	return result
@@ -323,7 +406,7 @@ func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.In
 			if objectOf(info, idx.X) != outputs {
 				continue
 			}
-			v := constantIndex(idx.Index)
+			v := constantIndex(idx.Index, info)
 			id, ok := as.Lhs[i].(*ast.Ident)
 			if ok && v >= 0 {
 				aliases[objectOf(info, id)] = v
@@ -352,12 +435,18 @@ func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.In
 	hasBound := false
 	ast.Inspect(body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || len(call.Args) != 2 || !isComparatorCall(info, call, "AssertIsLess") || conditionallyExecuted(body, call) {
+		if !ok || len(call.Args) != 2 || conditionallyExecuted(body, call) {
 			return true
 		}
-		if outputIndex(info, call.Args[0], outputs, aliases) == 1 && sameValue(info, call.Args[1], divisor) {
+		if outputIndex(info, call.Args[0], outputs, aliases) != 1 {
+			return true
+		}
+		if isComparatorCall(info, call, "AssertIsLess") && sameValue(info, call.Args[1], divisor) {
 			hasBound = true
 			result.boundEvidence = "unconditional constraint: r < d"
+		} else if isFrontendCall(info, call, "AssertIsLessOrEqual") && oneLessThan(info, call.Args[1], divisor) {
+			hasBound = true
+			result.boundEvidence = "unconditional equivalent constraint: r <= d-1"
 		}
 		return true
 	})
@@ -416,20 +505,54 @@ func helperProvidesBound(body *ast.BlockStmt, info *types.Info, helpers map[*typ
 		params := parameterIndexes(decl, info)
 		ast.Inspect(decl.Body, func(n ast.Node) bool {
 			bound, ok := n.(*ast.CallExpr)
-			if !ok || len(bound.Args) != 2 || !isComparatorCall(info, bound, "AssertIsLess") || conditionallyExecuted(decl.Body, bound) {
+			if !ok || len(bound.Args) != 2 || conditionallyExecuted(decl.Body, bound) {
 				return true
 			}
 			left, leftOK := params[objectOf(info, bound.Args[0])]
+			if !leftOK || left >= len(call.Args) || outputIndex(info, call.Args[left], outputs, aliases) != 1 {
+				return true
+			}
 			right, rightOK := params[objectOf(info, bound.Args[1])]
-			if leftOK && rightOK && left < len(call.Args) && right < len(call.Args) && outputIndex(info, call.Args[left], outputs, aliases) == 1 && sameValue(info, call.Args[right], divisor) {
+			comparisonEvidence := "unconditional constraint in helper " + decl.Name.Name + ": r < d"
+			valid := isComparatorCall(info, bound, "AssertIsLess") && rightOK && right < len(call.Args) && sameValue(info, call.Args[right], divisor)
+			if isFrontendCall(info, bound, "AssertIsLessOrEqual") {
+				if parameter, ok := oneLessThanParameter(info, bound.Args[1], params); ok && parameter < len(call.Args) && sameValue(info, call.Args[parameter], divisor) {
+					valid = true
+					comparisonEvidence = "unconditional equivalent constraint in helper " + decl.Name.Name + ": r <= d-1"
+				}
+			}
+			if valid {
 				found = true
-				evidence = "unconditional constraint in helper " + decl.Name.Name + ": r < d"
+				evidence = comparisonEvidence
 			}
 			return !found
 		})
 		return !found
 	})
 	return found, evidence
+}
+
+func oneLessThan(info *types.Info, expression, value ast.Expr) bool {
+	args, ok := apiCallArgs(info, expression, "Sub")
+	return ok && len(args) == 2 && sameValue(info, args[0], value) && isIntegerConstant(info, args[1], 1)
+}
+
+func oneLessThanParameter(info *types.Info, expression ast.Expr, parameters map[types.Object]int) (int, bool) {
+	args, ok := apiCallArgs(info, expression, "Sub")
+	if !ok || len(args) != 2 || !isIntegerConstant(info, args[1], 1) {
+		return 0, false
+	}
+	index, ok := parameters[objectOf(info, args[0])]
+	return index, ok
+}
+
+func isIntegerConstant(info *types.Info, expression ast.Expr, want int64) bool {
+	value := info.Types[expression].Value
+	if value == nil || value.Kind() != constant.Int {
+		return false
+	}
+	got, ok := constant.Int64Val(value)
+	return ok && got == want
 }
 
 func helperProvidesBitBound(body *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, matches func(ast.Expr) bool) (int, bool) {
@@ -536,7 +659,7 @@ func reconstructionDivisor(info *types.Info, e ast.Expr, outputs types.Object, a
 func outputIndex(info *types.Info, e ast.Expr, outputs types.Object, aliases map[types.Object]int) int {
 	e = unparen(e)
 	if idx, ok := e.(*ast.IndexExpr); ok && objectOf(info, idx.X) == outputs {
-		return constantIndex(idx.Index)
+		return constantIndex(idx.Index, info)
 	}
 	if i, ok := aliases[objectOf(info, e)]; ok {
 		return i
@@ -665,16 +788,16 @@ func successfulReturn(ret *ast.ReturnStmt) bool {
 	return ok && id.Name == "nil"
 }
 
-func constantIndex(e ast.Expr) int {
-	if l, ok := e.(*ast.BasicLit); ok {
-		if l.Value == "0" {
-			return 0
-		}
-		if l.Value == "1" {
-			return 1
-		}
+func constantIndex(e ast.Expr, info *types.Info) int {
+	value := info.Types[e].Value
+	if value == nil || value.Kind() != constant.Int {
+		return -1
 	}
-	return -1
+	index, ok := constant.Int64Val(value)
+	if !ok || index < 0 || int64(int(index)) != index {
+		return -1
+	}
+	return int(index)
 }
 func relative(dir, path string) string {
 	if rel, err := filepath.Rel(dir, path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
@@ -713,8 +836,12 @@ func identity(info *types.Info, e ast.Expr) string {
 }
 
 func RuleHelp(id string) (string, bool) {
-	if id != relationRule {
+	switch id {
+	case relationRule:
+		return "Detects a two-output hint used in a reconstruction equality when no unconditional AssertIsLess bound constrains the remainder against the divisor. The rule conservatively follows one direct local helper call.", true
+	case unusedOutputRule:
+		return "Reports a statically indexed hint output that is extracted but never subsequently used. This high-confidence review finding is intentionally limited to direct output slices and local aliases.", true
+	default:
 		return "", false
 	}
-	return "Detects a two-output hint used in a reconstruction equality when no unconditional AssertIsLess bound constrains the remainder against the divisor. The rule conservatively follows one direct local helper call.", true
 }

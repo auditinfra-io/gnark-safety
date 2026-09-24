@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/auditinfra-io/gnark-safety/pkg/report"
 )
 
 func TestJSONAndExitPolicy(t *testing.T) {
@@ -24,6 +26,15 @@ func TestJSONAndExitPolicy(t *testing.T) {
 	stderr.Reset()
 	if code := run([]string{"scan", "--fail-on", "none", "."}, &out, &stderr, "../.."); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+}
+
+func TestHighThresholdIgnoresReviewFindings(t *testing.T) {
+	if hasHighFinding(report.Report{Findings: []report.Finding{{Severity: report.SeverityReview}}}) {
+		t.Fatal("review-only report crossed high threshold")
+	}
+	if !hasHighFinding(report.Report{Findings: []report.Finding{{Severity: report.SeverityHigh}}}) {
+		t.Fatal("high finding did not cross high threshold")
 	}
 }
 
@@ -49,6 +60,7 @@ func TestResourceLimitValidationAndOutputLimit(t *testing.T) {
 		{"scan", "--timeout=0", "."},
 		{"scan", "--max-hints=0", "."},
 		{"scan", "--max-output-bytes=0", "."},
+		{"scan", "--field=no-such-field", "."},
 	} {
 		var out, stderr bytes.Buffer
 		if code := run(args, &out, &stderr, "../.."); code != 2 {

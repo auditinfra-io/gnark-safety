@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 
 	"github.com/auditinfra-io/gnark-safety/pkg/report"
 )
@@ -79,11 +80,20 @@ func SARIF(w io.Writer, r report.Report) error {
 	results := make([]sarifResult, 0, len(r.Findings))
 	for _, f := range r.Findings {
 		rules[f.RuleID] = sarifRule{ID: f.RuleID, ShortDescription: sarifMessage{Text: f.Message}}
-		results = append(results, sarifResult{RuleID: f.RuleID, Level: "error", Message: sarifMessage{Text: f.Message}, Locations: []sarifLocation{{PhysicalLocation: sarifPhysical{ArtifactLocation: sarifArtifact{URI: f.File}, Region: sarifRegion{StartLine: f.Line, StartColumn: f.Column}}}}})
+		level := "error"
+		if f.Severity == report.SeverityReview {
+			level = "warning"
+		}
+		results = append(results, sarifResult{RuleID: f.RuleID, Level: level, Message: sarifMessage{Text: f.Message}, Locations: []sarifLocation{{PhysicalLocation: sarifPhysical{ArtifactLocation: sarifArtifact{URI: f.File}, Region: sarifRegion{StartLine: f.Line, StartColumn: f.Column}}}}})
 	}
-	ruleList := make([]sarifRule, 0, len(rules))
-	if x, ok := rules["GNARK_HINT_RELATION_INCOMPLETE"]; ok {
-		ruleList = append(ruleList, x)
+	ids := make([]string, 0, len(rules))
+	for id := range rules {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	ruleList := make([]sarifRule, 0, len(ids))
+	for _, id := range ids {
+		ruleList = append(ruleList, rules[id])
 	}
 	s := sarif{Version: "2.1.0", Schema: "https://json.schemastore.org/sarif-2.1.0.json", Runs: []sarifRun{{Tool: sarifTool{Driver: sarifDriver{Name: "gnark-safety", Version: report.SchemaVersion, Rules: ruleList}}, Results: results}}}
 	e := json.NewEncoder(w)

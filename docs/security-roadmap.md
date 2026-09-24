@@ -52,7 +52,8 @@ now reports a status and supporting evidence for each invariant and each hint
 output. Unsupported shapes remain `unknown`, while a recognized absent
 canonicality constraint is `missing`. The analyzer also records the bounded
 reconstruction maximum but does not claim field safety because callers select
-the compilation field outside the analyzed function.
+the compilation field outside the analyzed function. Callers can now provide
+BN254 or BLS12-381 explicitly to obtain a modulus comparison.
 
 The analyzer reports separate facts for each hint output:
 
@@ -82,6 +83,8 @@ acyclic call graphs. Unsupported external or dynamic dispatch, closures, and
 recursion remain explicit top-level limitations rather than silently lowering
 confidence. Regression fixtures cover assertions in one branch, after a
 successful early return, and in unconditional versus conditional helper calls.
+An SSA-based pass is a candidate for deeper def-use and phi-node tracking, but
+must preserve stable source locations and the current conservative fallbacks.
 
 ### 4. Differential-test specifications and proof systems
 

@@ -115,13 +115,16 @@ the versioned `1.0` schema and includes `hints`, `diagnostics`, and
 
 `gnark-safety` is the type-aware successor to the inventory command. Its first
 rule recognizes two-output hints whose outputs are used in a reconstruction
-equality without an unconditional canonical remainder comparison:
+equality without an unconditional canonical remainder comparison. A separate
+review rule reports statically indexed hint outputs that are never used after
+extraction:
 
 ```bash
 GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --fail-on none ./...
 GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --format json --fail-on none ./...
 GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --format sarif --output results.sarif --fail-on none ./...
 GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety explain GNARK_HINT_RELATION_INCOMPLETE
+GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety explain GNARK_HINT_OUTPUT_UNUSED
 ```
 
 Scans default to a two-minute timeout, 10,000 hint call sites, and 16 MiB of
@@ -129,6 +132,10 @@ rendered output. Override these with `--timeout`, `--max-hints`, and
 `--max-output-bytes`. These are defense-in-depth limits, not a sandbox; follow
 [`docs/untrusted-scanning.md`](docs/untrusted-scanning.md) before analyzing a
 repository outside your trust boundary.
+
+Use `--field bn254` or `--field bls12-381` when the compilation field is known.
+The analyzer will compare a recognized bounded reconstruction maximum with that
+scalar-field modulus. The default `--field unknown` makes no field-safety claim.
 
 The default `--fail-on high` policy exits 1 for a high-severity finding; use
 `--fail-on none` for inventory/report-only runs. Invalid configuration and

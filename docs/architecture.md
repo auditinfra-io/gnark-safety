@@ -31,4 +31,11 @@ participation, range, relation, canonicality, and field safety independently.
 It records direct constraint evidence and calculates the maximum bounded
 reconstruction value. Field safety remains `unknown` because the compilation
 field is chosen by the caller outside `Define`; consumers must not reinterpret
-that status as either safe or vulnerable.
+that status as either safe or vulnerable. A CLI field selection supplies the
+modulus explicitly and enables the comparison without guessing from imports or
+hint provenance.
+
+Hint identities are provenance evidence, not a trust decision. The analyzer
+does not maintain a “known-good” hint allowlist because gnark hint results are
+advice regardless of which function computes them; circuit constraints, not
+the implementation name, establish the proved relation.
