@@ -21,9 +21,16 @@ vulnerabilities.
 
 ### 1. Mutate hint outputs systematically
 
+**Implemented:** the test suite now keeps an explicit registry for every direct
+source `NewHint` call and fails if a call lacks a mutation suite. The first
+suite establishes honest output, mutates each output independently, and covers
+reconstruction-preserving noncanonical values, negative integers, declared-bit
+overflow, and the native field-modulus boundary. Both vulnerable and corrected
+circuits are checked with identical public inputs and replacement advice.
+
 The existing hand-written matrix is a strong regression test, but it exercises
-selected tuples. Add a reusable harness that starts with honest output and
-mutates each output while holding public inputs fixed. It should classify:
+selected tuples. The reusable mutation registry expands that matrix while
+holding public inputs fixed. It classifies:
 
 - unconstrained output changes;
 - reconstruction-preserving but noncanonical changes;
@@ -32,10 +39,11 @@ mutates each output while holding public inputs fixed. It should classify:
 - boundary cases at zero, one, the maximum declared integer, and the field
   modulus.
 
-Run the harness against every discovered hint call. A future scanner mode could
-emit a test skeleton from its inventory. This directly generalizes the
-repository's current `OverrideHint` technique without pretending static
-analysis alone proves soundness.
+The coverage guard intentionally scans local, non-test Go syntax so that it is
+fast and hermetic. The type-aware inventory remains authoritative for CLI
+reports. A future scanner mode could emit a test skeleton from that inventory.
+This directly generalizes the repository's current `OverrideHint` technique
+without pretending static analysis alone proves soundness.
 
 ### 2. Model invariants independently
 
@@ -95,9 +103,10 @@ service suitable for arbitrary repositories.
 
 ## Definition of done for the next milestone
 
-A useful next release should include: (1) generated adversarial tests for every
-statically resolved hint, (2) interprocedural summaries for direct local
-helpers, (3) explicit range/canonicality evidence, (4) a multi-backend proof
-matrix, and (5) release artifacts containing SARIF and an SBOM. Until then,
+A useful next release should build on the mutation registry with: (1) generated
+test skeletons for newly discovered hints, (2) interprocedural summaries for
+direct local helpers, (3) explicit range/canonicality evidence, (4) a
+multi-backend proof matrix, and (5) release artifacts containing SARIF and an
+SBOM. Until then,
 reports must continue to state that absence of findings is not proof of circuit
 soundness.

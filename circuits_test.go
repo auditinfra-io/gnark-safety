@@ -2,6 +2,7 @@ package gnarksafety
 
 import (
 	"math/big"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -170,6 +171,59 @@ func TestAdversarialSafetyMatrix(t *testing.T) {
 			}
 			requireConstraintRejection(t, err, completed)
 		})
+	}
+}
+
+// TestHintMutationMatrix treats hint advice as prover-controlled and exercises
+// every output, declared integer boundary, and the native field boundary. The
+// coverage guard in hint_inventory_test.go requires each source NewHint call to
+// have a registered target that runs this reusable matrix.
+func TestHintMutationMatrix(t *testing.T) {
+	var names []string
+	for name := range mutationTargets {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		t.Run(name, mutationTargets[name])
+	}
+}
+
+func testQuotientRemainderHintMutations(t *testing.T) {
+	field := ecc.BN254.ScalarField()
+	vulnerable := compileCircuit(t, &VulnerableCircuit{})
+	corrected := compileCircuit(t, &CorrectedCircuit{})
+	assignmentVulnerable := &VulnerableCircuit{N: 17, D: 5}
+	assignmentCorrected := &CorrectedCircuit{N: 17, D: 5}
+
+	classes := make(map[hintMutationClass]bool)
+	for _, mutation := range quotientRemainderMutations(field) {
+		mutation := mutation
+		classes[mutation.class] = true
+		t.Run(string(mutation.class)+"/"+mutation.name, func(t *testing.T) {
+			hint := bigIntHint(integer(17), integer(5), mutation.q, mutation.r)
+			override := solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), hint)
+			vulnerableErr := solve(t, vulnerable, assignmentVulnerable, override)
+			if got := vulnerableErr == nil; got != mutation.vulnerableShouldAccept {
+				t.Fatalf("vulnerable acceptance=%t, want %t (error: %v)", got, mutation.vulnerableShouldAccept, vulnerableErr)
+			}
+
+			tracked, completed := successfulHint(hint)
+			override = solver.OverrideHint(solver.GetHintID(QuotientRemainderHint), tracked)
+			correctedErr := solve(t, corrected, assignmentCorrected, override)
+			if got := correctedErr == nil; got != mutation.correctedShouldAccept {
+				t.Fatalf("corrected acceptance=%t, want %t (error: %v)", got, mutation.correctedShouldAccept, correctedErr)
+			}
+			if !completed.Load() {
+				t.Fatal("mutation hint did not run to successful completion")
+			}
+		})
+	}
+
+	for _, class := range []hintMutationClass{mutationHonest, mutationSingleOutput, mutationNonCanonical, mutationNegative, mutationOutsideDeclaredBits, mutationFieldBoundary} {
+		if !classes[class] {
+			t.Fatalf("mutation corpus does not exercise %q", class)
+		}
 	}
 }
 
