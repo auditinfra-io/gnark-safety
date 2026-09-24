@@ -1,9 +1,67 @@
+=== RUN   TestFixtureInventory
+--- PASS: TestFixtureInventory (4.73s)
+=== RUN   TestDemoIntegration
+--- PASS: TestDemoIntegration (4.30s)
+=== RUN   TestNoHintsText
+--- PASS: TestNoHintsText (0.03s)
+=== RUN   TestPackageLoadingFailure
+--- PASS: TestPackageLoadingFailure (0.02s)
+=== RUN   TestJSONDeterministicAndValid
+--- PASS: TestJSONDeterministicAndValid (15.53s)
+=== RUN   TestInvalidArguments
+--- PASS: TestInvalidArguments (0.00s)
+=== RUN   TestInventoryParity
+--- PASS: TestInventoryParity (8.01s)
+=== RUN   TestDeprecationNotice
+--- PASS: TestDeprecationNotice (0.05s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/cmd/gnark-hint-scan	32.756s
+=== RUN   TestJSONAndExitPolicy
+--- PASS: TestJSONAndExitPolicy (8.68s)
+=== RUN   TestHighThresholdIgnoresLowerFindings
+--- PASS: TestHighThresholdIgnoresLowerFindings (0.00s)
+=== RUN   TestSARIF
+--- PASS: TestSARIF (3.79s)
+=== RUN   TestExplain
+--- PASS: TestExplain (0.00s)
+=== RUN   TestVersion
+--- PASS: TestVersion (0.00s)
+=== RUN   TestResourceLimitValidationAndOutputLimit
+--- PASS: TestResourceLimitValidationAndOutputLimit (3.92s)
+=== RUN   TestFailOnLevels
+--- PASS: TestFailOnLevels (23.68s)
+=== RUN   TestSummaryLine
+--- PASS: TestSummaryLine (5.21s)
+=== RUN   TestEmptyScanIsNotAPass
+--- PASS: TestEmptyScanIsNotAPass (0.06s)
+=== RUN   TestIncludeTestsFlag
+--- PASS: TestIncludeTestsFlag (5.41s)
+=== RUN   TestSuppressedFindingsDoNotGate
+--- PASS: TestSuppressedFindingsDoNotGate (2.32s)
+=== RUN   TestSelfScanPassesDefaultGate
+--- PASS: TestSelfScanPassesDefaultGate (1.99s)
+=== RUN   TestInventory
+--- PASS: TestInventory (3.99s)
+=== RUN   TestREADMETranscripts
+--- PASS: TestREADMETranscripts (3.94s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/cmd/gnark-safety	63.043s
+=== RUN   TestMakeSPDXDeterministicAndIncludesReplacement
+--- PASS: TestMakeSPDXDeterministicAndIncludesReplacement (0.00s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/cmd/release-evidence	0.003s
+=== RUN   TestDiscoverSourceFilesIncludesUntrackedGoFiles
+--- PASS: TestDiscoverSourceFilesIncludesUntrackedGoFiles (0.01s)
+=== RUN   TestPublishEvidenceReplacesBothArtifacts
+--- PASS: TestPublishEvidenceReplacesBothArtifacts (0.00s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.018s
 === RUN   TestRequiredHintSafetyMatrix
 === RUN   TestRequiredHintSafetyMatrix/A_vulnerable_accepts_valid_output
 === RUN   TestRequiredHintSafetyMatrix/B_corrected_accepts_valid_output
 === RUN   TestRequiredHintSafetyMatrix/C_vulnerable_accepts_invalid_output
 === RUN   TestRequiredHintSafetyMatrix/D_corrected_rejects_identical_invalid_output
---- PASS: TestRequiredHintSafetyMatrix (0.01s)
+--- PASS: TestRequiredHintSafetyMatrix (0.00s)
     --- PASS: TestRequiredHintSafetyMatrix/A_vulnerable_accepts_valid_output (0.00s)
     --- PASS: TestRequiredHintSafetyMatrix/B_corrected_accepts_valid_output (0.00s)
     --- PASS: TestRequiredHintSafetyMatrix/C_vulnerable_accepts_invalid_output (0.00s)
@@ -24,14 +82,14 @@
 === RUN   TestBoundaryControls/largest_quotient
 === RUN   TestBoundaryControls/largest_quotient/vulnerable
 === RUN   TestBoundaryControls/largest_quotient/corrected
---- PASS: TestBoundaryControls (0.04s)
+--- PASS: TestBoundaryControls (0.01s)
     --- PASS: TestBoundaryControls/exact_division (0.00s)
         --- PASS: TestBoundaryControls/exact_division/vulnerable (0.00s)
         --- PASS: TestBoundaryControls/exact_division/corrected (0.00s)
-    --- PASS: TestBoundaryControls/n_less_than_d (0.01s)
+    --- PASS: TestBoundaryControls/n_less_than_d (0.00s)
         --- PASS: TestBoundaryControls/n_less_than_d/vulnerable (0.00s)
-        --- PASS: TestBoundaryControls/n_less_than_d/corrected (0.01s)
-    --- PASS: TestBoundaryControls/lower_in-range (0.02s)
+        --- PASS: TestBoundaryControls/n_less_than_d/corrected (0.00s)
+    --- PASS: TestBoundaryControls/lower_in-range (0.00s)
         --- PASS: TestBoundaryControls/lower_in-range/vulnerable (0.00s)
         --- PASS: TestBoundaryControls/lower_in-range/corrected (0.00s)
     --- PASS: TestBoundaryControls/upper_in-range_exact (0.00s)
@@ -48,7 +106,7 @@
 === RUN   TestAdversarialSafetyMatrix/n_less_than_d
 === RUN   TestAdversarialSafetyMatrix/outside_eight_bits
 === RUN   TestAdversarialSafetyMatrix/negative_output
---- PASS: TestAdversarialSafetyMatrix (0.01s)
+--- PASS: TestAdversarialSafetyMatrix (0.00s)
     --- PASS: TestAdversarialSafetyMatrix/remainder_equals_divisor (0.00s)
     --- PASS: TestAdversarialSafetyMatrix/remainder_greater_than_divisor (0.00s)
     --- PASS: TestAdversarialSafetyMatrix/divisor_one (0.00s)
@@ -56,14 +114,130 @@
     --- PASS: TestAdversarialSafetyMatrix/n_less_than_d (0.00s)
     --- PASS: TestAdversarialSafetyMatrix/outside_eight_bits (0.00s)
     --- PASS: TestAdversarialSafetyMatrix/negative_output (0.00s)
+=== RUN   TestHintMutationMatrix
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint/honest_baseline/honest
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint/single-output_change/quotient_only
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint/single-output_change/remainder_only
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint/reconstruction-preserving_noncanonical_output/noncanonical_remainder
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint/negative_field_representation/negative_quotient
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint/negative_field_representation/negative_remainder
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint/outside_declared_bit_width/quotient_above_eight_bits
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint/outside_declared_bit_width/remainder_above_eight_bits
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint/field-modulus_boundary/quotient_at_field_modulus
+=== RUN   TestHintMutationMatrix/QuotientRemainderHint/field-modulus_boundary/remainder_at_field_modulus
+--- PASS: TestHintMutationMatrix (0.03s)
+    --- PASS: TestHintMutationMatrix/QuotientRemainderHint (0.03s)
+        --- PASS: TestHintMutationMatrix/QuotientRemainderHint/honest_baseline/honest (0.00s)
+        --- PASS: TestHintMutationMatrix/QuotientRemainderHint/single-output_change/quotient_only (0.00s)
+        --- PASS: TestHintMutationMatrix/QuotientRemainderHint/single-output_change/remainder_only (0.00s)
+        --- PASS: TestHintMutationMatrix/QuotientRemainderHint/reconstruction-preserving_noncanonical_output/noncanonical_remainder (0.00s)
+        --- PASS: TestHintMutationMatrix/QuotientRemainderHint/negative_field_representation/negative_quotient (0.00s)
+        --- PASS: TestHintMutationMatrix/QuotientRemainderHint/negative_field_representation/negative_remainder (0.00s)
+        --- PASS: TestHintMutationMatrix/QuotientRemainderHint/outside_declared_bit_width/quotient_above_eight_bits (0.00s)
+        --- PASS: TestHintMutationMatrix/QuotientRemainderHint/outside_declared_bit_width/remainder_above_eight_bits (0.00s)
+        --- PASS: TestHintMutationMatrix/QuotientRemainderHint/field-modulus_boundary/quotient_at_field_modulus (0.00s)
+        --- PASS: TestHintMutationMatrix/QuotientRemainderHint/field-modulus_boundary/remainder_at_field_modulus (0.00s)
 === RUN   TestZeroDivisorRejected
 --- PASS: TestZeroDivisorRejected (0.00s)
+=== RUN   TestHintMatchesSpecificationExhaustively
+--- PASS: TestHintMatchesSpecificationExhaustively (0.10s)
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n0_d1_q0_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n17_d5_q3_r2
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n255_d1_q255_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n255_d255_q1_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n17_d5_q2_r7
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n17_d5_q4_r-3
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n255_d255_q-1_r510
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n17_d0_q0_r17
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n0_d1_q0_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n17_d5_q3_r2
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n255_d1_q255_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n255_d255_q1_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n17_d5_q2_r7
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n17_d5_q4_r-3
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n255_d255_q-1_r510
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n17_d0_q0_r17
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n0_d1_q0_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n17_d5_q3_r2
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n255_d1_q255_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n255_d255_q1_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n17_d5_q2_r7
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n17_d5_q4_r-3
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n255_d255_q-1_r510
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n17_d0_q0_r17
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n0_d1_q0_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d5_q3_r2
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n255_d1_q255_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n255_d255_q1_r0
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d5_q2_r7
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d5_q4_r-3
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n255_d255_q-1_r510
+=== RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d0_q0_r17
+--- PASS: TestCorrectedCircuitMatchesSpecificationMatrix (0.01s)
+    --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n0_d1_q0_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n17_d5_q3_r2 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n255_d1_q255_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n255_d255_q1_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n17_d5_q2_r7 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n17_d5_q4_r-3 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n255_d255_q-1_r510 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n17_d0_q0_r17 (0.00s)
+    --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs (0.01s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n0_d1_q0_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n17_d5_q3_r2 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n255_d1_q255_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n255_d255_q1_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n17_d5_q2_r7 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n17_d5_q4_r-3 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n255_d255_q-1_r510 (0.01s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/scs/n17_d0_q0_r17 (0.00s)
+    --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n0_d1_q0_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n17_d5_q3_r2 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n255_d1_q255_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n255_d255_q1_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n17_d5_q2_r7 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n17_d5_q4_r-3 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n255_d255_q-1_r510 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n17_d0_q0_r17 (0.00s)
+    --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n0_d1_q0_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d5_q3_r2 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n255_d1_q255_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n255_d255_q1_r0 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d5_q2_r7 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d5_q4_r-3 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n255_d255_q-1_r510 (0.00s)
+        --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d0_q0_r17 (0.00s)
+=== RUN   TestEveryHintCallHasMutationCoverage
+--- PASS: TestEveryHintCallHasMutationCoverage (0.00s)
 === RUN   TestGroth16VulnerableInvalidHintProofVerifies
 --- PASS: TestGroth16VulnerableInvalidHintProofVerifies (0.04s)
 === RUN   TestGroth16CorrectedValidHintProofVerifies
---- PASS: TestGroth16CorrectedValidHintProofVerifies (0.06s)
+--- PASS: TestGroth16CorrectedValidHintProofVerifies (0.03s)
 === RUN   TestGroth16CorrectedInvalidHintCannotProve
---- PASS: TestGroth16CorrectedInvalidHintCannotProve (0.03s)
+--- PASS: TestGroth16CorrectedInvalidHintCannotProve (0.05s)
+=== RUN   TestCorrectedProofBackendCurveMatrix
+=== RUN   TestCorrectedProofBackendCurveMatrix/bn254
+=== RUN   TestCorrectedProofBackendCurveMatrix/bn254/groth16
+=== RUN   TestCorrectedProofBackendCurveMatrix/bn254/plonk
+=== RUN   TestCorrectedProofBackendCurveMatrix/bls12_381
+=== RUN   TestCorrectedProofBackendCurveMatrix/bls12_381/groth16
+=== RUN   TestCorrectedProofBackendCurveMatrix/bls12_381/plonk
+--- PASS: TestCorrectedProofBackendCurveMatrix (0.34s)
+    --- PASS: TestCorrectedProofBackendCurveMatrix/bn254 (0.13s)
+        --- PASS: TestCorrectedProofBackendCurveMatrix/bn254/groth16 (0.04s)
+        --- PASS: TestCorrectedProofBackendCurveMatrix/bn254/plonk (0.09s)
+    --- PASS: TestCorrectedProofBackendCurveMatrix/bls12_381 (0.21s)
+        --- PASS: TestCorrectedProofBackendCurveMatrix/bls12_381/groth16 (0.07s)
+        --- PASS: TestCorrectedProofBackendCurveMatrix/bls12_381/plonk (0.14s)
 === RUN   FuzzQuotientRemainderHint
 === RUN   FuzzQuotientRemainderHint/seed#0
 === RUN   FuzzQuotientRemainderHint/seed#1
@@ -77,10 +251,67 @@
     --- PASS: FuzzQuotientRemainderHint/seed#3 (0.00s)
     --- PASS: FuzzQuotientRemainderHint/seed#4 (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety	0.227s
-=== RUN   TestDiscoverSourceFilesIncludesUntrackedGoFiles
---- PASS: TestDiscoverSourceFilesIncludesUntrackedGoFiles (0.06s)
-=== RUN   TestPublishEvidenceReplacesBothArtifacts
---- PASS: TestPublishEvidenceReplacesBothArtifacts (0.00s)
+ok  	github.com/auditinfra-io/gnark-safety/examples/divmod	0.620s
+=== RUN   TestScanResourceLimits
+--- PASS: TestScanResourceLimits (4.77s)
+=== RUN   TestCanonicalFixture
+--- PASS: TestCanonicalFixture (3.72s)
+=== RUN   TestConfiguredFieldAssessment
+--- PASS: TestConfiguredFieldAssessment (7.71s)
+=== RUN   TestRelationShapeAndCoverage
+--- PASS: TestRelationShapeAndCoverage (4.07s)
+=== RUN   TestUnknownInvariantsRejectsNegativeOutputCount
+--- PASS: TestUnknownInvariantsRejectsNegativeOutputCount (0.00s)
+=== RUN   TestDeprecatedAPINewHint
+--- PASS: TestDeprecatedAPINewHint (3.60s)
+=== RUN   TestRegistryCoverage
+--- PASS: TestRegistryCoverage (10.38s)
+=== RUN   TestIncludeTests
+--- PASS: TestIncludeTests (5.42s)
+=== RUN   TestExampleDowngrade
+--- PASS: TestExampleDowngrade (5.67s)
+=== RUN   TestIsExamplePath
+--- PASS: TestIsExamplePath (0.00s)
+=== RUN   TestSuppressions
+--- PASS: TestSuppressions (2.67s)
+=== RUN   TestCallSiteSpecialization
+--- PASS: TestCallSiteSpecialization (3.12s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.075s
+ok  	github.com/auditinfra-io/gnark-safety/internal/analyzer	51.217s
+=== RUN   TestIsNewHint
+--- PASS: TestIsNewHint (0.00s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/internal/gnarkapi	0.016s
+=== RUN   TestSARIFRuleMetadataComesFromRegistry
+--- PASS: TestSARIFRuleMetadataComesFromRegistry (0.00s)
+=== RUN   TestSARIFLevelsCoverEverySeverity
+--- PASS: TestSARIFLevelsCoverEverySeverity (0.00s)
+=== RUN   TestSARIFUnregisteredRuleGetsEntry
+--- PASS: TestSARIFUnregisteredRuleGetsEntry (0.00s)
+=== RUN   TestTextOutput
+--- PASS: TestTextOutput (0.00s)
+=== RUN   TestSARIFSuppressionsAndNotifications
+--- PASS: TestSARIFSuppressionsAndNotifications (0.00s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/internal/output	0.009s
+=== RUN   TestRegistryIsWellFormed
+--- PASS: TestRegistryIsWellFormed (0.00s)
+=== RUN   TestExplainCoversEveryRule
+--- PASS: TestExplainCoversEveryRule (0.00s)
+=== RUN   TestGeneratedDocsUpToDate
+--- PASS: TestGeneratedDocsUpToDate (0.00s)
+=== RUN   TestRegenerateRejectsMissingMarkers
+--- PASS: TestRegenerateRejectsMissingMarkers (0.00s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/internal/rules	0.015s
+?   	github.com/auditinfra-io/gnark-safety/internal/rules/gendocs	[no test files]
+=== RUN   TestFromBuildInfo
+--- PASS: TestFromBuildInfo (0.00s)
+=== RUN   TestOverrideWins
+--- PASS: TestOverrideWins (0.00s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/internal/version	0.011s
+=== RUN   TestSeverityOrder
+--- PASS: TestSeverityOrder (0.00s)
+PASS
+ok  	github.com/auditinfra-io/gnark-safety/pkg/report	0.006s
