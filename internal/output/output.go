@@ -63,7 +63,8 @@ type sarifRun struct {
 	Invocations []sarifInvocation `json:"invocations"`
 }
 type sarifInvocation struct {
-	ExecutionSuccessful bool `json:"executionSuccessful"`
+	ExecutionSuccessful bool            `json:"executionSuccessful"`
+	Properties          report.Coverage `json:"properties"`
 }
 type sarifTool struct {
 	Driver sarifDriver `json:"driver"`
@@ -164,7 +165,7 @@ func SARIF(w io.Writer, r report.Report) error {
 	s := sarif{Version: "2.1.0", Schema: "https://json.schemastore.org/sarif-2.1.0.json", Runs: []sarifRun{{
 		Tool:        sarifTool{Driver: sarifDriver{Name: "gnark-safety", Version: toolVersion, InformationURI: InformationURI, Rules: ruleList}},
 		Results:     results,
-		Invocations: []sarifInvocation{{ExecutionSuccessful: true}},
+		Invocations: []sarifInvocation{{ExecutionSuccessful: true, Properties: r.Coverage}},
 	}}}
 	e := json.NewEncoder(w)
 	e.SetIndent("", "  ")

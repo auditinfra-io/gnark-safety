@@ -144,9 +144,19 @@ Use `--field bn254` or `--field bls12-381` when the compilation field is known.
 The analyzer will compare a recognized bounded reconstruction maximum with that
 scalar-field modulus. The default `--field unknown` makes no field-safety claim.
 
-The default `--fail-on high` policy exits 1 for a high-severity finding; use
-`--fail-on none` for inventory/report-only runs. Invalid configuration and
-package-loading failures exit 2. The JSON report retains the hint inventory and
+The default `--fail-on high` policy exits 1 for a finding at high severity or
+above; `--fail-on` accepts `critical`, `high`, `medium`, `low`, `info`, or
+`none` for report-only runs. Invalid configuration and package-loading
+failures exit 2. So does a scan in which no package imports gnark, because a
+mistyped pattern must not read as a clean pass; pass `--allow-empty` when no
+circuits are expected. Every run prints a one-line summary to stderr with the
+finding counts, how many packages were scanned, and the gate verdict.
+
+`_test.go` files are excluded unless `--include-tests` is passed. Findings in
+`example/`, `examples/`, or `_examples/` directories are downgraded to low,
+recording the original severity, unless `--include-examples` is passed:
+example code is simplified on purpose, but it is also copied into production,
+so it is reported rather than hidden. The JSON report retains the hint inventory and
 adds stable findings. Schema 2.0 uses a critical/high/medium/low/info severity
 scale, records the tool name and version, and keeps independent per-output
 participation, range, relation, canonicality, and field-safety assessments;

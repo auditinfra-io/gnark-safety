@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/auditinfra-io/gnark-safety/internal/analyzer"
@@ -46,18 +47,26 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	fs.SetOutput(stderr)
 	format := fs.String("format", "text", "text, json, or sarif")
 	destination := fs.String("output", "", "write output to a file")
-	failOn := fs.String("fail-on", "high", "high or none")
+	failOn := fs.String("fail-on", "high", "lowest severity that fails the scan: critical, high, medium, low, info, or none")
+	allowEmpty := fs.Bool("allow-empty", false, "succeed even when no scanned package imports gnark")
+	includeTests := fs.Bool("include-tests", false, "also analyze _test.go files")
+	includeExamples := fs.Bool("include-examples", false, "keep the original severity of findings in example directories")
 	timeout := fs.Duration("timeout", 2*time.Minute, "package loading and analysis timeout")
 	maxHints := fs.Int("max-hints", 10000, "maximum hint call sites")
 	maxOutput := fs.Int64("max-output-bytes", 16<<20, "maximum rendered output size")
 	field := fs.String("field", "unknown", "unknown, bn254, or bls12-381")
-	if fs.Parse(args[1:]) != nil || fs.NArg() == 0 || (*format != "text" && *format != "json" && *format != "sarif") || (*failOn != "high" && *failOn != "none") || *timeout <= 0 || *maxHints <= 0 || *maxOutput <= 0 || (*field != "unknown" && *field != "bn254" && *field != "bls12-381") {
+	if fs.Parse(args[1:]) != nil {
+		usage(stderr)
+		return 2
+	}
+	threshold, gated := report.ParseSeverity(*failOn)
+	if fs.NArg() == 0 || (*format != "text" && *format != "json" && *format != "sarif") || (!gated && *failOn != "none") || *timeout <= 0 || *maxHints <= 0 || *maxOutput <= 0 || (*field != "unknown" && *field != "bn254" && *field != "bls12-381") {
 		usage(stderr)
 		return 2
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
-	opts := analyzer.Options{MaxHints: *maxHints}
+	opts := analyzer.Options{MaxHints: *maxHints, IncludeTests: *includeTests, IncludeExamples: *includeExamples}
 	if *field == "bn254" {
 		opts.FieldModulus, opts.FieldName = ecc.BN254.ScalarField(), "BN254 scalar field"
 	} else if *field == "bls12-381" {
@@ -66,6 +75,12 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	r, err := analyzer.ScanContext(ctx, dir, fs.Args(), opts)
 	if err != nil {
 		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
+		return 2
+	}
+	// A scan that examined no gnark code must not read as a clean pass: a
+	// mistyped pattern or a moved package would otherwise turn CI green.
+	if r.Coverage.GnarkPackages == 0 && !*allowEmpty {
+		fmt.Fprintf(stderr, "gnark-safety: none of the %d scanned package(s) import gnark, so no circuit code was analyzed. Check the package patterns, or pass --allow-empty if no circuits are expected.\n", r.Coverage.Packages)
 		return 2
 	}
 	var rendered bytes.Buffer
@@ -91,10 +106,10 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
 		return 2
 	}
-	if *failOn == "high" {
-		if hasFindingAtOrAbove(r, report.SeverityHigh) {
-			return 1
-		}
+	fails := gated && hasFindingAtOrAbove(r, threshold)
+	fmt.Fprintln(stderr, summary(r, *failOn, fails))
+	if fails {
+		return 1
 	}
 	return 0
 }
@@ -108,8 +123,61 @@ func hasFindingAtOrAbove(r report.Report, threshold report.Severity) bool {
 	}
 	return false
 }
+
+// summary is the one-line stderr verdict. It always states coverage so a
+// quiet scan is never silently quiet.
+func summary(r report.Report, failOn string, fails bool) string {
+	verdict := "passes"
+	if fails {
+		verdict = "fails"
+	}
+	c := r.Coverage
+	notes := []string{fmt.Sprintf("scanned %d package(s), %d importing gnark", c.Packages, c.GnarkPackages)}
+	if c.ExamplesDowngraded > 0 {
+		notes = append(notes, fmt.Sprintf("%d downgraded as example code", c.ExamplesDowngraded))
+	}
+	if !c.TestsIncluded {
+		notes = append(notes, "_test.go files excluded")
+	}
+	head := "no findings"
+	if len(r.Findings) > 0 {
+		counts := map[report.Severity]int{}
+		files := map[string]bool{}
+		for _, f := range r.Findings {
+			counts[f.Severity]++
+			files[f.File] = true
+		}
+		var parts []string
+		for _, severity := range report.Severities {
+			if counts[severity] > 0 {
+				parts = append(parts, fmt.Sprintf("%d %s", counts[severity], severity))
+			}
+		}
+		head = fmt.Sprintf("%d finding(s) [%s] in %d file(s)", len(r.Findings), strings.Join(parts, ", "), len(files))
+	}
+	return fmt.Sprintf("gnark-safety: %s; %s — %s (--fail-on %s)", head, strings.Join(notes, "; "), verdict, failOn)
+}
+
 func usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: gnark-safety scan [--format text|json|sarif] [--output file] [--fail-on high|none] [--field unknown|bn254|bls12-381] [--timeout duration] [--max-hints n] [--max-output-bytes n] <package patterns...>\n       gnark-safety explain [rule-id]\n       gnark-safety --version")
+	fmt.Fprintln(w, `usage: gnark-safety scan [flags] <package patterns...>
+       gnark-safety explain [rule-id]
+       gnark-safety --version
+
+scan flags:
+  --format text|json|sarif     output format (default text)
+  --output file                write output to a file instead of stdout
+  --fail-on severity|none      lowest severity that exits 1: critical, high,
+                               medium, low, info, or none (default high)
+  --allow-empty                exit 0 even if no scanned package imports gnark
+  --include-tests              also analyze _test.go files
+  --include-examples           keep original severity in example directories
+  --field unknown|bn254|bls12-381
+  --timeout duration           default 2m
+  --max-hints n                default 10000
+  --max-output-bytes n         default 16777216
+
+Exit codes: 0 pass, 1 a finding at or above --fail-on, 2 usage, loading, or
+empty-scan error.`)
 }
 
 type limitedWriter struct {

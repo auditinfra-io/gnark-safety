@@ -92,3 +92,64 @@ func TestResourceLimitValidationAndOutputLimit(t *testing.T) {
 		t.Fatalf("unexpected limited output: exit=%d stdout=%q stderr=%q", code, out.String(), stderr.String())
 	}
 }
+
+func TestFailOnLevels(t *testing.T) {
+	const demo = "./internal/analyzer/testdata/examples/demo" // one high finding, downgraded to low as example code
+	for _, tc := range []struct {
+		args []string
+		want int
+	}{
+		{[]string{"scan", demo}, 0},
+		{[]string{"scan", "--fail-on", "medium", demo}, 0},
+		{[]string{"scan", "--fail-on", "low", demo}, 1},
+		{[]string{"scan", "--fail-on", "info", demo}, 1},
+		{[]string{"scan", "--include-examples", demo}, 1},
+		{[]string{"scan", "--include-examples", "--fail-on", "critical", demo}, 0},
+		{[]string{"scan", "--include-examples", "--fail-on", "none", demo}, 0},
+		{[]string{"scan", "--fail-on", "review", demo}, 2},
+		{[]string{"scan", "--fail-on", "HIGH", demo}, 2},
+	} {
+		var out, stderr bytes.Buffer
+		if code := run(tc.args, &out, &stderr, "../.."); code != tc.want {
+			t.Errorf("run(%v) exit %d, want %d: %s", tc.args, code, tc.want, stderr.String())
+		}
+	}
+}
+
+func TestSummaryLine(t *testing.T) {
+	var out, stderr bytes.Buffer
+	if code := run([]string{"scan", "--format", "json", "."}, &out, &stderr, "../.."); code != 1 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	want := "gnark-safety: 1 finding(s) [1 high] in 1 file(s); scanned 1 package(s), 1 importing gnark; _test.go files excluded — fails (--fail-on high)\n"
+	if stderr.String() != want {
+		t.Fatalf("summary\n got %q\nwant %q", stderr.String(), want)
+	}
+	stderr.Reset()
+	if code := run([]string{"scan", "./internal/analyzer/testdata/examples/demo"}, &out, &stderr, "../.."); code != 0 || !strings.Contains(stderr.String(), "1 downgraded as example code") || !strings.Contains(stderr.String(), "— passes (--fail-on high)") {
+		t.Fatalf("exit %d, summary %q", code, stderr.String())
+	}
+}
+
+func TestEmptyScanIsNotAPass(t *testing.T) {
+	const noGnark = "./cmd/gnark-hint-scan/testdata/nohint"
+	var out, stderr bytes.Buffer
+	if code := run([]string{"scan", noGnark}, &out, &stderr, "../.."); code != 2 || out.Len() != 0 || !strings.Contains(stderr.String(), "--allow-empty") {
+		t.Fatalf("exit %d, stdout %q, stderr %q", code, out.String(), stderr.String())
+	}
+	stderr.Reset()
+	if code := run([]string{"scan", "--allow-empty", noGnark}, &out, &stderr, "../.."); code != 0 || !strings.Contains(stderr.String(), "0 importing gnark") {
+		t.Fatalf("--allow-empty exit %d, stderr %q", code, stderr.String())
+	}
+}
+
+func TestIncludeTestsFlag(t *testing.T) {
+	const pattern = "./internal/analyzer/testdata/testonly"
+	var out, stderr bytes.Buffer
+	if code := run([]string{"scan", pattern}, &out, &stderr, "../.."); code != 0 {
+		t.Fatalf("default exit %d: %s", code, stderr.String())
+	}
+	if code := run([]string{"scan", "--include-tests", pattern}, &out, &stderr, "../.."); code != 1 {
+		t.Fatalf("--include-tests exit %d: %s", code, stderr.String())
+	}
+}

@@ -24,7 +24,7 @@ func renderSARIF(t *testing.T, input report.Report) sarif {
 }
 
 func TestSARIFRuleMetadataComesFromRegistry(t *testing.T) {
-	input := report.Report{Tool: report.Tool{Name: "gnark-safety", Version: "v0.1.0"}, Findings: []report.Finding{
+	input := report.Report{Tool: report.Tool{Name: "gnark-safety", Version: "v0.1.0"}, Coverage: report.Coverage{Packages: 3, GnarkPackages: 2, Files: 7, ExamplesDowngraded: 1}, Findings: []report.Finding{
 		{RuleID: rules.HintOutputUnused, Severity: report.SeverityMedium, Message: "Hint output 1 is never used after extraction.", File: "a.go", Line: 1, Column: 1},
 		{RuleID: rules.HintRelationIncomplete, Severity: report.SeverityHigh, Message: "per-finding text", File: "b.go", Line: 2, Column: 1},
 	}}
@@ -53,7 +53,7 @@ func TestSARIFRuleMetadataComesFromRegistry(t *testing.T) {
 	if run.Results[0].Level != "warning" || run.Results[1].Level != "error" {
 		t.Fatalf("unexpected SARIF levels: %#v", run.Results)
 	}
-	if len(run.Invocations) != 1 || !run.Invocations[0].ExecutionSuccessful {
+	if len(run.Invocations) != 1 || !run.Invocations[0].ExecutionSuccessful || run.Invocations[0].Properties != input.Coverage {
 		t.Fatalf("missing invocation: %#v", run.Invocations)
 	}
 }

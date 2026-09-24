@@ -179,8 +179,12 @@ func TestRegistryCoverage(t *testing.T) {
 				t.Errorf("%s: emitted rule is not registered", f.RuleID)
 				continue
 			}
-			if !spec.Allows(f.Severity) {
-				t.Errorf("%s: emitted severity %q is not registered (%s)", f.RuleID, f.Severity, spec.SeverityLabel())
+			severity := f.Severity
+			if f.OriginalSeverity != "" {
+				severity = f.OriginalSeverity
+			}
+			if !spec.Allows(severity) {
+				t.Errorf("%s: emitted severity %q is not registered (%s)", f.RuleID, severity, spec.SeverityLabel())
 			}
 			emitted[f.RuleID] = true
 		}
@@ -188,6 +192,66 @@ func TestRegistryCoverage(t *testing.T) {
 	for _, spec := range rules.All() {
 		if !emitted[spec.ID] {
 			t.Errorf("%s: registered rule is not exercised by any fixture", spec.ID)
+		}
+	}
+}
+
+func TestIncludeTests(t *testing.T) {
+	pattern := []string{"./internal/analyzer/testdata/testonly"}
+	r, err := Scan("../..", pattern)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Findings) != 0 || len(r.Hints) != 1 || r.Coverage.TestsIncluded {
+		t.Fatalf("default scan must skip _test.go: findings=%#v hints=%d coverage=%#v", r.Findings, len(r.Hints), r.Coverage)
+	}
+	r, err = ScanContext(context.Background(), "../..", pattern, Options{IncludeTests: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The production file is shared by the package and its test variant; it
+	// must be analyzed once, not once per variant.
+	if len(r.Hints) != 2 || len(r.Findings) != 1 || r.Findings[0].Function != "vulnerableInTest" || !r.Coverage.TestsIncluded {
+		t.Fatalf("test scan: findings=%#v hints=%#v coverage=%#v", r.Findings, r.Hints, r.Coverage)
+	}
+	if r.Coverage.Files != 2 || r.Coverage.Packages != 1 || r.Coverage.GnarkPackages != 1 {
+		t.Fatalf("unexpected coverage with tests: %#v", r.Coverage)
+	}
+}
+
+func TestExampleDowngrade(t *testing.T) {
+	pattern := []string{"./internal/analyzer/testdata/examples/demo"}
+	r, err := Scan("../..", pattern)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Findings) != 1 {
+		t.Fatalf("got %#v", r.Findings)
+	}
+	f := r.Findings[0]
+	if f.Severity != report.SeverityLow || f.OriginalSeverity != report.SeverityHigh || r.Coverage.ExamplesDowngraded != 1 || !strings.Contains(strings.Join(f.Limitations, " "), "--include-examples") {
+		t.Fatalf("example finding not downgraded: %#v coverage=%#v", f, r.Coverage)
+	}
+	r, err = ScanContext(context.Background(), "../..", pattern, Options{IncludeExamples: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f := r.Findings[0]; f.Severity != report.SeverityHigh || f.OriginalSeverity != "" || r.Coverage.ExamplesDowngraded != 0 {
+		t.Fatalf("--include-examples did not keep severity: %#v", f)
+	}
+}
+
+func TestIsExamplePath(t *testing.T) {
+	for path, want := range map[string]bool{
+		"examples/divmod/circuit.go": true,
+		"a/example/b.go":             true,
+		"_examples/x.go":             true,
+		"examples.go":                false,
+		"src/examples_test/x.go":     false,
+		"circuits/example.go":        false,
+	} {
+		if got := IsExamplePath(path); got != want {
+			t.Errorf("IsExamplePath(%q) = %v, want %v", path, got, want)
 		}
 	}
 }

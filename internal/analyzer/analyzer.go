@@ -47,6 +47,41 @@ type Options struct {
 	// copied before use; callers may reuse their big.Int after ScanContext.
 	FieldModulus *big.Int
 	FieldName    string
+	// IncludeTests also analyzes _test.go files.
+	IncludeTests bool
+	// IncludeExamples keeps the original severity of findings in example
+	// directories. By default they are downgraded to low: example code is
+	// deliberately simplified, but it is also copied into production, so it
+	// is reported rather than hidden.
+	IncludeExamples bool
+}
+
+// gnarkModulePath prefixes every package in gnark's module (and excludes
+// gnark-crypto, whose path differs after "gnark").
+const gnarkModulePath = "github.com/consensys/gnark"
+
+// exampleDirs are path segments that mark example code.
+var exampleDirs = map[string]bool{"example": true, "examples": true, "_examples": true}
+
+// IsExamplePath reports whether a slash-separated path lies in an example
+// directory.
+func IsExamplePath(path string) bool {
+	segments := strings.Split(path, "/")
+	for _, segment := range segments[:len(segments)-1] {
+		if exampleDirs[segment] {
+			return true
+		}
+	}
+	return false
+}
+
+func importsGnark(p *packages.Package) bool {
+	for path := range p.Imports {
+		if path == gnarkModulePath || strings.HasPrefix(path, gnarkModulePath+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 const defaultMaxHints = 10000
@@ -63,7 +98,7 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 		return r, errors.New("max hints must be positive")
 	}
 	fset := token.NewFileSet()
-	pkgs, err := packages.Load(&packages.Config{Context: ctx, Dir: dir, Fset: fset, Mode: packages.NeedName | packages.NeedModule | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps}, patterns...)
+	pkgs, err := packages.Load(&packages.Config{Context: ctx, Dir: dir, Fset: fset, Tests: opts.IncludeTests, Mode: packages.NeedName | packages.NeedModule | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps}, patterns...)
 	if err != nil {
 		return r, err
 	}
@@ -81,17 +116,47 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 		return r, fmt.Errorf("package loading/type checking failed:\n%s", strings.Join(loadErrs, "\n"))
 	}
 	absDir, _ := filepath.Abs(dir)
+	r.Coverage.TestsIncluded = opts.IncludeTests
+	// With tests included, go/packages returns a package and its test
+	// variants, which share the non-test files. Each file is analyzed once,
+	// and generated test mains are skipped.
+	seenFiles := map[string]bool{}
+	seenPackages := map[string]bool{}
+	gnarkPackages := map[string]bool{}
 	for _, p := range pkgs {
 		if err := ctx.Err(); err != nil {
 			return r, fmt.Errorf("analysis canceled: %w", err)
 		}
+		if strings.HasSuffix(p.ID, ".test") {
+			continue
+		}
 		if r.Module == "" && p.Module != nil {
 			r.Module = p.Module.Path
 		}
+		seenPackages[p.PkgPath] = true
+		if importsGnark(p) {
+			gnarkPackages[p.PkgPath] = true
+		}
 		helpers := packageFunctions(p)
 		for _, file := range p.Syntax {
+			name := fset.Position(file.Package).Filename
+			if seenFiles[name] {
+				continue
+			}
+			seenFiles[name] = true
 			if err := inspectFile(ctx, &r, p, file, fset, absDir, helpers, maxHints, opts); err != nil {
 				return r, err
+			}
+		}
+	}
+	r.Coverage.Packages, r.Coverage.GnarkPackages, r.Coverage.Files = len(seenPackages), len(gnarkPackages), len(seenFiles)
+	if !opts.IncludeExamples {
+		for i := range r.Findings {
+			f := &r.Findings[i]
+			if IsExamplePath(f.File) && f.Severity.Rank() > report.SeverityLow.Rank() {
+				f.OriginalSeverity, f.Severity = f.Severity, report.SeverityLow
+				f.Limitations = append(f.Limitations, "Downgraded from "+string(f.OriginalSeverity)+" to low because the file is in an example directory; example code is simplified on purpose but is often copied into production. Use --include-examples to keep the original severity.")
+				r.Coverage.ExamplesDowngraded++
 			}
 		}
 	}

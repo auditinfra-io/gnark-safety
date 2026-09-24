@@ -74,16 +74,35 @@ type Hint struct {
 }
 
 type Finding struct {
-	RuleID      string   `json:"rule_id"`
-	Severity    Severity `json:"severity"`
-	Confidence  string   `json:"confidence"`
-	File        string   `json:"file"`
-	Line        int      `json:"line"`
-	Column      int      `json:"column"`
-	Function    string   `json:"function"`
-	Message     string   `json:"message"`
-	Evidence    []string `json:"evidence"`
-	Limitations []string `json:"limitations"`
+	RuleID   string   `json:"rule_id"`
+	Severity Severity `json:"severity"`
+	// OriginalSeverity is set when a scan policy changed Severity, for
+	// example when a finding in example code was downgraded to low.
+	OriginalSeverity Severity `json:"original_severity,omitempty"`
+	Confidence       string   `json:"confidence"`
+	File             string   `json:"file"`
+	Line             int      `json:"line"`
+	Column           int      `json:"column"`
+	Function         string   `json:"function"`
+	Message          string   `json:"message"`
+	Evidence         []string `json:"evidence"`
+	Limitations      []string `json:"limitations"`
+}
+
+// Coverage states what a scan examined, so a report with no findings can be
+// told apart from a scan that analyzed nothing.
+type Coverage struct {
+	// Packages is the number of distinct requested packages analyzed.
+	Packages int `json:"packages"`
+	// GnarkPackages counts analyzed packages that import a gnark package.
+	GnarkPackages int `json:"gnark_packages"`
+	// Files is the number of distinct Go files analyzed.
+	Files int `json:"files"`
+	// TestsIncluded reports whether _test.go files were analyzed.
+	TestsIncluded bool `json:"tests_included"`
+	// ExamplesDowngraded counts findings lowered to low because they are in
+	// example code.
+	ExamplesDowngraded int `json:"examples_downgraded"`
 }
 
 // Tool identifies the analyzer build that produced a report.
@@ -96,6 +115,7 @@ type Report struct {
 	SchemaVersion string    `json:"schema_version"`
 	Tool          Tool      `json:"tool"`
 	Module        string    `json:"module,omitempty"`
+	Coverage      Coverage  `json:"coverage"`
 	Findings      []Finding `json:"findings"`
 	Hints         []Hint    `json:"hints"`
 	Diagnostics   []string  `json:"diagnostics"`
