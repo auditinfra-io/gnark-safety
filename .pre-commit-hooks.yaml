@@ -1,0 +1,8 @@
+- id: gnark-safety
+  name: gnark-safety
+  description: Static soundness analyzer for gnark circuits.
+  entry: gnark-safety
+  args: [scan, --fail-on, high, ./...]
+  language: golang
+  pass_filenames: false
+  types: [go]

@@ -112,6 +112,72 @@ sites, and 16 MiB of rendered output. Override these with `--timeout`,
 not a sandbox; follow [`docs/untrusted-scanning.md`](docs/untrusted-scanning.md)
 before analyzing a repository outside your trust boundary.
 
+## GitHub Action
+
+The action builds the analyzer and scans once. It uploads SARIF to code
+scanning, so findings appear as pull-request annotations and under
+**Security → Code scanning**, and then fails the job if a finding reaches
+`fail-on`:
+
+```yaml
+# .github/workflows/gnark-safety.yml
+name: gnark-safety
+on: [push, pull_request]
+
+permissions:
+  contents: read
+  security-events: write # needed to upload SARIF
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: auditinfra-io/gnark-safety@main # pin a release tag or commit SHA
+        with:
+          path: ./...
+          fail-on: high
+```
+
+| Input | Default | Meaning |
+|---|---|---|
+| `path` | `./...` | Go package patterns, separated by whitespace, resolved from `working-directory`. |
+| `working-directory` | `.` | Directory containing the module's `go.mod`. Reported paths stay relative to the repository root, so code scanning can place them. |
+| `fail-on` | `high` | Lowest severity that fails the job: `critical`, `high`, `medium`, `low`, `info`, or `none`. |
+| `upload-sarif` | `true` | Upload SARIF to code scanning. Needs `security-events: write`; private repositories also need code scanning enabled. |
+| `sarif-category` | `gnark-safety` | Code scanning category, to keep several scans of one repository apart. |
+| `include-tests` | `false` | Also analyze `_test.go` files. |
+| `include-examples` | `false` | Keep the original severity of findings in example directories. |
+| `allow-empty` | `false` | Pass even when no scanned package imports gnark. |
+| `field` | `unknown` | Scalar field for bound checks: `unknown`, `bn254`, or `bls12-381`. |
+| `version` | empty | Release to `go install`, such as `v0.2.0`. Empty builds the analyzer from the action at the ref in `uses:`. |
+| `go-version` | `1.25.7` | Go version for `actions/setup-go`; empty uses the Go already on `PATH`. |
+
+The action's outputs are `sarif-file` and `exit-code`. An upload runs whenever
+the scan completed, including when it failed the gate, so the findings that
+failed the job are visible. A scan that could not run fails the job without
+uploading anything, so a broken scan never reads as a clean one.
+
+Inputs reach the action's scripts only through environment variables, and
+`path` entries that look like flags are rejected. The analyzer loads and
+type-checks the scanned packages, so the job needs network access to your
+module dependencies, or a warmed module cache.
+
+### pre-commit
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/auditinfra-io/gnark-safety
+    rev: main # pin a release tag or commit SHA
+    hooks:
+      - id: gnark-safety
+```
+
+The hook runs `gnark-safety scan --fail-on high ./...` from the repository
+root when Go files change. Overriding `args` replaces all of them, so start
+with `scan`, for example `args: [scan, --fail-on, medium, ./circuits/...]`.
+
 ### Suppressing a reviewed finding
 
 Put a directive on the flagged line or on the line above it. A rule ID and a

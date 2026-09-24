@@ -1,0 +1,114 @@
+name: 'gnark-safety'
+description: 'Static soundness analyzer for gnark circuits. Reports findings to GitHub code scanning and fails the job at a chosen severity.'
+author: 'auditinfra-io'
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  path:
+    description: 'Go package patterns to scan, separated by whitespace and resolved from working-directory.'
+    required: false
+    default: './...'
+  working-directory:
+    description: 'Directory containing the go.mod of the module to scan. Reported paths stay relative to the repository root.'
+    required: false
+    default: '.'
+  fail-on:
+    description: 'Lowest finding severity that fails the job: critical, high, medium, low, info, or none.'
+    required: false
+    default: 'high'
+  upload-sarif:
+    description: 'Upload the SARIF report to GitHub code scanning. Requires the security-events: write permission.'
+    required: false
+    default: 'true'
+  sarif-category:
+    description: 'Code scanning category for the upload, to keep several scans of one repository apart.'
+    required: false
+    default: 'gnark-safety'
+  include-tests:
+    description: 'Also analyze _test.go files.'
+    required: false
+    default: 'false'
+  include-examples:
+    description: 'Keep the original severity of findings in example directories instead of downgrading them to low.'
+    required: false
+    default: 'false'
+  allow-empty:
+    description: 'Pass even when no scanned package imports gnark. By default such a scan fails, so a wrong path cannot read as a clean result.'
+    required: false
+    default: 'false'
+  field:
+    description: 'Compilation scalar field for bound checks: unknown, bn254, or bls12-381.'
+    required: false
+    default: 'unknown'
+  version:
+    description: 'Release to install with go install, for example v0.2.0. Empty builds the analyzer from this action at the ref in `uses:`.'
+    required: false
+    default: ''
+  go-version:
+    description: 'Go version for actions/setup-go. Empty uses the Go already on PATH, which must be 1.25.7 or newer.'
+    required: false
+    default: '1.25.7'
+
+outputs:
+  sarif-file:
+    description: 'Path to the SARIF report. Written when the scan completes, whether or not it passes the gate.'
+    value: ${{ steps.scan.outputs.sarif-file }}
+  exit-code:
+    description: 'gnark-safety exit status: 0 passed, 1 findings at or above fail-on.'
+    value: ${{ steps.scan.outputs.exit-code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Go
+      if: ${{ inputs.go-version != '' }}
+      uses: actions/setup-go@c0137caad775660c0844396c52da96e560aba63d # v6.0.0
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false
+
+    # Inputs reach every script through the environment, never through ${{ }}
+    # interpolation into the script body: a composite action interpolates
+    # before bash parses, so an input containing shell syntax would execute.
+    - name: Install gnark-safety
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/action-install.sh"
+
+    - name: Run gnark-safety
+      id: scan
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        INCLUDE_TESTS: ${{ inputs.include-tests }}
+        INCLUDE_EXAMPLES: ${{ inputs.include-examples }}
+        ALLOW_EMPTY: ${{ inputs.allow-empty }}
+        FIELD: ${{ inputs.field }}
+        REPO_ROOT: ${{ github.workspace }}
+        SARIF_FILE: ${{ runner.temp }}/gnark-safety.sarif
+      run: bash "$GITHUB_ACTION_PATH/scripts/action-scan.sh"
+
+    # One scan feeds both the upload and the gate. The upload runs whenever
+    # the scan completed, including when it found something, so code scanning
+    # always shows what failed the job.
+    - name: Upload SARIF to code scanning
+      if: ${{ inputs.upload-sarif == 'true' && (steps.scan.outputs.exit-code == '0' || steps.scan.outputs.exit-code == '1') }}
+      uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif-file }}
+        category: ${{ inputs.sarif-category }}
+
+    - name: Enforce severity gate
+      if: ${{ steps.scan.outputs.exit-code == '1' }}
+      shell: bash
+      env:
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        echo "::error title=gnark-safety::findings at or above --fail-on $FAIL_ON; see the Run gnark-safety step"
+        exit 1

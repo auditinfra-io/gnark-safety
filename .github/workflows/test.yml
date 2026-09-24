@@ -48,3 +48,47 @@ jobs:
           go-version-file: go.mod
           cache: true
       - run: go test -run '^$' -fuzz '^FuzzQuotientRemainderHint$' -fuzztime 30s ./examples/divmod
+
+  action:
+    # Runs the composite action from this checkout against the example:
+    # a report-only pass must produce SARIF with the example's finding, and a
+    # gated pass must fail the step. Upload is disabled because pull requests
+    # from forks and private repositories may lack code scanning.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Report-only scan
+        id: report
+        uses: ./
+        with:
+          path: ./examples/divmod
+          include-examples: "true"
+          fail-on: none
+          upload-sarif: "false"
+      - name: Gated scan
+        id: gate
+        continue-on-error: true
+        uses: ./
+        with:
+          path: ./examples/divmod
+          include-examples: "true"
+          upload-sarif: "false"
+      - name: Check action outcomes
+        env:
+          REPORT_EXIT: ${{ steps.report.outputs.exit-code }}
+          REPORT_SARIF: ${{ steps.report.outputs.sarif-file }}
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+          GATE_EXIT: ${{ steps.gate.outputs.exit-code }}
+        run: |
+          set -euo pipefail
+          test "$REPORT_EXIT" = 0
+          test "$GATE_OUTCOME" = failure
+          test "$GATE_EXIT" = 1
+          python3 - "$REPORT_SARIF" <<'PY'
+          import json, sys
+          results = json.load(open(sys.argv[1]))["runs"][0]["results"]
+          assert len(results) == 1, results
+          assert results[0]["level"] == "error", results[0]
+          uri = results[0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+          assert uri == "examples/divmod/circuits.go", uri
+          PY
