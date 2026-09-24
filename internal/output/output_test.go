@@ -94,3 +94,21 @@ func TestTextOutput(t *testing.T) {
 		t.Fatalf("unexpected text: %q", buffer.String())
 	}
 }
+
+func TestSARIFSuppressionsAndNotifications(t *testing.T) {
+	input := report.Report{
+		Findings:    []report.Finding{{RuleID: rules.HintRelationIncomplete, Severity: report.SeverityHigh, Message: "active", File: "a.go", Line: 1, Column: 1}},
+		Suppressed:  []report.Finding{{RuleID: rules.HintRelationIncomplete, Severity: report.SeverityHigh, Message: "silenced", File: "a.go", Line: 9, Column: 1, Suppression: &report.Suppression{Kind: "inSource", Justification: "reviewed", Line: 8}}},
+		Diagnostics: []string{"a.go:3: suppression ignored: //gnark-safety:ignore needs a rule ID and a reason"},
+	}
+	run := renderSARIF(t, input).Runs[0]
+	if len(run.Results) != 2 || run.Results[0].Suppressions != nil {
+		t.Fatalf("active result must not carry suppressions: %#v", run.Results)
+	}
+	if got := run.Results[1].Suppressions; len(got) != 1 || got[0].Kind != "inSource" || got[0].Justification != "reviewed" {
+		t.Fatalf("suppressed result: %#v", run.Results[1])
+	}
+	if got := run.Invocations[0].ToolExecutionNotifications; len(got) != 1 || got[0].Level != "warning" || got[0].Message.Text != input.Diagnostics[0] {
+		t.Fatalf("notifications: %#v", got)
+	}
+}

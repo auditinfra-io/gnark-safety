@@ -63,8 +63,17 @@ type sarifRun struct {
 	Invocations []sarifInvocation `json:"invocations"`
 }
 type sarifInvocation struct {
-	ExecutionSuccessful bool            `json:"executionSuccessful"`
-	Properties          report.Coverage `json:"properties"`
+	ExecutionSuccessful        bool                `json:"executionSuccessful"`
+	ToolExecutionNotifications []sarifNotification `json:"toolExecutionNotifications,omitempty"`
+	Properties                 report.Coverage     `json:"properties"`
+}
+type sarifNotification struct {
+	Level   string       `json:"level"`
+	Message sarifMessage `json:"message"`
+}
+type sarifSuppression struct {
+	Kind          string `json:"kind"`
+	Justification string `json:"justification,omitempty"`
 }
 type sarifTool struct {
 	Driver sarifDriver `json:"driver"`
@@ -94,11 +103,12 @@ type sarifRuleProperties struct {
 	SecuritySeverity string   `json:"security-severity"`
 }
 type sarifResult struct {
-	RuleID    string          `json:"ruleId"`
-	RuleIndex int             `json:"ruleIndex"`
-	Level     string          `json:"level"`
-	Message   sarifMessage    `json:"message"`
-	Locations []sarifLocation `json:"locations"`
+	RuleID       string             `json:"ruleId"`
+	RuleIndex    int                `json:"ruleIndex"`
+	Level        string             `json:"level"`
+	Message      sarifMessage       `json:"message"`
+	Locations    []sarifLocation    `json:"locations"`
+	Suppressions []sarifSuppression `json:"suppressions,omitempty"`
 }
 type sarifMessage struct {
 	Text string `json:"text"`
@@ -139,8 +149,11 @@ func SARIF(w io.Writer, r report.Report) error {
 			Properties:           sarifRuleProperties{Tags: []string{"security", "zk", "gnark", spec.Class}, Precision: spec.Confidence, SecuritySeverity: score},
 		})
 	}
+	// Suppressed findings are emitted with SARIF suppressions so code
+	// scanning keeps an audit trail instead of losing them.
+	all := append(append([]report.Finding(nil), r.Findings...), r.Suppressed...)
 	var unregistered []string
-	for _, f := range r.Findings {
+	for _, f := range all {
 		if _, ok := index[f.RuleID]; !ok {
 			index[f.RuleID] = -1
 			unregistered = append(unregistered, f.RuleID)
@@ -153,10 +166,18 @@ func SARIF(w io.Writer, r report.Report) error {
 		ruleList = append(ruleList, sarifRule{ID: id, Name: id, ShortDescription: sarifMessage{Text: id}, FullDescription: sarifMessage{Text: id}, HelpURI: InformationURI, DefaultConfiguration: sarifConfiguration{Level: level}, Properties: sarifRuleProperties{Tags: []string{"security", "zk", "gnark"}, SecuritySeverity: score}})
 	}
 
-	results := make([]sarifResult, 0, len(r.Findings))
-	for _, f := range r.Findings {
+	results := make([]sarifResult, 0, len(all))
+	for _, f := range all {
 		level, _ := sarifLevel(f.Severity)
-		results = append(results, sarifResult{RuleID: f.RuleID, RuleIndex: index[f.RuleID], Level: level, Message: sarifMessage{Text: f.Message}, Locations: []sarifLocation{{PhysicalLocation: sarifPhysical{ArtifactLocation: sarifArtifact{URI: f.File}, Region: sarifRegion{StartLine: f.Line, StartColumn: f.Column}}}}})
+		result := sarifResult{RuleID: f.RuleID, RuleIndex: index[f.RuleID], Level: level, Message: sarifMessage{Text: f.Message}, Locations: []sarifLocation{{PhysicalLocation: sarifPhysical{ArtifactLocation: sarifArtifact{URI: f.File}, Region: sarifRegion{StartLine: f.Line, StartColumn: f.Column}}}}}
+		if f.Suppression != nil {
+			result.Suppressions = []sarifSuppression{{Kind: f.Suppression.Kind, Justification: f.Suppression.Justification}}
+		}
+		results = append(results, result)
+	}
+	var notifications []sarifNotification
+	for _, diagnostic := range r.Diagnostics {
+		notifications = append(notifications, sarifNotification{Level: "warning", Message: sarifMessage{Text: diagnostic}})
 	}
 	toolVersion := r.Tool.Version
 	if toolVersion == "" {
@@ -165,7 +186,7 @@ func SARIF(w io.Writer, r report.Report) error {
 	s := sarif{Version: "2.1.0", Schema: "https://json.schemastore.org/sarif-2.1.0.json", Runs: []sarifRun{{
 		Tool:        sarifTool{Driver: sarifDriver{Name: "gnark-safety", Version: toolVersion, InformationURI: InformationURI, Rules: ruleList}},
 		Results:     results,
-		Invocations: []sarifInvocation{{ExecutionSuccessful: true, Properties: r.Coverage}},
+		Invocations: []sarifInvocation{{ExecutionSuccessful: true, ToolExecutionNotifications: notifications, Properties: r.Coverage}},
 	}}}
 	e := json.NewEncoder(w)
 	e.SetIndent("", "  ")

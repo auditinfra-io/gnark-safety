@@ -87,6 +87,17 @@ type Finding struct {
 	Message          string   `json:"message"`
 	Evidence         []string `json:"evidence"`
 	Limitations      []string `json:"limitations"`
+	// Suppression is set only on findings in Report.Suppressed.
+	Suppression *Suppression `json:"suppression,omitempty"`
+}
+
+// Suppression records the in-source directive that silenced a finding.
+type Suppression struct {
+	// Kind is "inSource", matching SARIF's suppression kinds.
+	Kind          string `json:"kind"`
+	Justification string `json:"justification"`
+	// Line is the line of the //gnark-safety:ignore directive.
+	Line int `json:"line"`
 }
 
 // Coverage states what a scan examined, so a report with no findings can be
@@ -117,7 +128,10 @@ type Report struct {
 	Module        string    `json:"module,omitempty"`
 	Coverage      Coverage  `json:"coverage"`
 	Findings      []Finding `json:"findings"`
-	Hints         []Hint    `json:"hints"`
-	Diagnostics   []string  `json:"diagnostics"`
-	Limitations   []string  `json:"limitations"`
+	// Suppressed holds findings silenced by //gnark-safety:ignore. They
+	// never count toward the exit gate but stay visible for audit.
+	Suppressed  []Finding `json:"suppressed"`
+	Hints       []Hint    `json:"hints"`
+	Diagnostics []string  `json:"diagnostics"`
+	Limitations []string  `json:"limitations"`
 }

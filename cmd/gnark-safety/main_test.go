@@ -153,3 +153,23 @@ func TestIncludeTestsFlag(t *testing.T) {
 		t.Fatalf("--include-tests exit %d: %s", code, stderr.String())
 	}
 }
+
+func TestSuppressedFindingsDoNotGate(t *testing.T) {
+	var out, stderr bytes.Buffer
+	// Five findings stay active in the fixture, so the gate still fails; the
+	// three suppressed ones are counted and the malformed directives warned.
+	if code := run([]string{"scan", "--format", "json", "./internal/analyzer/testdata/suppress"}, &out, &stderr, "../.."); code != 1 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	var doc report.Report
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Findings) != 5 || len(doc.Suppressed) != 3 {
+		t.Fatalf("findings=%d suppressed=%d", len(doc.Findings), len(doc.Suppressed))
+	}
+	log := stderr.String()
+	if !strings.Contains(log, "5 finding(s) [5 high]") || !strings.Contains(log, "; 3 suppressed;") || !strings.Contains(log, "gnark-safety: warning: internal/analyzer/testdata/suppress/suppress.go:") {
+		t.Fatalf("unexpected stderr:\n%s", log)
+	}
+}

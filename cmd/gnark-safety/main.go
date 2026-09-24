@@ -106,6 +106,9 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
 		return 2
 	}
+	for _, diagnostic := range r.Diagnostics {
+		fmt.Fprintf(stderr, "gnark-safety: warning: %s\n", diagnostic)
+	}
 	fails := gated && hasFindingAtOrAbove(r, threshold)
 	fmt.Fprintln(stderr, summary(r, *failOn, fails))
 	if fails {
@@ -135,6 +138,9 @@ func summary(r report.Report, failOn string, fails bool) string {
 	notes := []string{fmt.Sprintf("scanned %d package(s), %d importing gnark", c.Packages, c.GnarkPackages)}
 	if c.ExamplesDowngraded > 0 {
 		notes = append(notes, fmt.Sprintf("%d downgraded as example code", c.ExamplesDowngraded))
+	}
+	if len(r.Suppressed) > 0 {
+		notes = append(notes, fmt.Sprintf("%d suppressed", len(r.Suppressed)))
 	}
 	if !c.TestsIncluded {
 		notes = append(notes, "_test.go files excluded")

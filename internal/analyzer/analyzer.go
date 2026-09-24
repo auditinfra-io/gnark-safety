@@ -89,7 +89,7 @@ const defaultMaxHints = 10000
 // ScanContext is Scan with cancellation and resource ceilings for callers that
 // process repositories outside their trust boundary.
 func ScanContext(ctx context.Context, dir string, patterns []string, opts Options) (report.Report, error) {
-	r := report.Report{SchemaVersion: report.SchemaVersion, Tool: report.Tool{Name: "gnark-safety", Version: version.String()}, Findings: []report.Finding{}, Hints: []report.Hint{}, Diagnostics: []string{}, Limitations: append([]string(nil), limitations...)}
+	r := report.Report{SchemaVersion: report.SchemaVersion, Tool: report.Tool{Name: "gnark-safety", Version: version.String()}, Findings: []report.Finding{}, Suppressed: []report.Finding{}, Hints: []report.Hint{}, Diagnostics: []string{}, Limitations: append([]string(nil), limitations...)}
 	maxHints := opts.MaxHints
 	if maxHints == 0 {
 		maxHints = defaultMaxHints
@@ -122,6 +122,7 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 	// and generated test mains are skipped.
 	seenFiles := map[string]bool{}
 	seenPackages := map[string]bool{}
+	var directives []*directive
 	gnarkPackages := map[string]bool{}
 	for _, p := range pkgs {
 		if err := ctx.Err(); err != nil {
@@ -147,6 +148,9 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 			if err := inspectFile(ctx, &r, p, file, fset, absDir, helpers, maxHints, opts); err != nil {
 				return r, err
 			}
+			fileDirectives, diagnostics := collectDirectives(file, fset, relative(absDir, name))
+			directives = append(directives, fileDirectives...)
+			r.Diagnostics = append(r.Diagnostics, diagnostics...)
 		}
 	}
 	r.Coverage.Packages, r.Coverage.GnarkPackages, r.Coverage.Files = len(seenPackages), len(gnarkPackages), len(seenFiles)
@@ -160,12 +164,20 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 			}
 		}
 	}
+	applySuppressions(&r, directives)
 	sort.Slice(r.Hints, func(i, j int) bool {
 		a, b := r.Hints[i], r.Hints[j]
 		return a.File < b.File || a.File == b.File && (a.Line < b.Line || a.Line == b.Line && a.Column < b.Column)
 	})
-	sort.Slice(r.Findings, func(i, j int) bool {
-		a, b := r.Findings[i], r.Findings[j]
+	sortFindings(r.Findings)
+	sortFindings(r.Suppressed)
+	sort.Strings(r.Diagnostics)
+	return r, nil
+}
+
+func sortFindings(findings []report.Finding) {
+	sort.Slice(findings, func(i, j int) bool {
+		a, b := findings[i], findings[j]
 		if a.File != b.File {
 			return a.File < b.File
 		}
@@ -177,7 +189,6 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 		}
 		return a.RuleID < b.RuleID
 	})
-	return r, nil
 }
 
 func packageFunctions(p *packages.Package) map[*types.Func]*ast.FuncDecl {

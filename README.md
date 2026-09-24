@@ -156,7 +156,21 @@ finding counts, how many packages were scanned, and the gate verdict.
 `example/`, `examples/`, or `_examples/` directories are downgraded to low,
 recording the original severity, unless `--include-examples` is passed:
 example code is simplified on purpose, but it is also copied into production,
-so it is reported rather than hidden. The JSON report retains the hint inventory and
+so it is reported rather than hidden.
+
+Silence a finding you have reviewed with a directive on the flagged line or
+the line above it. A rule ID and a reason are required:
+
+```go
+//gnark-safety:ignore GNARK_HINT_RELATION_INCOMPLETE the caller constrains r < d
+out, err := api.Compiler().NewHint(quotientRemainder, 2, n, d)
+```
+
+Suppressed findings move to the report's `suppressed` list, never fail the
+gate, and appear in SARIF with an `inSource` suppression so code scanning
+keeps the audit trail. A directive with no reason, an unknown rule, a space
+after `//`, or no matching finding is reported as a warning instead of
+silently doing nothing. The JSON report retains the hint inventory and
 adds stable findings. Schema 2.0 uses a critical/high/medium/low/info severity
 scale, records the tool name and version, and keeps independent per-output
 participation, range, relation, canonicality, and field-safety assessments;

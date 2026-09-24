@@ -42,6 +42,22 @@ Reports a statically indexed hint output that is extracted from the slice return
 *Where it stops:* Only statically indexed outputs and their local aliases are tracked. Dynamic indexes, outputs passed through slices or struct fields, and complex aliasing remain unknown.
 <!-- END GENERATED RULE REFERENCE -->
 
+## Suppressing a reviewed finding
+
+Write `//gnark-safety:ignore RULE_ID[,RULE_ID...] reason` on the flagged line
+or on the line directly above it. Following Go's directive convention there
+is no space after `//`. The reason is required and is recorded as the SARIF
+suppression justification.
+
+The directive never hides anything by accident:
+
+- a finding it matches moves to the report's `suppressed` list, does not count
+  toward `--fail-on`, and is emitted in SARIF with an `inSource` suppression;
+- a directive with no reason, an unknown rule ID, or a space after `//`
+  suppresses nothing and produces a warning;
+- a directive that matches no finding produces a warning, so stale
+  suppressions surface after the code they covered changes.
+
 ## Severity scale
 
 Report schema 2.0 uses five levels. The CLI gate (`--fail-on`) and SARIF

@@ -255,3 +255,53 @@ func TestIsExamplePath(t *testing.T) {
 		}
 	}
 }
+
+func TestSuppressions(t *testing.T) {
+	r, err := Scan("../..", []string{"./internal/analyzer/testdata/suppress"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	suppressed := map[string]string{}
+	for _, f := range r.Suppressed {
+		if f.Suppression == nil || f.Suppression.Kind != "inSource" {
+			t.Fatalf("suppressed finding lacks a suppression record: %#v", f)
+		}
+		suppressed[f.Function] = f.Suppression.Justification
+	}
+	want := map[string]string{"aboveLine": "the caller constrains r < d", "trailing": "reviewed in audit 12", "multipleIDs": "both reviewed"}
+	if len(suppressed) != len(want) {
+		t.Fatalf("suppressed %v, want %v", suppressed, want)
+	}
+	for function, reason := range want {
+		if suppressed[function] != reason {
+			t.Errorf("%s: justification %q, want %q", function, suppressed[function], reason)
+		}
+	}
+	active := map[string]bool{}
+	for _, f := range r.Findings {
+		if f.Suppression != nil {
+			t.Errorf("active finding carries a suppression: %#v", f)
+		}
+		active[f.Function] = true
+	}
+	for _, function := range []string{"wrongRule", "noReason", "spaced", "unknownRule", "tooFar"} {
+		if !active[function] {
+			t.Errorf("%s: finding should stay active", function)
+		}
+	}
+	diagnostics := strings.Join(r.Diagnostics, "\n")
+	for _, fragment := range []string{
+		"needs a rule ID and a reason",
+		"no space after //",
+		`unknown rule "GNARK_NO_SUCH_RULE"`,
+		"suppression of GNARK_HINT_OUTPUT_UNUSED matched no finding",       // wrongRule and multipleIDs
+		"suppression of GNARK_HINT_RELATION_INCOMPLETE matched no finding", // tooFar
+	} {
+		if !strings.Contains(diagnostics, fragment) {
+			t.Errorf("missing diagnostic containing %q in:\n%s", fragment, diagnostics)
+		}
+	}
+	if got := strings.Count(diagnostics, "matched no finding"); got != 3 {
+		t.Errorf("got %d unused-directive diagnostics, want 3:\n%s", got, diagnostics)
+	}
+}
