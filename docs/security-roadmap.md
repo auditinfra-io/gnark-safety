@@ -1,0 +1,103 @@
+# Security research and robustness roadmap
+
+This review uses the audit reports and security material published in the
+gnark v0.16.3 repository. Links are pinned to the same upstream commit as this
+project's dependency review, so the evidence does not drift. The reports audit
+gnark, gnark-crypto, or particular integrations—not this repository. Their
+findings are therefore design input, not evidence that this fixture has those
+vulnerabilities.
+
+## Sources reviewed
+
+| Source | Relevant lesson for this project |
+|---|---|
+| [ZKSecurity, gnark standard library (May 2024)](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/audits/2024-05%20-%20zksecurity%20-%20gnark%20std.pdf) | Findings include missing constraints, incomplete recomposition, underflow, and values treated as reduced when they were not. Track range, canonicality, and representation invariants separately rather than equating “used in a constraint” with “fully constrained.” |
+| [Least Authority, arithmetic and GKR (September 2024)](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/audits/2024-09%20-%20Least%20Authority%20-%20arithm%20and%20GKR.pdf) | Keep security assumptions, field semantics, and unsupported behavior explicit; test the boundaries between APIs and proof-system components. |
+| [Kudelski Security, gnark-crypto (October 2022)](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf) | Dependency assurance is part of circuit assurance. Pin and continuously scan the exact cryptographic stack used by tests. |
+| [gnark security policy](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/SECURITY.md) and [published advisory index](https://github.com/Consensys/gnark/security/advisories) | Maintain a private reporting path and monitor upstream announcements; do not disclose suspected upstream issues in a public issue first. |
+| [gnark testing package documentation](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/test/assert.go) and [hint documentation](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/constraint/solver/hint.go) | Cross-check valid witnesses across curves/backends and treat every hint output as untrusted advice requiring constraints. |
+
+## Prioritized improvements
+
+### 1. Mutate hint outputs systematically
+
+The existing hand-written matrix is a strong regression test, but it exercises
+selected tuples. Add a reusable harness that starts with honest output and
+mutates each output while holding public inputs fixed. It should classify:
+
+- unconstrained output changes;
+- reconstruction-preserving but noncanonical changes;
+- negative values represented as field elements;
+- values outside the declared bit width; and
+- boundary cases at zero, one, the maximum declared integer, and the field
+  modulus.
+
+Run the harness against every discovered hint call. A future scanner mode could
+emit a test skeleton from its inventory. This directly generalizes the
+repository's current `OverrideHint` technique without pretending static
+analysis alone proves soundness.
+
+### 2. Model invariants independently
+
+Extend the analyzer from its single quotient/remainder shape to report separate
+facts for each hint output:
+
+1. **participation**—the output reaches a constraint;
+2. **range**—the intended integer or limb bounds are enforced;
+3. **relation**—the output is tied to its inputs;
+4. **canonicality**—alternate representations are excluded; and
+5. **field safety**—integer equalities cannot be satisfied only through modular
+   wraparound.
+
+This taxonomy follows the recurring audit themes while avoiding an unsafe
+binary “constrained/unconstrained” conclusion. Findings should preserve the
+supporting expression and bound calculation in machine-readable evidence.
+
+### 3. Add interprocedural and path-sensitive analysis
+
+The current rule is intentionally intra-function. The next implementation
+milestone should build a call graph for requested packages, summarize helper
+constraints, and require guards to dominate all exits. Unsupported dynamic
+dispatch, closures, or recursion should produce explicit diagnostics rather
+than silently lowering confidence. Add negative fixtures for assertions that
+occur only in one branch, after an early return, or in a helper that is never
+called.
+
+### 4. Differential-test specifications and proof systems
+
+For each demonstration relation, keep an ordinary-Go reference predicate and
+compare it with circuit acceptance over bounded exhaustive domains where
+feasible. Then run a smaller corpus through constraint solving and end-to-end
+proof verification on every supported backend/curve combination. Solver-only
+tests are faster, but proof tests catch setup, witness-publication, hint
+registration, and verifier integration mistakes.
+
+### 5. Make dependency and release evidence auditable
+
+- Treat `go.mod` and `go.sum` as one reviewed change and run `go mod verify`.
+- Keep GitHub Actions pinned by commit and let Dependabot propose reviewed
+  updates for both Go modules and actions.
+- Generate an SBOM and attach it, the analyzer SARIF, test output, source hashes,
+  and toolchain metadata to tagged releases.
+- Monitor the upstream advisory page and `gnark-announce`; `govulncheck` cannot
+  find an unpublished advisory or a semantic circuit error.
+- Sign release tags and document how generated evidence can be reproduced from
+  a clean checkout.
+
+### 6. Harden scanner operation on untrusted repositories
+
+Package loading invokes the Go toolchain and may download modules or execute
+toolchain selection. Document that trust boundary prominently. For hosted use,
+scan in a network-restricted, resource-limited container with a read-only source
+mount, a controlled module proxy/cache, a fixed toolchain, and time/output
+limits. Add cancellation and resource ceilings before presenting the CLI as a
+service suitable for arbitrary repositories.
+
+## Definition of done for the next milestone
+
+A useful next release should include: (1) generated adversarial tests for every
+statically resolved hint, (2) interprocedural summaries for direct local
+helpers, (3) explicit range/canonicality evidence, (4) a multi-backend proof
+matrix, and (5) release artifacts containing SARIF and an SBOM. Until then,
+reports must continue to state that absence of findings is not proof of circuit
+soundness.

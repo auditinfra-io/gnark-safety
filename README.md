@@ -121,6 +121,19 @@ is intra-function and reports its unsupported constructs in the top-level
 `limitations` field. See [`docs/architecture.md`](docs/architecture.md) and
 [`docs/rules.md`](docs/rules.md).
 
+## Security and audit research
+
+[`docs/security-roadmap.md`](docs/security-roadmap.md) maps themes from gnark's
+published audits and security guidance to concrete next steps for this project.
+The highest-value follow-ups are adversarial-hint mutation testing, explicit
+field/range reasoning, interprocedural analysis, and differential tests against
+ordinary Go specifications. This is a research roadmap, not an assertion that
+an upstream audit finding affects this fixture.
+
+Please report a suspected vulnerability privately as described in
+[`SECURITY.md`](SECURITY.md). Dependency updates are monitored through
+Dependabot and CI runs vulnerability, race, static-analysis, and fuzz checks.
+
 ## Observed outcomes
 
 Observed on 2026-09-21 on Linux/x86_64; see [`evidence/`](evidence/README.md).
@@ -144,10 +157,10 @@ claim is made that a proof or key from one circuit works with the other.
 
 ## Scope and limits
 
-This standalone repository contains the public educational demonstration and
-the narrow hint-call inventory CLI described above. It includes no constraint
-scanner detector, proprietary invariant pack, customer finding, or
-general-purpose safety analysis.
+This standalone repository contains the public educational demonstration, the
+hint-call inventory CLI, and one deliberately narrow experimental detector. It
+includes no proprietary invariant pack, customer finding, or general-purpose
+safety analysis.
 
 One deliberately incomplete relation does not establish a general method for
 finding underconstrained circuits or measure any scanner's accuracy. It also
