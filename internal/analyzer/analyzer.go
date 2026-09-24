@@ -16,12 +16,17 @@ import (
 	"strings"
 
 	"github.com/auditinfra-io/gnark-safety/internal/gnarkapi"
+	"github.com/auditinfra-io/gnark-safety/internal/rules"
+	"github.com/auditinfra-io/gnark-safety/internal/version"
 	"github.com/auditinfra-io/gnark-safety/pkg/report"
 	"golang.org/x/tools/go/packages"
 )
 
-const relationRule = "GNARK_HINT_RELATION_INCOMPLETE"
-const unusedOutputRule = "GNARK_HINT_OUTPUT_UNUSED"
+const (
+	relationRule     = rules.HintRelationIncomplete
+	unusedOutputRule = rules.HintOutputUnused
+)
+
 const maximumAnalyzedBitWidth = 4096
 
 var limitations = []string{
@@ -49,7 +54,7 @@ const defaultMaxHints = 10000
 // ScanContext is Scan with cancellation and resource ceilings for callers that
 // process repositories outside their trust boundary.
 func ScanContext(ctx context.Context, dir string, patterns []string, opts Options) (report.Report, error) {
-	r := report.Report{SchemaVersion: report.SchemaVersion, Findings: []report.Finding{}, Hints: []report.Hint{}, Diagnostics: []string{}, Limitations: append([]string(nil), limitations...)}
+	r := report.Report{SchemaVersion: report.SchemaVersion, Tool: report.Tool{Name: "gnark-safety", Version: version.String()}, Findings: []report.Finding{}, Hints: []report.Hint{}, Diagnostics: []string{}, Limitations: append([]string(nil), limitations...)}
 	maxHints := opts.MaxHints
 	if maxHints == 0 {
 		maxHints = defaultMaxHints
@@ -205,7 +210,7 @@ func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, fil
 			r.Hints = append(r.Hints, h)
 			if h.OutputCount != nil {
 				for _, index := range unusedOutputs(fn.Body, call, p.TypesInfo, *h.OutputCount) {
-					r.Findings = append(r.Findings, report.Finding{RuleID: unusedOutputRule, Severity: report.SeverityReview, Confidence: "high", File: path, Line: pos.Line, Column: pos.Column, Function: function, Message: fmt.Sprintf("Hint output %d is never used after extraction.", index), Evidence: []string{"hint output: " + h.Hint, fmt.Sprintf("unused output index: %d", index)}, Limitations: []string{}})
+					r.Findings = append(r.Findings, report.Finding{RuleID: unusedOutputRule, Severity: report.SeverityMedium, Confidence: "high", File: path, Line: pos.Line, Column: pos.Column, Function: function, Message: fmt.Sprintf("Hint output %d is never used after extraction.", index), Evidence: []string{"hint output: " + h.Hint, fmt.Sprintf("unused output index: %d", index)}, Limitations: []string{}})
 				}
 			}
 			if h.OutputCount != nil && *h.OutputCount == 2 && incompleteRelation(fn.Body, call, p.TypesInfo, helpers) {
@@ -822,15 +827,4 @@ func identity(info *types.Info, e ast.Expr) string {
 		return "unknown"
 	}
 	return f.Pkg().Path() + "." + f.Name()
-}
-
-func RuleHelp(id string) (string, bool) {
-	switch id {
-	case relationRule:
-		return "Detects a two-output hint used in a reconstruction equality when no unconditional AssertIsLess bound constrains the remainder against the divisor. The rule conservatively follows one direct local helper call.", true
-	case unusedOutputRule:
-		return "Reports a statically indexed hint output that is extracted but never subsequently used. This high-confidence review finding is intentionally limited to direct output slices and local aliases.", true
-	default:
-		return "", false
-	}
 }

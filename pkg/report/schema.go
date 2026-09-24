@@ -1,7 +1,9 @@
 // Package report defines the stable, machine-readable gnark-safety report.
 package report
 
-const SchemaVersion = "1.1"
+// SchemaVersion identifies the report layout. 2.0 replaced the
+// high/review severity pair with a five-level scale and added tool identity.
+const SchemaVersion = "2.0"
 
 type InvariantStatus string
 
@@ -21,12 +23,36 @@ type Invariant struct {
 	Evidence    []string        `json:"evidence"`
 }
 
+// Severity orders findings for triage and for the CLI exit gate.
 type Severity string
 
 const (
-	SeverityHigh   Severity = "high"
-	SeverityReview Severity = "review"
+	SeverityCritical Severity = "critical"
+	SeverityHigh     Severity = "high"
+	SeverityMedium   Severity = "medium"
+	SeverityLow      Severity = "low"
+	SeverityInfo     Severity = "info"
 )
+
+// Severities lists every severity, most severe first.
+var Severities = []Severity{SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow, SeverityInfo}
+
+// Rank orders severities: critical is highest, info is zero, and an
+// unrecognized value is negative so it never satisfies a threshold.
+func (s Severity) Rank() int {
+	for i, known := range Severities {
+		if s == known {
+			return len(Severities) - 1 - i
+		}
+	}
+	return -1
+}
+
+// ParseSeverity accepts exactly the lower-case severity names.
+func ParseSeverity(value string) (Severity, bool) {
+	s := Severity(value)
+	return s, s.Rank() >= 0
+}
 
 type Location struct {
 	File   string `json:"file"`
@@ -60,8 +86,15 @@ type Finding struct {
 	Limitations []string `json:"limitations"`
 }
 
+// Tool identifies the analyzer build that produced a report.
+type Tool struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
 type Report struct {
 	SchemaVersion string    `json:"schema_version"`
+	Tool          Tool      `json:"tool"`
 	Module        string    `json:"module,omitempty"`
 	Findings      []Finding `json:"findings"`
 	Hints         []Hint    `json:"hints"`

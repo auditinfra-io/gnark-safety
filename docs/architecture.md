@@ -7,12 +7,18 @@ The experimental analyzer is split at stable data boundaries:
    `frontend.Compiler.NewHint` and deprecated `frontend.API.NewHint` from
    unrelated methods, extracts hint metadata, and applies the initial
    conservative syntax rule.
-2. `pkg/report` is the public, versioned report model. Unknown hint metadata is
+2. `internal/rules` is the rule registry: IDs, titles, severity spreads,
+   taxonomy classes, descriptions, and limitations. `explain`, SARIF rule
+   metadata, and the generated sections of `README.md` and `docs/rules.md`
+   are rendered from it, and tests fail when the docs or the emitted rules
+   drift from it.
+3. `pkg/report` is the public, versioned report model. Unknown hint metadata is
    represented explicitly by the `unknown` list rather than guessed. Schema
-   1.1 also records per-output invariant assessments; `unknown` is distinct
-   from `missing` so unsupported analysis never claims a missing constraint.
-3. `internal/output` renders the same report as text, JSON, or SARIF 2.1.0.
-4. `cmd/gnark-safety` owns argument validation, output destinations, and the
+   2.0 records the tool identity, a five-level severity scale, and per-output
+   invariant assessments; `unknown` is distinct from `missing` so unsupported
+   analysis never claims a missing constraint.
+4. `internal/output` renders the same report as text, JSON, or SARIF 2.1.0.
+5. `cmd/gnark-safety` owns argument validation, output destinations, and the
    deterministic exit policy.
 
 The current pass follows one level of direct, package-local helper calls for

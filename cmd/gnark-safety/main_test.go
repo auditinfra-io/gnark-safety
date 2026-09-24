@@ -19,7 +19,7 @@ func TestJSONAndExitPolicy(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if doc["schema_version"] != "1.1" {
+	if doc["schema_version"] != "2.0" {
 		t.Fatalf("unexpected report: %s", out.String())
 	}
 	out.Reset()
@@ -29,12 +29,14 @@ func TestJSONAndExitPolicy(t *testing.T) {
 	}
 }
 
-func TestHighThresholdIgnoresReviewFindings(t *testing.T) {
-	if hasHighFinding(report.Report{Findings: []report.Finding{{Severity: report.SeverityReview}}}) {
-		t.Fatal("review-only report crossed high threshold")
+func TestHighThresholdIgnoresLowerFindings(t *testing.T) {
+	if hasFindingAtOrAbove(report.Report{Findings: []report.Finding{{Severity: report.SeverityMedium}}}, report.SeverityHigh) {
+		t.Fatal("medium-only report crossed high threshold")
 	}
-	if !hasHighFinding(report.Report{Findings: []report.Finding{{Severity: report.SeverityHigh}}}) {
-		t.Fatal("high finding did not cross high threshold")
+	for _, severity := range []report.Severity{report.SeverityHigh, report.SeverityCritical} {
+		if !hasFindingAtOrAbove(report.Report{Findings: []report.Finding{{Severity: severity}}}, report.SeverityHigh) {
+			t.Fatalf("%s finding did not cross high threshold", severity)
+		}
 	}
 }
 
@@ -50,8 +52,24 @@ func TestSARIF(t *testing.T) {
 
 func TestExplain(t *testing.T) {
 	var out, stderr bytes.Buffer
-	if code := run([]string{"explain", "GNARK_HINT_RELATION_INCOMPLETE"}, &out, &stderr, "."); code != 0 {
-		t.Fatalf("exit %d: %s", code, stderr.String())
+	if code := run([]string{"explain", "GNARK_HINT_RELATION_INCOMPLETE"}, &out, &stderr, "."); code != 0 || !strings.Contains(out.String(), "Incomplete hint relation") {
+		t.Fatalf("exit %d: %s%s", code, out.String(), stderr.String())
+	}
+	out.Reset()
+	if code := run([]string{"explain"}, &out, &stderr, "."); code != 0 || !strings.Contains(out.String(), "GNARK_HINT_OUTPUT_UNUSED") {
+		t.Fatalf("rule listing exit %d: %s", code, out.String())
+	}
+	if code := run([]string{"explain", "NO_SUCH_RULE"}, &out, &stderr, "."); code != 2 {
+		t.Fatalf("unknown rule exit %d, want 2", code)
+	}
+}
+
+func TestVersion(t *testing.T) {
+	for _, arg := range []string{"version", "--version"} {
+		var out, stderr bytes.Buffer
+		if code := run([]string{arg}, &out, &stderr, "."); code != 0 || !strings.HasPrefix(out.String(), "gnark-safety ") {
+			t.Fatalf("%s: exit %d, output %q", arg, code, out.String())
+		}
 	}
 }
 

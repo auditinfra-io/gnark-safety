@@ -11,6 +11,8 @@ import (
 
 	"github.com/auditinfra-io/gnark-safety/internal/analyzer"
 	"github.com/auditinfra-io/gnark-safety/internal/output"
+	"github.com/auditinfra-io/gnark-safety/internal/rules"
+	"github.com/auditinfra-io/gnark-safety/internal/version"
 	"github.com/auditinfra-io/gnark-safety/pkg/report"
 	"github.com/consensys/gnark-crypto/ecc"
 )
@@ -18,12 +20,22 @@ import (
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, ".")) }
 
 func run(args []string, stdout, stderr io.Writer, dir string) int {
+	if len(args) == 1 && (args[0] == "version" || args[0] == "--version" || args[0] == "-version") {
+		fmt.Fprintf(stdout, "gnark-safety %s\n", version.String())
+		return 0
+	}
+	if len(args) == 1 && args[0] == "explain" {
+		for _, spec := range rules.All() {
+			fmt.Fprintf(stdout, "%-32s %-15s %s\n", spec.ID, spec.SeverityLabel(), spec.Title)
+		}
+		return 0
+	}
 	if len(args) == 2 && args[0] == "explain" {
-		if text, ok := analyzer.RuleHelp(args[1]); ok {
-			fmt.Fprintf(stdout, "%s\n\n%s\n", args[1], text)
+		if text, ok := rules.Explain(args[1]); ok {
+			fmt.Fprint(stdout, text)
 			return 0
 		}
-		fmt.Fprintf(stderr, "unknown rule: %s\n", args[1])
+		fmt.Fprintf(stderr, "unknown rule: %s (run `gnark-safety explain` to list rules)\n", args[1])
 		return 2
 	}
 	if len(args) == 0 || args[0] != "scan" {
@@ -80,23 +92,24 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 		return 2
 	}
 	if *failOn == "high" {
-		if hasHighFinding(r) {
+		if hasFindingAtOrAbove(r, report.SeverityHigh) {
 			return 1
 		}
 	}
 	return 0
 }
 
-func hasHighFinding(r report.Report) bool {
+// hasFindingAtOrAbove reports whether any finding meets the gate threshold.
+func hasFindingAtOrAbove(r report.Report, threshold report.Severity) bool {
 	for _, finding := range r.Findings {
-		if finding.Severity == report.SeverityHigh {
+		if finding.Severity.Rank() >= threshold.Rank() {
 			return true
 		}
 	}
 	return false
 }
 func usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: gnark-safety scan [--format text|json|sarif] [--output file] [--fail-on high|none] [--field unknown|bn254|bls12-381] [--timeout duration] [--max-hints n] [--max-output-bytes n] <package patterns...>\n       gnark-safety explain <rule-id>")
+	fmt.Fprintln(w, "usage: gnark-safety scan [--format text|json|sarif] [--output file] [--fail-on high|none] [--field unknown|bn254|bls12-381] [--timeout duration] [--max-hints n] [--max-output-bytes n] <package patterns...>\n       gnark-safety explain [rule-id]\n       gnark-safety --version")
 }
 
 type limitedWriter struct {

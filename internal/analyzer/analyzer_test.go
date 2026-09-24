@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/auditinfra-io/gnark-safety/internal/rules"
 	"github.com/auditinfra-io/gnark-safety/pkg/report"
 	"github.com/consensys/gnark-crypto/ecc"
 )
@@ -128,18 +129,6 @@ func TestRelationShapeAndCoverage(t *testing.T) {
 	}
 }
 
-func TestRuleHelp(t *testing.T) {
-	if _, ok := RuleHelp(relationRule); !ok {
-		t.Fatal("documented rule is missing")
-	}
-	if _, ok := RuleHelp("NO_SUCH_RULE"); ok {
-		t.Fatal("unknown rule was accepted")
-	}
-	if _, ok := RuleHelp(unusedOutputRule); !ok {
-		t.Fatal("unused-output rule help is missing")
-	}
-}
-
 func TestUnknownInvariantsRejectsNegativeOutputCount(t *testing.T) {
 	if got := unknownInvariants(-1, "invalid"); got == nil || len(got) != 0 {
 		t.Fatalf("negative output count produced invariants: %#v", got)
@@ -167,6 +156,38 @@ func TestDeprecatedAPINewHint(t *testing.T) {
 	for function, rule := range want {
 		if got[function] != rule {
 			t.Errorf("%s: got rule %q, want %q", function, got[function], rule)
+		}
+	}
+}
+
+// TestRegistryCoverage checks the registry against what the analyzer really
+// emits, in both directions: every emitted rule is registered with the
+// severity it uses, and every registered rule is exercised by a fixture.
+func TestRegistryCoverage(t *testing.T) {
+	emitted := map[string]bool{}
+	for _, pattern := range []string{".", "./internal/analyzer/testdata/relation", "./internal/analyzer/testdata/deprecated"} {
+		r, err := Scan("../..", []string{pattern})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Tool.Name != "gnark-safety" || r.Tool.Version == "" {
+			t.Fatalf("missing tool identity: %#v", r.Tool)
+		}
+		for _, f := range r.Findings {
+			spec, ok := rules.Lookup(f.RuleID)
+			if !ok {
+				t.Errorf("%s: emitted rule is not registered", f.RuleID)
+				continue
+			}
+			if !spec.Allows(f.Severity) {
+				t.Errorf("%s: emitted severity %q is not registered (%s)", f.RuleID, f.Severity, spec.SeverityLabel())
+			}
+			emitted[f.RuleID] = true
+		}
+	}
+	for _, spec := range rules.All() {
+		if !emitted[spec.ID] {
+			t.Errorf("%s: registered rule is not exercised by any fixture", spec.ID)
 		}
 	}
 }

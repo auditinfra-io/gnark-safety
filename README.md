@@ -114,11 +114,17 @@ the versioned `1.0` schema and includes `hints`, `diagnostics`, and
 
 ## Experimental safety analyzer
 
-`gnark-safety` is the type-aware successor to the inventory command. Its first
-rule recognizes two-output hints whose outputs are used in a reconstruction
-equality without an unconditional canonical remainder comparison. A separate
-review rule reports statically indexed hint outputs that are never used after
-extraction:
+`gnark-safety` is the type-aware successor to the inventory command. Its
+rules, generated from the registry in `internal/rules`:
+
+<!-- BEGIN GENERATED RULE TABLE -->
+| Rule | Severity | Class | What it means |
+|---|---|---|---|
+| [`GNARK_HINT_RELATION_INCOMPLETE`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_hint_relation_incomplete) | high | unbound witness | A two-output hint is reconstructed as `n = q*d + r`, but no unconditional `r < d` bound makes the quotient and remainder unique, so the prover can supply a noncanonical pair that still satisfies the circuit. |
+| [`GNARK_HINT_OUTPUT_UNUSED`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_hint_output_unused) | medium | unbound witness | A hint output is extracted from the returned slice but never referenced again. An unused prover-computed value often means a forgotten constraint, but it can also be intentional padding, so the rule asks for review. |
+<!-- END GENERATED RULE TABLE -->
+
+Run the scanner and read a rule's full explanation with:
 
 ```bash
 GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --fail-on none ./...
@@ -141,10 +147,12 @@ scalar-field modulus. The default `--field unknown` makes no field-safety claim.
 The default `--fail-on high` policy exits 1 for a high-severity finding; use
 `--fail-on none` for inventory/report-only runs. Invalid configuration and
 package-loading failures exit 2. The JSON report retains the hint inventory and
-adds stable findings. Schema 1.1 also records independent per-output
+adds stable findings. Schema 2.0 uses a critical/high/medium/low/info severity
+scale, records the tool name and version, and keeps independent per-output
 participation, range, relation, canonicality, and field-safety assessments;
-unsupported conclusions remain explicitly `unknown`. SARIF 2.1.0 output is
-suitable for code-scanning import.
+unsupported conclusions remain explicitly `unknown`. SARIF 2.1.0 output carries
+per-rule help links and GitHub `security-severity` scores for code-scanning
+import. `gnark-safety --version` prints the build version.
 
 This is deliberately not a claim of full circuit soundness. The initial rule
 follows only one level of direct local helper calls and reports unsupported
