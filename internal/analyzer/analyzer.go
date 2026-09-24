@@ -81,11 +81,24 @@ func IsExamplePath(path string) bool {
 
 func importsGnark(p *packages.Package) bool {
 	for path := range p.Imports {
-		if path == gnarkModulePath || strings.HasPrefix(path, gnarkModulePath+"/") {
+		if isGnarkPath(path) {
 			return true
 		}
 	}
 	return false
+}
+
+func importsGnarkTypes(pkg *types.Package) bool {
+	for _, imported := range pkg.Imports() {
+		if isGnarkPath(imported.Path()) {
+			return true
+		}
+	}
+	return false
+}
+
+func isGnarkPath(path string) bool {
+	return path == gnarkModulePath || strings.HasPrefix(path, gnarkModulePath+"/")
 }
 
 const defaultMaxHints = 10000
@@ -93,7 +106,7 @@ const defaultMaxHints = 10000
 // ScanContext is Scan with cancellation and resource ceilings for callers that
 // process repositories outside their trust boundary.
 func ScanContext(ctx context.Context, dir string, patterns []string, opts Options) (report.Report, error) {
-	r := report.Report{SchemaVersion: report.SchemaVersion, Tool: report.Tool{Name: "gnark-safety", Version: version.String()}, Findings: []report.Finding{}, Suppressed: []report.Finding{}, Hints: []report.Hint{}, Diagnostics: []string{}, Limitations: append([]string(nil), limitations...)}
+	r := newReport()
 	maxHints := opts.MaxHints
 	if maxHints == 0 {
 		maxHints = defaultMaxHints
@@ -149,22 +162,69 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 		if importsGnark(p) {
 			gnarkPackages[p.PkgPath] = true
 		}
-		helpers := packageFunctions(p)
+		var files []*ast.File
 		for _, file := range p.Syntax {
 			name := fset.Position(file.Package).Filename
-			if seenFiles[name] {
-				continue
+			if !seenFiles[name] {
+				seenFiles[name] = true
+				files = append(files, file)
 			}
-			seenFiles[name] = true
-			if err := inspectFile(ctx, &r, p, file, fset, absDir, helpers, maxHints, opts); err != nil {
-				return r, err
-			}
-			fileDirectives, diagnostics := collectDirectives(file, fset, relative(absDir, name))
-			directives = append(directives, fileDirectives...)
-			r.Diagnostics = append(r.Diagnostics, diagnostics...)
 		}
+		found, err := analyzeFiles(ctx, &r, p, files, fset, absDir, maxHints, opts)
+		if err != nil {
+			return r, err
+		}
+		directives = append(directives, found...)
 	}
 	r.Coverage.Packages, r.Coverage.GnarkPackages, r.Coverage.Files = len(seenPackages), len(gnarkPackages), len(seenFiles)
+	finish(&r, directives, opts)
+	return r, nil
+}
+
+// AnalyzePackage runs every rule over one package that a driver such as
+// go vet has already parsed and type-checked. Reported paths are absolute
+// file names. Suppressions apply; example downgrading does not, because a
+// driver without severities has nothing to lower.
+func AnalyzePackage(fset *token.FileSet, pkg *types.Package, info *types.Info, files []*ast.File) (report.Report, error) {
+	r := newReport()
+	p := &packages.Package{ID: pkg.Path(), Name: pkg.Name(), PkgPath: pkg.Path(), Types: pkg, TypesInfo: info, Syntax: files, Fset: fset}
+	opts := Options{IncludeExamples: true}
+	directives, err := analyzeFiles(context.Background(), &r, p, files, fset, "", defaultMaxHints, opts)
+	if err != nil {
+		return r, err
+	}
+	r.Coverage.Packages, r.Coverage.Files = 1, len(files)
+	if importsGnarkTypes(pkg) {
+		r.Coverage.GnarkPackages = 1
+	}
+	finish(&r, directives, opts)
+	return r, nil
+}
+
+func newReport() report.Report {
+	return report.Report{SchemaVersion: report.SchemaVersion, Tool: report.Tool{Name: "gnark-safety", Version: version.String()}, Findings: []report.Finding{}, Suppressed: []report.Finding{}, Hints: []report.Hint{}, Diagnostics: []string{}, Limitations: append([]string(nil), limitations...)}
+}
+
+// analyzeFiles runs every rule over files, which belong to the type-checked
+// package p, and returns the suppression directives they contain. An empty
+// absDir reports absolute paths.
+func analyzeFiles(ctx context.Context, r *report.Report, p *packages.Package, files []*ast.File, fset *token.FileSet, absDir string, maxHints int, opts Options) ([]*directive, error) {
+	helpers := packageFunctions(p)
+	var directives []*directive
+	for _, file := range files {
+		if err := inspectFile(ctx, r, p, file, fset, absDir, helpers, maxHints, opts); err != nil {
+			return nil, err
+		}
+		found, diagnostics := collectDirectives(file, fset, relative(absDir, fset.Position(file.Package).Filename))
+		directives = append(directives, found...)
+		r.Diagnostics = append(r.Diagnostics, diagnostics...)
+	}
+	return directives, nil
+}
+
+// finish applies the example policy and suppressions, then sorts the
+// report so output is deterministic.
+func finish(r *report.Report, directives []*directive, opts Options) {
 	if !opts.IncludeExamples {
 		for i := range r.Findings {
 			f := &r.Findings[i]
@@ -175,7 +235,7 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 			}
 		}
 	}
-	applySuppressions(&r, directives)
+	applySuppressions(r, directives)
 	sort.Slice(r.Hints, func(i, j int) bool {
 		a, b := r.Hints[i], r.Hints[j]
 		return a.File < b.File || a.File == b.File && (a.Line < b.Line || a.Line == b.Line && a.Column < b.Column)
@@ -183,7 +243,6 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 	sortFindings(r.Findings)
 	sortFindings(r.Suppressed)
 	sort.Strings(r.Diagnostics)
-	return r, nil
 }
 
 func sortFindings(findings []report.Finding) {
