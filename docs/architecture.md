@@ -14,10 +14,11 @@ The experimental analyzer is split at stable data boundaries:
 4. `cmd/gnark-safety` owns argument validation, output destinations, and the
    deterministic exit policy.
 
-The current pass is intra-function. It does not model reflection, generated
-code, opaque helpers, complex aliases, or dynamic hint selection. These limits
-are emitted in every report. Later dataflow and call-graph passes can consume
-the report model without changing the command-line schema.
+The current pass follows one level of direct, package-local helper calls for
+recognized bounds. It does not model reflection, generated code, external or
+recursive helpers, complex aliases, or dynamic hint selection. These limits
+are emitted in every report. Later dataflow and deeper call-graph passes can
+consume the report model without changing the command-line schema.
 
 For a recognized quotient/remainder reconstruction, the analyzer evaluates
 participation, range, relation, canonicality, and field safety independently.

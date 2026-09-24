@@ -21,8 +21,8 @@ import (
 const relationRule = "GNARK_HINT_RELATION_INCOMPLETE"
 
 var limitations = []string{
-	"Analysis is intra-function and limited to direct, type-resolved gnark API calls.",
-	"Reflection, generated code, opaque helpers, complex aliasing, and dynamic hint selection are not modeled.",
+	"Analysis follows one level of unconditional direct local helper calls; deeper or recursive call graphs are not modeled.",
+	"Reflection, generated code, external helpers, complex aliasing, and dynamic hint selection are not modeled.",
 }
 
 // Scan analyzes the requested package roots. Dependencies are loaded only for
@@ -52,8 +52,9 @@ func Scan(dir string, patterns []string) (report.Report, error) {
 		if r.Module == "" && p.Module != nil {
 			r.Module = p.Module.Path
 		}
+		helpers := packageFunctions(p)
 		for _, file := range p.Syntax {
-			inspectFile(&r, p, file, fset, absDir)
+			inspectFile(&r, p, file, fset, absDir, helpers)
 		}
 	}
 	sort.Slice(r.Hints, func(i, j int) bool {
@@ -67,7 +68,23 @@ func Scan(dir string, patterns []string) (report.Report, error) {
 	return r, nil
 }
 
-func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *token.FileSet, dir string) {
+func packageFunctions(p *packages.Package) map[*types.Func]*ast.FuncDecl {
+	functions := make(map[*types.Func]*ast.FuncDecl)
+	for _, file := range p.Syntax {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			if obj, ok := p.TypesInfo.Defs[fn.Name].(*types.Func); ok {
+				functions[obj] = fn
+			}
+		}
+	}
+	return functions
+}
+
+func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *token.FileSet, dir string, helpers map[*types.Func]*ast.FuncDecl) {
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil {
@@ -124,12 +141,12 @@ func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *to
 				h.Unknown = append(h.Unknown, "input_count")
 			}
 			if h.OutputCount != nil {
-				h.Invariants = assessInvariants(fn.Body, call, p.TypesInfo, *h.OutputCount)
+				h.Invariants = assessInvariants(fn.Body, call, p.TypesInfo, *h.OutputCount, helpers)
 			} else {
 				h.Invariants = []report.Invariant{}
 			}
 			r.Hints = append(r.Hints, h)
-			if h.OutputCount != nil && *h.OutputCount == 2 && incompleteRelation(fn.Body, call, p.TypesInfo) {
+			if h.OutputCount != nil && *h.OutputCount == 2 && incompleteRelation(fn.Body, call, p.TypesInfo, helpers) {
 				r.Findings = append(r.Findings, report.Finding{RuleID: relationRule, Severity: report.SeverityHigh, Confidence: "high", File: path, Line: pos.Line, Column: pos.Column, Function: function, Message: "Hint outputs participate in reconstruction, but the canonical remainder bound r < d is not constrained.", Evidence: []string{"hint output: " + h.Hint, "constraint: n = q*d + r", "missing constraint: r < d"}, Limitations: []string{}})
 			}
 			return true
@@ -156,18 +173,18 @@ func unknownInvariants(outputCount int, reason string) []report.Invariant {
 // constraint” into “safe”. It remains deliberately narrow: detailed statuses
 // are emitted only for the quotient/remainder reconstruction recognized by the
 // first rule, and unsupported shapes stay explicitly unknown.
-func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, outputCount int) []report.Invariant {
+func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, outputCount int, helpers map[*types.Func]*ast.FuncDecl) []report.Invariant {
 	if outputCount != 2 {
 		return unknownInvariants(outputCount, "unsupported output count")
 	}
-	relation := analyzeRelation(body, hintCall, info)
+	relation := analyzeRelation(body, hintCall, info, helpers)
 	if relation.outputs == nil || relation.divisor == nil {
 		return unknownInvariants(outputCount, "recognized quotient/remainder reconstruction not found")
 	}
 
-	qBits, qBounded := unconditionalOutputBitBound(body, relation.outputs, relation.aliases, 0, info)
-	rBits, rBounded := unconditionalOutputBitBound(body, relation.outputs, relation.aliases, 1, info)
-	dBits, dBounded := unconditionalBitBound(body, relation.divisor, info)
+	qBits, qBounded := unconditionalOutputBitBound(body, relation.outputs, relation.aliases, 0, info, helpers)
+	rBits, rBounded := unconditionalOutputBitBound(body, relation.outputs, relation.aliases, 1, info, helpers)
+	dBits, dBounded := unconditionalBitBound(body, relation.divisor, info, helpers)
 	fieldEvidence := "compilation field is selected outside the analyzed function"
 	const maximumAnalyzedBitWidth = 4096
 	if qBounded && rBounded && dBounded && qBits <= maximumAnalyzedBitWidth && rBits <= maximumAnalyzedBitWidth && dBits <= maximumAnalyzedBitWidth {
@@ -199,7 +216,7 @@ func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.I
 		canonicalEvidence := "missing unconditional constraint: r < d"
 		if relation.hasBound {
 			canonicalStatus = report.InvariantSatisfied
-			canonicalEvidence = "unconditional constraint: r < d"
+			canonicalEvidence = relation.boundEvidence
 		}
 		result = append(result,
 			report.Invariant{OutputIndex: output, Kind: "canonicality", Status: canonicalStatus, Evidence: []string{canonicalEvidence}},
@@ -213,19 +230,20 @@ func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.I
 // two-output hint whose indexed outputs occur in one n=q*d+r equality, with
 // no unconditional AssertIsLess(r, d). It intentionally declines more complex
 // aliases rather than claiming general soundness.
-func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info) bool {
-	relation := analyzeRelation(body, hintCall, info)
+func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, helpers map[*types.Func]*ast.FuncDecl) bool {
+	relation := analyzeRelation(body, hintCall, info, helpers)
 	return relation.divisor != nil && !relation.hasBound
 }
 
 type relationAnalysis struct {
-	outputs  types.Object
-	aliases  map[types.Object]int
-	divisor  ast.Expr
-	hasBound bool
+	outputs       types.Object
+	aliases       map[types.Object]int
+	divisor       ast.Expr
+	hasBound      bool
+	boundEvidence string
 }
 
-func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info) relationAnalysis {
+func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, helpers map[*types.Func]*ast.FuncDecl) relationAnalysis {
 	result := relationAnalysis{aliases: map[types.Object]int{}}
 	var outputs types.Object
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -294,22 +312,26 @@ func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.In
 		}
 		if outputIndex(info, call.Args[0], outputs, aliases) == 1 && sameValue(info, call.Args[1], divisor) {
 			hasBound = true
+			result.boundEvidence = "unconditional constraint: r < d"
 		}
 		return true
 	})
+	if !hasBound {
+		hasBound, result.boundEvidence = helperProvidesBound(body, info, helpers, outputs, aliases, divisor)
+	}
 	result.hasBound = hasBound
 	return result
 }
 
-func unconditionalOutputBitBound(body *ast.BlockStmt, outputs types.Object, aliases map[types.Object]int, index int, info *types.Info) (int, bool) {
-	return findBitBound(body, info, func(e ast.Expr) bool { return outputIndex(info, e, outputs, aliases) == index })
+func unconditionalOutputBitBound(body *ast.BlockStmt, outputs types.Object, aliases map[types.Object]int, index int, info *types.Info, helpers map[*types.Func]*ast.FuncDecl) (int, bool) {
+	return findBitBound(body, info, helpers, func(e ast.Expr) bool { return outputIndex(info, e, outputs, aliases) == index })
 }
 
-func unconditionalBitBound(body *ast.BlockStmt, value ast.Expr, info *types.Info) (int, bool) {
-	return findBitBound(body, info, func(e ast.Expr) bool { return sameValue(info, e, value) })
+func unconditionalBitBound(body *ast.BlockStmt, value ast.Expr, info *types.Info, helpers map[*types.Func]*ast.FuncDecl) (int, bool) {
+	return findBitBound(body, info, helpers, func(e ast.Expr) bool { return sameValue(info, e, value) })
 }
 
-func findBitBound(body *ast.BlockStmt, info *types.Info, matches func(ast.Expr) bool) (int, bool) {
+func findBitBound(body *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, matches func(ast.Expr) bool) (int, bool) {
 	bits := 0
 	found := false
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -328,7 +350,112 @@ func findBitBound(body *ast.BlockStmt, info *types.Info, matches func(ast.Expr) 
 		bits, found = int(width), true
 		return true
 	})
+	if !found {
+		bits, found = helperProvidesBitBound(body, info, helpers, matches)
+	}
 	return bits, found
+}
+
+func helperProvidesBound(body *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, outputs types.Object, aliases map[types.Object]int, divisor ast.Expr) (bool, string) {
+	found := false
+	evidence := ""
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || found || conditionallyExecuted(body, call) {
+			return !found
+		}
+		decl := localHelper(info, call, helpers)
+		if decl == nil {
+			return true
+		}
+		params := parameterIndexes(decl, info)
+		ast.Inspect(decl.Body, func(n ast.Node) bool {
+			bound, ok := n.(*ast.CallExpr)
+			if !ok || len(bound.Args) != 2 || !isComparatorCall(info, bound, "AssertIsLess") || conditionallyExecuted(decl.Body, bound) {
+				return true
+			}
+			left, leftOK := params[objectOf(info, bound.Args[0])]
+			right, rightOK := params[objectOf(info, bound.Args[1])]
+			if leftOK && rightOK && left < len(call.Args) && right < len(call.Args) && outputIndex(info, call.Args[left], outputs, aliases) == 1 && sameValue(info, call.Args[right], divisor) {
+				found = true
+				evidence = "unconditional constraint in helper " + decl.Name.Name + ": r < d"
+			}
+			return !found
+		})
+		return !found
+	})
+	return found, evidence
+}
+
+func helperProvidesBitBound(body *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, matches func(ast.Expr) bool) (int, bool) {
+	bits := 0
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || found || conditionallyExecuted(body, call) {
+			return !found
+		}
+		decl := localHelper(info, call, helpers)
+		if decl == nil {
+			return true
+		}
+		params := parameterIndexes(decl, info)
+		ast.Inspect(decl.Body, func(n ast.Node) bool {
+			bound, ok := n.(*ast.CallExpr)
+			if !ok || !isFrontendCall(info, bound, "ToBinary") || len(bound.Args) < 2 || conditionallyExecuted(decl.Body, bound) {
+				return true
+			}
+			parameter, ok := params[objectOf(info, bound.Args[0])]
+			if !ok || parameter >= len(call.Args) || !matches(call.Args[parameter]) {
+				return true
+			}
+			value := info.Types[bound.Args[1]].Value
+			if value == nil || value.Kind() != constant.Int {
+				return true
+			}
+			width, ok := constant.Int64Val(value)
+			if ok && width > 0 && int64(int(width)) == width {
+				bits, found = int(width), true
+			}
+			return !found
+		})
+		return !found
+	})
+	return bits, found
+}
+
+func localHelper(info *types.Info, call *ast.CallExpr, helpers map[*types.Func]*ast.FuncDecl) *ast.FuncDecl {
+	var obj types.Object
+	switch fn := call.Fun.(type) {
+	case *ast.Ident:
+		obj = info.Uses[fn]
+	case *ast.SelectorExpr:
+		obj = info.Uses[fn.Sel]
+	}
+	function, ok := obj.(*types.Func)
+	if !ok {
+		return nil
+	}
+	return helpers[function]
+}
+
+func parameterIndexes(decl *ast.FuncDecl, info *types.Info) map[types.Object]int {
+	indexes := make(map[types.Object]int)
+	index := 0
+	if decl.Type.Params == nil {
+		return indexes
+	}
+	for _, field := range decl.Type.Params.List {
+		if len(field.Names) == 0 {
+			index++
+			continue
+		}
+		for _, name := range field.Names {
+			indexes[info.Defs[name]] = index
+			index++
+		}
+	}
+	return indexes
 }
 
 func plainRelationSide(info *types.Info, e ast.Expr, outputs types.Object, aliases map[types.Object]int) bool {
@@ -459,7 +586,38 @@ func conditionallyExecuted(body *ast.BlockStmt, target ast.Node) bool {
 		}
 		return true
 	})
+	if conditional {
+		return true
+	}
+	// A successful return before the target means the constraint need not run.
+	// Error returns are deliberately excluded: a failed Define does not produce
+	// a usable constraint system.
+	ast.Inspect(body, func(n ast.Node) bool {
+		if n == nil || conditional {
+			return !conditional
+		}
+		if _, ok := n.(*ast.FuncLit); ok {
+			return false
+		}
+		ret, ok := n.(*ast.ReturnStmt)
+		if !ok || ret.Pos() >= target.Pos() || !successfulReturn(ret) {
+			return true
+		}
+		conditional = true
+		return false
+	})
 	return conditional
+}
+
+func successfulReturn(ret *ast.ReturnStmt) bool {
+	if len(ret.Results) == 0 {
+		return true
+	}
+	if len(ret.Results) != 1 {
+		return false
+	}
+	id, ok := ret.Results[0].(*ast.Ident)
+	return ok && id.Name == "nil"
 }
 
 func constantIndex(e ast.Expr) int {
@@ -513,5 +671,5 @@ func RuleHelp(id string) (string, bool) {
 	if id != relationRule {
 		return "", false
 	}
-	return "Detects a two-output hint used in a reconstruction equality when no direct AssertIsLess bound constrains the remainder against the divisor. The rule is intentionally intra-function and conservative.", true
+	return "Detects a two-output hint used in a reconstruction equality when no unconditional AssertIsLess bound constrains the remainder against the divisor. The rule conservatively follows one direct local helper call.", true
 }

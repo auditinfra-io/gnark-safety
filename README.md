@@ -120,9 +120,9 @@ unsupported conclusions remain explicitly `unknown`. SARIF 2.1.0 output is
 suitable for code-scanning import.
 
 This is deliberately not a claim of full circuit soundness. The initial rule
-is intra-function and reports its unsupported constructs in the top-level
-`limitations` field. See [`docs/architecture.md`](docs/architecture.md) and
-[`docs/rules.md`](docs/rules.md).
+follows only one level of direct local helper calls and reports unsupported
+constructs in the top-level `limitations` field. See
+[`docs/architecture.md`](docs/architecture.md) and [`docs/rules.md`](docs/rules.md).
 
 ## Security and audit research
 

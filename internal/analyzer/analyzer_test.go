@@ -52,22 +52,22 @@ func TestRelationShapeAndCoverage(t *testing.T) {
 	for _, f := range r.Findings {
 		got[f.Function] = true
 	}
-	for _, name := range []string{"wrongBound", "invertedBound", "elseBound", "loopBound", "directIndex"} {
+	for _, name := range []string{"wrongBound", "invertedBound", "elseBound", "loopBound", "directIndex", "helperConditional", "successfulEarlyReturn"} {
 		if !got[name] {
 			t.Errorf("missing finding for %s", name)
 		}
 	}
-	for _, name := range []string{"separateAssertions", "safe"} {
+	for _, name := range []string{"separateAssertions", "safe", "helperSafe"} {
 		if got[name] {
 			t.Errorf("unexpected finding for %s", name)
 		}
 	}
-	if len(r.Findings) != 5 {
-		t.Fatalf("got %d findings, want 5: %#v", len(r.Findings), r.Findings)
+	if len(r.Findings) != 7 {
+		t.Fatalf("got %d findings, want 7: %#v", len(r.Findings), r.Findings)
 	}
 	for _, hint := range r.Hints {
 		status := report.InvariantMissing
-		if hint.Function == "safe" {
+		if hint.Function == "safe" || hint.Function == "helperSafe" {
 			status = report.InvariantSatisfied
 		}
 		if hint.Function == "separateAssertions" {
@@ -78,6 +78,11 @@ func TestRelationShapeAndCoverage(t *testing.T) {
 			report.InvariantSatisfied: "unconditional constraint",
 			report.InvariantUnknown:   "reconstruction not found",
 		}[status])
+		if hint.Function == "helperSafe" {
+			assertInvariant(t, hint.Invariants, 1, "canonicality", report.InvariantSatisfied, "helper assertCanonical")
+			assertInvariant(t, hint.Invariants, 0, "range", report.InvariantSatisfied, "width: 8")
+			assertInvariant(t, hint.Invariants, 0, "field_safety", report.InvariantUnknown, "65280")
+		}
 	}
 }
 

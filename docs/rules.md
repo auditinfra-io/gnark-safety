@@ -19,8 +19,9 @@ its vulnerable caller selects the path that omits `r < d`, whereas the
 corrected caller selects the checked path.
 
 This deliberately narrow recognition does not prove that unreported code is
-sound. More complex aliases, helper-mediated assertions, and alternative
-comparison gadgets remain unknown until interprocedural dataflow is added.
+sound. One level of unconditional direct local helper calls is summarized;
+deeper, recursive, external, or dynamically dispatched helpers, more complex
+aliases, and alternative comparison gadgets remain unknown.
 
 ## Per-output invariant assessments
 

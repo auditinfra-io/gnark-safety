@@ -69,13 +69,19 @@ supporting expression and bound calculation in machine-readable evidence.
 
 ### 3. Add interprocedural and path-sensitive analysis
 
-The current rule is intentionally intra-function. The next implementation
-milestone should build a call graph for requested packages, summarize helper
-constraints, and require guards to dominate all exits. Unsupported dynamic
-dispatch, closures, or recursion should produce explicit diagnostics rather
-than silently lowering confidence. Add negative fixtures for assertions that
-occur only in one branch, after an early return, or in a helper that is never
-called.
+**Implemented for direct local helpers:** the analyzer builds a package-local
+function index and recognizes unconditional `r < d` and constant-width
+`ToBinary` constraints one helper call away. Conditional helper calls do not
+count as coverage. A successful `return nil` before a constraint also prevents
+that constraint from being classified as unconditional, while an error return
+does not create a false positive because compilation cannot proceed on that
+path.
+
+The next implementation milestone should extend these summaries through deeper
+acyclic call graphs. Unsupported external or dynamic dispatch, closures, and
+recursion remain explicit top-level limitations rather than silently lowering
+confidence. Regression fixtures cover assertions in one branch, after a
+successful early return, and in unconditional versus conditional helper calls.
 
 ### 4. Differential-test specifications and proof systems
 
@@ -110,8 +116,8 @@ service suitable for arbitrary repositories.
 ## Definition of done for the next milestone
 
 A useful next release should build on the mutation registry with: (1) generated
-test skeletons for newly discovered hints, (2) interprocedural summaries for
-direct local helpers, (3) additional invariant recognizers beyond the initial
+test skeletons for newly discovered hints, (2) summaries for deeper acyclic
+local call graphs, (3) additional invariant recognizers beyond the initial
 relation shape, (4) a multi-backend proof matrix, and (5) release artifacts
 containing SARIF and an SBOM. Until then,
 reports must continue to state that absence of findings is not proof of circuit

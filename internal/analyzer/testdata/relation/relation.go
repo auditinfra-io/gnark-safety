@@ -95,3 +95,52 @@ func safe(api frontend.API, n, d frontend.Variable) error {
 	cmp.NewBoundedComparator(api, big.NewInt(255), false).AssertIsLess(r, d)
 	return nil
 }
+
+func assertCanonical(api frontend.API, r, d frontend.Variable) {
+	cmp.NewBoundedComparator(api, big.NewInt(255), false).AssertIsLess(r, d)
+}
+
+func constrain8(api frontend.API, value frontend.Variable) {
+	api.ToBinary(value, 8)
+}
+
+func helperSafe(api frontend.API, n, d frontend.Variable) error {
+	out, err := api.Compiler().NewHint(hint, 2, n, d)
+	if err != nil {
+		return err
+	}
+	q, r := out[0], out[1]
+	api.AssertIsEqual(n, api.Add(api.Mul(q, d), r))
+	constrain8(api, q)
+	constrain8(api, r)
+	constrain8(api, d)
+	assertCanonical(api, r, d)
+	return nil
+}
+
+func helperConditional(api frontend.API, n, d frontend.Variable, checked bool) error {
+	out, err := api.Compiler().NewHint(hint, 2, n, d)
+	if err != nil {
+		return err
+	}
+	q, r := out[0], out[1]
+	api.AssertIsEqual(n, api.Add(api.Mul(q, d), r))
+	if checked {
+		assertCanonical(api, r, d)
+	}
+	return nil
+}
+
+func successfulEarlyReturn(api frontend.API, n, d frontend.Variable, skip bool) error {
+	out, err := api.Compiler().NewHint(hint, 2, n, d)
+	if err != nil {
+		return err
+	}
+	q, r := out[0], out[1]
+	api.AssertIsEqual(n, api.Add(api.Mul(q, d), r))
+	if skip {
+		return nil
+	}
+	cmp.NewBoundedComparator(api, big.NewInt(255), false).AssertIsLess(r, d)
+	return nil
+}
