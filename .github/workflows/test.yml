@@ -92,3 +92,26 @@ jobs:
           uri = results[0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
           assert uri == "examples/divmod/circuits.go", uri
           PY
+
+  canary:
+    # Scans gnark's std/ at pinned releases and requires every finding to be
+    # classified in canary/ (see canary/README.md).
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gnark: ["v0.15.0", "v0.16.3"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@c0137caad775660c0844396c52da96e560aba63d # v6.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Scan gnark std/
+        env:
+          GNARK_VERSION: ${{ matrix.gnark }}
+        run: bash scripts/canary-gnark-std.sh "$GNARK_VERSION" canary-report.json
+      - name: Compare with the classified snapshot
+        env:
+          GNARK_VERSION: ${{ matrix.gnark }}
+        run: go run ./internal/canary/check -snapshot "canary/gnark-std-${GNARK_VERSION}.json" -report canary-report.json

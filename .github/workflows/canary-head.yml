@@ -1,0 +1,36 @@
+name: canary-head
+
+# Scans gnark's master branch weekly against the latest classified snapshot,
+# ignoring line numbers, so new gnark code that trips a rule is noticed
+# before it ships in a release. A failure means a finding needs reading and
+# classifying (see canary/README.md); it never blocks pull requests.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gnark-master:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@c0137caad775660c0844396c52da96e560aba63d # v6.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Scan gnark std/ at master
+        run: bash scripts/canary-gnark-std.sh master canary-master.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: canary-gnark-master
+          path: canary-master.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Compare with the latest release snapshot
+        run: |
+          latest="$(printf '%s\n' canary/gnark-std-v*.json | sort -V | tail -n 1)"
+          go run ./internal/canary/check -ignore-lines -snapshot "$latest" -report canary-master.json

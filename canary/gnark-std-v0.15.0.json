@@ -1,0 +1,24 @@
+{
+  "target": "github.com/consensys/gnark/std/...",
+  "gnark_version": "v0.15.0",
+  "findings": [
+    {
+      "rule_id": "GNARK_BITS_OMIT_MODULUS_CHECK",
+      "severity": "medium",
+      "file": "std/algebra/native/sw_bls12377/pairing2.go",
+      "line": 73,
+      "function": "(*Curve).MarshalG1",
+      "classification": "intended",
+      "note": "gnark documents that MarshalG1 omits the modulus check unless the caller passes algopts.WithCanonicalBitRepresentation(): non-canonical bits are acceptable when they only feed a hash-derived challenge, where a wrong encoding fails verification, and must not be compared directly. The rule is right that the decomposition is not unique; callers comparing bits must opt in."
+    },
+    {
+      "rule_id": "GNARK_BITS_OMIT_MODULUS_CHECK",
+      "severity": "medium",
+      "file": "std/algebra/native/sw_grumpkin/wrapper.go",
+      "line": 72,
+      "function": "(*Curve).MarshalG1",
+      "classification": "intended",
+      "note": "gnark documents that MarshalG1 omits the modulus check unless the caller passes algopts.WithCanonicalBitRepresentation(): non-canonical bits are acceptable when they only feed a hash-derived challenge, where a wrong encoding fails verification, and must not be compared directly. The rule is right that the decomposition is not unique; callers comparing bits must opt in."
+    }
+  ]
+}
