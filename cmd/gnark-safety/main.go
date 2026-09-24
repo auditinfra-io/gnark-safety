@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -50,6 +51,8 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	fs.SetOutput(stderr)
 	format := fs.String("format", "text", "text, json, or sarif")
 	destination := fs.String("output", "", "write output to a file")
+	sarifDestination := fs.String("sarif-output", "", "also write SARIF 2.1.0 to this file, in the same pass")
+	relativeTo := fs.String("relative-to", "", "report paths relative to this directory (default: the current directory)")
 	failOn := fs.String("fail-on", "high", "lowest severity that fails the scan: critical, high, medium, low, info, or none")
 	allowEmpty := fs.Bool("allow-empty", false, "succeed even when no scanned package imports gnark")
 	includeTests := fs.Bool("include-tests", false, "also analyze _test.go files")
@@ -69,7 +72,11 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
-	opts := analyzer.Options{MaxHints: *maxHints, IncludeTests: *includeTests, IncludeExamples: *includeExamples}
+	pathBase := *relativeTo
+	if pathBase != "" && !filepath.IsAbs(pathBase) {
+		pathBase = filepath.Join(dir, pathBase)
+	}
+	opts := analyzer.Options{MaxHints: *maxHints, IncludeTests: *includeTests, IncludeExamples: *includeExamples, PathBase: pathBase}
 	if *field == "bn254" {
 		opts.FieldModulus, opts.FieldName = ecc.BN254.ScalarField(), "BN254 scalar field"
 	} else if *field == "bls12-381" {
@@ -99,6 +106,19 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
 		return 2
+	}
+	// Render everything before writing anything, so an output-limit or
+	// rendering error never leaves one file written and the other missing.
+	var sarifRendered bytes.Buffer
+	if *sarifDestination != "" {
+		if err := output.SARIF(&limitedWriter{writer: &sarifRendered, remaining: *maxOutput}, r); err != nil {
+			fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
+			return 2
+		}
+		if err := os.WriteFile(*sarifDestination, sarifRendered.Bytes(), 0o644); err != nil {
+			fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
+			return 2
+		}
 	}
 	if *destination != "" {
 		if err := os.WriteFile(*destination, rendered.Bytes(), 0o644); err != nil {
@@ -215,6 +235,9 @@ func usage(w io.Writer) {
 scan flags:
   --format text|json|sarif     output format (default text)
   --output file                write output to a file instead of stdout
+  --sarif-output file          also write SARIF 2.1.0 to a file in the same pass
+  --relative-to dir            report paths relative to dir (default: current
+                               directory); use the repository root for SARIF
   --fail-on severity|none      lowest severity that exits 1: critical, high,
                                medium, low, info, or none (default high)
   --allow-empty                exit 0 even if no scanned package imports gnark

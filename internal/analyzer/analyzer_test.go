@@ -349,3 +349,24 @@ func TestCallSiteSpecialization(t *testing.T) {
 		}
 	}
 }
+
+func TestPathBase(t *testing.T) {
+	r, err := ScanContext(context.Background(), "../..", []string{"./examples/divmod"}, Options{PathBase: "../../examples"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Hints[0].File != "divmod/circuits.go" || r.Findings[0].File != "divmod/circuits.go" {
+		t.Fatalf("paths not relative to base: hint %q finding %q", r.Hints[0].File, r.Findings[0].File)
+	}
+	// Example classification and suppressions both use the rebased path.
+	if r.Findings[0].OriginalSeverity != "" {
+		t.Fatalf("divmod/circuits.go is not under an examples directory once rebased: %#v", r.Findings[0])
+	}
+	r, err = ScanContext(context.Background(), "../..", []string{"./internal/analyzer/testdata/suppress"}, Options{PathBase: "../../internal"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Suppressed) != 3 || !strings.HasPrefix(r.Suppressed[0].File, "analyzer/testdata/suppress/") {
+		t.Fatalf("suppressions must match under a rebased path: %#v", r.Suppressed)
+	}
+}

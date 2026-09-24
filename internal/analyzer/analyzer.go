@@ -54,6 +54,10 @@ type Options struct {
 	// deliberately simplified, but it is also copied into production, so it
 	// is reported rather than hidden.
 	IncludeExamples bool
+	// PathBase is the directory reported paths are made relative to. Empty
+	// means the scan directory. Setting it to the repository root keeps
+	// SARIF locations valid when the scanned module is in a subdirectory.
+	PathBase string
 }
 
 // gnarkModulePath prefixes every package in gnark's module (and excludes
@@ -115,7 +119,14 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 		sort.Strings(loadErrs)
 		return r, fmt.Errorf("package loading/type checking failed:\n%s", strings.Join(loadErrs, "\n"))
 	}
-	absDir, _ := filepath.Abs(dir)
+	base := dir
+	if opts.PathBase != "" {
+		base = opts.PathBase
+	}
+	absDir, err := filepath.Abs(base)
+	if err != nil {
+		return r, fmt.Errorf("resolve path base: %w", err)
+	}
 	r.Coverage.TestsIncluded = opts.IncludeTests
 	// With tests included, go/packages returns a package and its test
 	// variants, which share the non-test files. Each file is analyzed once,

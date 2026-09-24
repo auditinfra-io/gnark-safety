@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -211,5 +213,55 @@ func TestInventory(t *testing.T) {
 		if code := run(args, &out, &stderr, "../.."); code != 2 {
 			t.Errorf("run(%v) exit %d, want 2", args, code)
 		}
+	}
+}
+
+func TestSARIFOutputSidecar(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "report.sarif")
+	var out, stderr bytes.Buffer
+	if code := run([]string{"scan", "--include-examples", "--sarif-output", path, "./examples/divmod"}, &out, &stderr, "../.."); code != 1 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	if !strings.Contains(out.String(), "examples/divmod/circuits.go:44:26: high") {
+		t.Fatalf("primary text output missing: %s", out.String())
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Runs []struct {
+			Results []struct {
+				Locations []struct {
+					PhysicalLocation struct {
+						ArtifactLocation struct{ URI string } `json:"artifactLocation"`
+					} `json:"physicalLocation"`
+				} `json:"locations"`
+			} `json:"results"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(content, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Runs[0].Results) != 1 || doc.Runs[0].Results[0].Locations[0].PhysicalLocation.ArtifactLocation.URI != "examples/divmod/circuits.go" {
+		t.Fatalf("unexpected SARIF: %s", content)
+	}
+	// An operational failure writes no SARIF, so a stale file cannot be uploaded as a result.
+	missing := filepath.Join(t.TempDir(), "never.sarif")
+	if code := run([]string{"scan", "--sarif-output", missing, "./cmd/gnark-hint-scan/testdata/nohint"}, &out, &stderr, "../.."); code != 2 {
+		t.Fatalf("empty scan exit %d", code)
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Fatalf("SARIF written for a failed scan: %v", err)
+	}
+}
+
+func TestRelativeTo(t *testing.T) {
+	var out, stderr bytes.Buffer
+	if code := run([]string{"scan", "--relative-to", "examples", "--fail-on", "none", "./examples/divmod"}, &out, &stderr, "../.."); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	if !strings.HasPrefix(out.String(), "divmod/circuits.go:44:26: high") {
+		t.Fatalf("paths not relative to --relative-to: %s", out.String())
 	}
 }
