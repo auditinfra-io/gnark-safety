@@ -117,3 +117,39 @@ func Uncalled(api frontend.API, n, d frontend.Variable, enforce bool) {
 		bound(api, out[1], d)
 	}
 }
+
+// Exported can be called from other packages with enforce=false, so an
+// in-package call passing true must not clear it.
+func Exported(api frontend.API, n, d frontend.Variable, enforce bool) {
+	out, _ := api.Compiler().NewHint(hint, 2, n, d)
+	api.AssertIsEqual(n, api.Add(api.Mul(out[0], d), out[1]))
+	if enforce {
+		bound(api, out[1], d)
+	}
+}
+
+func exportedCaller(api frontend.API, n, d frontend.Variable) { Exported(api, n, d, true) }
+
+type constrainer interface {
+	constrain(api frontend.API, n, d frontend.Variable, enforce bool)
+}
+
+type divider struct{}
+
+// constrain is a method, reachable through constrainer with a runtime
+// argument, so the in-package constant call must not clear it.
+func (divider) constrain(api frontend.API, n, d frontend.Variable, enforce bool) {
+	out, _ := api.Compiler().NewHint(hint, 2, n, d)
+	api.AssertIsEqual(n, api.Add(api.Mul(out[0], d), out[1]))
+	if enforce {
+		bound(api, out[1], d)
+	}
+}
+
+func methodCaller(api frontend.API, n, d frontend.Variable) { divider{}.constrain(api, n, d, true) }
+
+func interfaceCaller(c constrainer, api frontend.API, n, d frontend.Variable, flag bool) {
+	c.constrain(api, n, d, flag)
+}
+
+var _ constrainer = divider{}

@@ -13,11 +13,11 @@
     "kernel": "6.18.44-fc-v37",
     "os": "linux"
   },
-  "generated_at_utc": "2026-09-24T18:00:01Z",
+  "generated_at_utc": "2026-09-24T18:06:10Z",
   "generator": "go run ./cmd/reproduce",
   "retained_output": {
     "path": "evidence/test-output.txt",
-    "sha256": "97a57a81a3dff4ba8d49464d545e66f3808796628822155ec48a5fb20940f743"
+    "sha256": "d628f52bb6485eea1fab71ef49e1522358a0076a84050a1fd8c46ff684e6c035"
   },
   "schema_version": 3,
   "semantic_outcomes": {
@@ -51,13 +51,13 @@
       "go.mod": "7f9e18b5735b271d14954a986171ad48591df3618ccfa2353250b729c559bf4a",
       "go.sum": "0c01ef75500cd3c51630b6d240706ecd1b591ee5bf25760a9b725f9f8c36e1dc",
       "internal/analyzer/analyzer.go": "5f6780cdc95feb9b89950079d6c1b4f2eca279a54112d18de23b79109a11ab13",
-      "internal/analyzer/analyzer_test.go": "80b54b480727f88a6aa9d607990bba0b8140b9adec27bbad3f731e3a1ae71dd6",
-      "internal/analyzer/specialize.go": "d035f58ac608620382f903b399f58bd398dc7c23adf95294b74351c88fce07e7",
+      "internal/analyzer/analyzer_test.go": "be42ecf5035d6233a27fedf90e6092227b7371a83fbf946565baf8c12da9c4f1",
+      "internal/analyzer/specialize.go": "9a2fcee62d3e30e33ca0c9b6c32c22bc9636018d102408e2d4646b480f1b88e5",
       "internal/analyzer/suppress.go": "470b73c3c7d174cea2da5cfeb5f4d08c54ac79fc4b2c0308f3e7087429985452",
       "internal/analyzer/testdata/deprecated/deprecated.go": "e5384e8df1475500909b5229abdda3e55469d0184965bb10ba5c8dd76702759e",
       "internal/analyzer/testdata/examples/demo/demo.go": "8cd34d6661d10851e19655a429eb6c85856f11c66f8ec5725477792320d3fd35",
       "internal/analyzer/testdata/relation/relation.go": "6196428d28cd290d8f7152ab67dfb14f59a7a83bdb3dbf7a509bacbfae987bec",
-      "internal/analyzer/testdata/specialize/specialize.go": "326ca78b87df95f6b1c0e5d2f9afb54588ced63cf78ed9d16fa8694f0d4e4562",
+      "internal/analyzer/testdata/specialize/specialize.go": "16c14b13d76896a858b6ee3ce4b1b59baed8aff5d281fb7d16f9efb893338c48",
       "internal/analyzer/testdata/suppress/suppress.go": "381bec693f904db878865f9c22085d4f5861611d1ca9ddfdfcf9380143c4ca6a",
       "internal/analyzer/testdata/testonly/testonly.go": "2bd8de42d70fcc38b9e505e2c1d4279829768833e7b8a5251855479c0ae44f83",
       "internal/analyzer/testdata/testonly/testonly_test.go": "f598743dbde8970d5219c5b78fab5ff82977b5a5ff3a3711055e8903539f29d1",
@@ -67,7 +67,7 @@
       "internal/output/output_test.go": "2bb9af098b4a45e81823e52e4e8b20e17950488cdf132aaaad7a72ef4fa2fb2e",
       "internal/rules/gendocs/main.go": "4cdb429963f29ecb734fe58a75120ec12cfe81b49f0dd437f66bce91992c226e",
       "internal/rules/render.go": "a8c89b56a142046c8a8611c5f0806e96575825234bb8ad132b3c32b66afac83a",
-      "internal/rules/rules.go": "dae3b8cbcff4ae87076606df66589dd7667cc5eb44c8aa27a33b0a699f678b7f",
+      "internal/rules/rules.go": "bef66eeb1d5256e3e967f7ae886c9eaa583a0d98a1ed704fbd4c42241d3bc253",
       "internal/rules/rules_test.go": "fcdda679118a19bf3001a79fa3f07f5e5009edfd2bd06e98b1317b735e46e101",
       "internal/version/version.go": "bc79466438e065d0fd7d13404c54c37dbddbb0457195a9eaa9051ccbdf62968d",
       "internal/version/version_test.go": "7b01fdf0f16d22cd0ed0b6394bd78d9017007405d480d4ffa719c66800b85ae0",

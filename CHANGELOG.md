@@ -20,9 +20,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   version. Every package importing `go/packages` failed with a missing
   `go.sum` entry.
 - **A shared helper was reported instead of the vulnerable caller.** When an
-  `r < d` bound is guarded by a bool parameter, the finding now moves to each
-  package-local call that passes the disabling constant, and calls that
-  enable the bound are quiet. The demo now reports
+  `r < d` bound in an unexported function is guarded by a bool parameter, the
+  finding now moves to each package-local call that passes the disabling
+  constant, and calls that enable the bound are quiet. Exported functions and
+  methods keep the finding at the hint, because callers in other packages or
+  through interfaces can pass any value. The demo now reports
   `(*VulnerableCircuit).Define` and not `(*CorrectedCircuit).Define`.
 
 ### Added

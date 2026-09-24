@@ -332,12 +332,12 @@ func TestCallSiteSpecialization(t *testing.T) {
 		}
 	}
 	// Unresolvable guards keep the finding at the hint.
-	for _, function := range []string{"escaping", "dynamic", "reassigned", "Uncalled"} {
+	for _, function := range []string{"escaping", "dynamic", "reassigned", "Uncalled", "Exported", "(divider).constrain"} {
 		if got[function] != relationMessage {
 			t.Errorf("%s: want a hint-site finding, got %q", function, got[function])
 		}
 	}
-	if len(got) != 7 || len(r.Findings) != 7 {
+	if len(got) != 9 || len(r.Findings) != 9 {
 		t.Fatalf("got findings %v", got)
 	}
 	for _, f := range r.Findings {

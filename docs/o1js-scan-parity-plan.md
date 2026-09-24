@@ -309,9 +309,12 @@ Not applicable to gnark, recorded so nobody ports it by mistake:
 
 - [x] `go mod tidy`: x/tools v0.48.0 and the missing `go.sum` entries. vet and
   tests pass.
-- [ ] Regenerate `evidence/`: 5 of its 9 hashed files, including `go.mod` and
-  `go.sum`, no longer match. Add a CI check so stale evidence fails the build
-  instead of drifting.
+- [x] Regenerate `evidence/`: 5 of its 9 hashed files, including `go.mod` and
+  `go.sum`, no longer matched. Regenerated in PR #9.
+- [ ] Decide how evidence stays current. Any Go change invalidates its source
+  hashes, so either CI checks staleness (and every code PR regenerates it) or
+  the retained evidence moves to release time only, where
+  `release-evidence.yml` already produces it.
 - [ ] Restore Actions runner allocation for this private repository (owner
   action: billing or spending limit), then confirm `quality` runs green.
 - [ ] Rebase or close Dependabot PRs #7 and #8 once `main` is green.

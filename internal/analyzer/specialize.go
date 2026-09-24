@@ -161,7 +161,14 @@ func mutated(body *ast.BlockStmt, v *types.Var, info *types.Info) bool {
 // each use of fn is a direct call inside a function body whose guard
 // argument is a constant bool; an escaping function value, a method
 // expression, or a runtime argument keeps the finding at the hint.
+//
+// Only unexported plain functions qualify: another package can call an
+// exported function with any argument, and a method can be reached through
+// an interface, neither of which appears as a use of fn in this package.
 func resolveGuardSites(p *packages.Package, fn *ast.FuncDecl, guard *boundGuard) ([]guardSite, bool) {
+	if fn.Recv != nil || fn.Name.IsExported() {
+		return nil, false
+	}
 	info := p.TypesInfo
 	fnObj := info.Defs[fn.Name]
 	uses := 0
