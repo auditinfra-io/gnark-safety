@@ -27,8 +27,12 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 		return 0
 	}
 	if len(args) == 1 && args[0] == "explain" {
+		width := 0
 		for _, spec := range rules.All() {
-			fmt.Fprintf(stdout, "%-32s %-15s %s\n", spec.ID, spec.SeverityLabel(), spec.Title)
+			width = max(width, len(spec.ID))
+		}
+		for _, spec := range rules.All() {
+			fmt.Fprintf(stdout, "%-*s  %-15s %s\n", width, spec.ID, spec.SeverityLabel(), spec.Title)
 		}
 		return 0
 	}

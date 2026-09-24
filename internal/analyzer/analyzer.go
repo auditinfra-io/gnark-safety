@@ -215,6 +215,7 @@ func analyzeFiles(ctx context.Context, r *report.Report, p *packages.Package, fi
 		if err := inspectFile(ctx, r, p, file, fset, absDir, helpers, maxHints, opts); err != nil {
 			return nil, err
 		}
+		r.Findings = append(r.Findings, syntaxFindings(p, file, fset, absDir)...)
 		found, diagnostics := collectDirectives(file, fset, relative(absDir, fset.Position(file.Package).Filename))
 		directives = append(directives, found...)
 		r.Diagnostics = append(r.Diagnostics, diagnostics...)

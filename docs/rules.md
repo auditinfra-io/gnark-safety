@@ -16,6 +16,15 @@ evidence that a circuit is sound.
 |---|---|---|---|
 | [`GNARK_HINT_RELATION_INCOMPLETE`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_hint_relation_incomplete) | high | unbound witness | A two-output hint is reconstructed as `n = q*d + r`, but no unconditional `r < d` bound makes the quotient and remainder unique, so the prover can supply a noncanonical pair that still satisfies the circuit. |
 | [`GNARK_HINT_OUTPUT_UNUSED`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_hint_output_unused) | medium | unbound witness | A hint output is extracted from the returned slice but never referenced again. An unused prover-computed value often means a forgotten constraint, but it can also be intentional padding, so the rule asks for review. |
+| [`GNARK_TAG_VISIBILITY_AS_NAME`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_tag_visibility_as_name) | high / info | unbound witness | A struct tag such as `gnark:"public"` names the witness element `public` instead of setting its visibility, so the field stays secret: a value the verifier meant to fix becomes one the prover chooses. |
+| [`GNARK_GO_EQUALITY_ON_VARIABLE`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_go_equality_on_variable) | high | non-load-bearing predicate | Go `==`, `!=`, or `switch` on a `frontend.Variable` compares the value the variable holds while the circuit is being compiled, a constraint expression rather than the witness, so the branch it guards is not a constraint. |
+| [`GNARK_DISCARDED_PREDICATE`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_discarded_predicate) | high | non-load-bearing predicate | The result of a gnark predicate (`IsZero`, `Cmp`, a bounded comparator's `IsLess`/`IsLessEq`, a recursive verifier's `IsValidProof`, or a hash `Sum`) is discarded, so the check it computes constrains nothing. |
+| [`GNARK_VACUOUS_ASSERT`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_vacuous_assert) | high / medium | non-load-bearing predicate | An assertion that holds by construction, such as `api.AssertIsEqual(x, x)` or an assertion over constants only, adds no restriction while reading like a check. |
+| [`GNARK_BITS_UNCONSTRAINED`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_bits_unconstrained) | high / medium | unbound witness | A `bits` decomposition opts out of digit constraints (`WithUnconstrainedOutputs` or `WithUnconstrainedInputs`) and nothing in the function constrains the digits, so the prover can choose non-boolean digits that still sum to the value. |
+| [`GNARK_BITS_OMIT_MODULUS_CHECK`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_bits_omit_modulus_check) | medium | unbound witness | `bits.OmitModulusCheck()` skips the comparison against the field modulus, so a full-width decomposition of `a` can also be one of `a + r`: the bits are not unique. |
+| [`GNARK_COMPARATOR_NONDETERMINISTIC`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_comparator_nondeterministic) | medium | unbound witness | `cmp.NewBoundedComparator(api, bound, true)` allows nondeterministic behavior: when the operands differ by more than the bound, the constraint system can have several solutions, so comparison results are prover-selectable. |
+| [`GNARK_IGNORE_UNCONSTRAINED_INPUTS`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_ignore_unconstrained_inputs) | medium | configuration | `frontend.IgnoreUnconstrainedInputs()` disables gnark's compile-time error for inputs that no constraint uses, a check gnark's documentation says should stay on in production. |
+| [`GNARK_UNSAFE_SETUP`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_unsafe_setup) | medium / low | configuration | Production code imports gnark's test-only `unsafekzg` SRS (medium), or runs a single-party `groth16.Setup` in a `main` package (low), so whoever ran setup could forge proofs. |
 <!-- END GENERATED RULE TABLE -->
 
 ## Rule reference
@@ -40,6 +49,96 @@ A hint output is extracted from the returned slice but never referenced again. A
 Reports a statically indexed hint output that is extracted from the slice returned by `NewHint` but never subsequently referenced, either directly or through its local alias. Every hint output is prover-controlled advice; one that reaches no constraint contributes nothing the verifier can rely on.
 
 *Where it stops:* Only statically indexed outputs and their local aliases are tracked. Dynamic indexes, outputs passed through slices or struct fields, and complex aliasing remain unknown.
+
+### GNARK_TAG_VISIBILITY_AS_NAME
+
+**Visibility written as a witness name**: severity high / info; confidence high; class unbound witness.
+
+A struct tag such as `gnark:"public"` names the witness element `public` instead of setting its visibility, so the field stays secret: a value the verifier meant to fix becomes one the prover chooses.
+
+gnark parses `gnark:"name,options"` like `encoding/json`: the text before the first comma is the witness name and visibility is an option after it. `gnark:"public"` therefore names the element "public" and leaves it at the default visibility, secret, so it is absent from the public witness and the verifier cannot pin it. The fix is `gnark:",public"`. High for `public`. The same mistake with `secret` is reported as info, because the field is secret either way and only the name is surprising. Evidence: gnark v0.16.3 `frontend/schema/tags.go` `parseTag` and `walk.go`.
+
+*Where it stops:* Only tags whose name part is exactly `public` or `secret` are matched. Visibility inherited from a parent struct is not evaluated.
+
+### GNARK_GO_EQUALITY_ON_VARIABLE
+
+**Go comparison of a circuit variable**: severity high; confidence high; class non-load-bearing predicate.
+
+Go `==`, `!=`, or `switch` on a `frontend.Variable` compares the value the variable holds while the circuit is being compiled, a constraint expression rather than the witness, so the branch it guards is not a constraint.
+
+`frontend.Variable` is `any`. During `frontend.Compile` it holds a linear expression, not the prover's value, so `if c.Flag == 1 { api.AssertIsEqual(...) }` is decided once at compile time (the comparison is false) and the guarded constraint is never emitted. Express conditions in the circuit instead, for example with `api.IsZero`, `api.Select`, or `api.Mul(flag, ...)`. Comparisons with `nil`, and fields tagged `gnark:"-"` (which hold Go constants at compile time), are not reported. Evidence: gnark v0.16.3 `frontend/variable.go`.
+
+*Where it stops:* Only direct comparisons and switch tags are matched; a Variable converted to another type first, or compared through a helper, is not.
+
+### GNARK_DISCARDED_PREDICATE
+
+**Discarded predicate**: severity high; confidence high; class non-load-bearing predicate.
+
+The result of a gnark predicate (`IsZero`, `Cmp`, a bounded comparator's `IsLess`/`IsLessEq`, a recursive verifier's `IsValidProof`, or a hash `Sum`) is discarded, so the check it computes constrains nothing.
+
+Predicates return a variable; they do not assert anything. A call used as a statement, or assigned only to `_`, computes a value the circuit never uses, so the line reads as a check that does not exist. Assert the result (`api.AssertIsEqual(api.IsZero(x), 1)`), use the assertion form, or feed it into later constraints. Go already rejects unused local variables, so these are the forms that compile. Evidence: gnark v0.16.3 `frontend/api.go` (`IsZero`, `Cmp`), `std/math/cmp/bounded.go`, `std/recursion/groth16/verifier.go` (`IsValidProof`), and `std/hash/hash.go`.
+
+*Where it stops:* A result stored and then never read, or discarded through a helper, is not matched.
+
+### GNARK_VACUOUS_ASSERT
+
+**Vacuous assertion**: severity high / medium; confidence high; class non-load-bearing predicate.
+
+An assertion that holds by construction, such as `api.AssertIsEqual(x, x)` or an assertion over constants only, adds no restriction while reading like a check.
+
+High when both sides are the same expression (`AssertIsEqual(x, x)`, `AssertIsLessOrEqual(x, x)`, or a bounded comparator's `AssertIsLessEq(x, x)`); that is almost always a typo for a real check, such as `(computed, expected)` written as `(expected, expected)`. Medium when every operand is a constant (`AssertIsEqual(1, 1)`, `AssertIsBoolean(1)`), which is more often a placeholder. Unsatisfiable forms such as `AssertIsDifferent(x, x)` are liveness bugs, not vacuous ones, and are not reported.
+
+*Where it stops:* Expressions are compared structurally: the same variable, field path, or constant index. Algebraically equal but differently written operands are not matched.
+
+### GNARK_BITS_UNCONSTRAINED
+
+**Unconstrained bit decomposition**: severity high / medium; confidence medium; class unbound witness.
+
+A `bits` decomposition opts out of digit constraints (`WithUnconstrainedOutputs` or `WithUnconstrainedInputs`) and nothing in the function constrains the digits, so the prover can choose non-boolean digits that still sum to the value.
+
+`bits.ToBinary(api, v, bits.WithUnconstrainedOutputs())` constrains only the weighted sum of the digits; the digits themselves are hint outputs. High when those digits are used in the function but never constrained (`AssertIsBoolean`, `AssertIsCrumb`, `bits.AssertIsTrit`, `api.FromBinary`, or `bits.FromBinary` without the option). Medium for `FromBinary`/`FromBase` with `WithUnconstrainedInputs` whose digits are prover advice (hint outputs or an unconstrained decomposition) with no such constraint. Digits passed to another function, returned, or stored elsewhere may be constrained there, so they are not reported. Evidence: gnark v0.16.3 `std/math/bits/conversion.go`.
+
+*Where it stops:* Options passed through a slice (`opts...`) are not resolved. Constraints in called functions are not followed, so any hand-off silences the rule.
+
+### GNARK_BITS_OMIT_MODULUS_CHECK
+
+**Bit decomposition without modulus check**: severity medium; confidence high; class unbound witness.
+
+`bits.OmitModulusCheck()` skips the comparison against the field modulus, so a full-width decomposition of `a` can also be one of `a + r`: the bits are not unique.
+
+When the number of digits equals the field's bit length, both `a` and `a + r` (for modulus `r`) can have valid decompositions, and gnark's modulus check is what excludes the second. Omitting it is safe only when the decomposition is checked for uniqueness elsewhere or uniqueness does not matter; state which in a suppression. Evidence: gnark v0.16.3 `std/math/bits/conversion.go` `OmitModulusCheck`.
+
+*Where it stops:* The rule does not check the digit count; a decomposition narrower than the field is unique regardless.
+
+### GNARK_COMPARATOR_NONDETERMINISTIC
+
+**Nondeterministic bounded comparator**: severity medium; confidence high; class unbound witness.
+
+`cmp.NewBoundedComparator(api, bound, true)` allows nondeterministic behavior: when the operands differ by more than the bound, the constraint system can have several solutions, so comparison results are prover-selectable.
+
+The third argument `allowNonDeterministicBehaviour` trades soundness outside the bound for fewer constraints. It is sound only when range checks elsewhere guarantee `|a - b| <= bound` for every comparison. Prefer `false`, which makes out-of-bound inputs fail to prove or return a deterministic result. Evidence: gnark v0.16.3 `std/math/cmp/bounded.go`.
+
+*Where it stops:* Only a literal constant `true` is matched. Whether the operands are range-checked is not analyzed.
+
+### GNARK_IGNORE_UNCONSTRAINED_INPUTS
+
+**Unconstrained-input check disabled**: severity medium; confidence high; class configuration.
+
+`frontend.IgnoreUnconstrainedInputs()` disables gnark's compile-time error for inputs that no constraint uses, a check gnark's documentation says should stay on in production.
+
+By default `frontend.Compile` fails when a public or secret input appears in no constraint, which catches inputs the circuit forgot to bind. The option turns that error off. Test code is excluded by default. Evidence: gnark v0.16.3 `frontend/compile.go`.
+
+*Where it stops:* Options assembled dynamically (`opts...`) are not resolved.
+
+### GNARK_UNSAFE_SETUP
+
+**Unsafe setup outside tests**: severity medium / low; confidence high; class configuration.
+
+Production code imports gnark's test-only `unsafekzg` SRS (medium), or runs a single-party `groth16.Setup` in a `main` package (low), so whoever ran setup could forge proofs.
+
+`test/unsafekzg` generates KZG parameters from locally known randomness; it exists for tests. A `groth16.Setup` run by one party leaves that party able to forge proofs unless the output comes from a multi-party ceremony. Both are reported only outside `_test.go` files: the import at its import line, and `groth16.Setup` only in a `main` package, where it most likely produces deployable keys.
+
+*Where it stops:* Whether the resulting keys are actually deployed cannot be seen from source. Key generation in library packages is not reported.
 <!-- END GENERATED RULE REFERENCE -->
 
 ## Suppressing a reviewed finding

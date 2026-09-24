@@ -63,7 +63,7 @@ func elseBranch(api frontend.API, n, d frontend.Variable, relaxed bool) {
 	out, _ := api.Compiler().NewHint(hint, 2, n, d)
 	api.AssertIsEqual(n, api.Add(api.Mul(out[0], d), out[1]))
 	if relaxed {
-		api.AssertIsEqual(out[0], out[0])
+		api.AssertIsDifferent(d, 0)
 	} else {
 		bound(api, out[1], d)
 	}

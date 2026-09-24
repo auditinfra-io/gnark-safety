@@ -69,7 +69,7 @@ func elseBound(api frontend.API, n, d frontend.Variable, checked bool) error {
 	q, r := out[0], out[1]
 	api.AssertIsEqual(n, api.Add(api.Mul(q, d), r))
 	if checked {
-		api.AssertIsEqual(q, q)
+		api.AssertIsDifferent(d, 0)
 	} else {
 		cmp.NewBoundedComparator(api, big.NewInt(255), false).AssertIsLess(r, d)
 	}

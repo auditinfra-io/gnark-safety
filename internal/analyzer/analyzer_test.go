@@ -167,7 +167,7 @@ func TestDeprecatedAPINewHint(t *testing.T) {
 // severity it uses, and every registered rule is exercised by a fixture.
 func TestRegistryCoverage(t *testing.T) {
 	emitted := map[string]bool{}
-	for _, pattern := range []string{"./examples/divmod", "./internal/analyzer/testdata/relation", "./internal/analyzer/testdata/deprecated"} {
+	for _, pattern := range append([]string{"./examples/divmod", "./internal/analyzer/testdata/relation", "./internal/analyzer/testdata/deprecated"}, corpusPatterns(t)...) {
 		r, err := Scan("../..", []string{pattern})
 		if err != nil {
 			t.Fatal(err)

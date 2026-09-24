@@ -20,8 +20,17 @@ import (
 
 // Rule IDs are stable: once released they are never renamed or reused.
 const (
-	HintRelationIncomplete = "GNARK_HINT_RELATION_INCOMPLETE"
-	HintOutputUnused       = "GNARK_HINT_OUTPUT_UNUSED"
+	HintRelationIncomplete    = "GNARK_HINT_RELATION_INCOMPLETE"
+	HintOutputUnused          = "GNARK_HINT_OUTPUT_UNUSED"
+	TagVisibilityAsName       = "GNARK_TAG_VISIBILITY_AS_NAME"
+	GoEqualityOnVariable      = "GNARK_GO_EQUALITY_ON_VARIABLE"
+	DiscardedPredicate        = "GNARK_DISCARDED_PREDICATE"
+	VacuousAssert             = "GNARK_VACUOUS_ASSERT"
+	BitsUnconstrained         = "GNARK_BITS_UNCONSTRAINED"
+	BitsOmitModulusCheck      = "GNARK_BITS_OMIT_MODULUS_CHECK"
+	ComparatorNondeterminism  = "GNARK_COMPARATOR_NONDETERMINISTIC"
+	IgnoreUnconstrainedInputs = "GNARK_IGNORE_UNCONSTRAINED_INPUTS"
+	UnsafeSetup               = "GNARK_UNSAFE_SETUP"
 )
 
 // Taxonomy classes follow o1js-scan's missing-constraint taxonomy, with
@@ -96,6 +105,136 @@ var specs = []Spec{
 			"advice; one that reaches no constraint contributes nothing the verifier can rely on.",
 		Limitations: "Only statically indexed outputs and their local aliases are tracked. Dynamic indexes, outputs passed " +
 			"through slices or struct fields, and complex aliasing remain unknown.",
+	},
+	{
+		ID:         TagVisibilityAsName,
+		Title:      "Visibility written as a witness name",
+		Class:      ClassUnboundWitness,
+		Severities: []report.Severity{report.SeverityHigh, report.SeverityInfo},
+		Confidence: "high",
+		Summary:    "A struct tag such as `gnark:\"public\"` names the witness element `public` instead of setting its visibility, so the field stays secret: a value the verifier meant to fix becomes one the prover chooses.",
+		Description: "gnark parses `gnark:\"name,options\"` like `encoding/json`: the text before the first comma is the witness name and " +
+			"visibility is an option after it. `gnark:\"public\"` therefore names the element \"public\" and leaves it at the " +
+			"default visibility, secret, so it is absent from the public witness and the verifier cannot pin it. The fix is " +
+			"`gnark:\",public\"`. High for `public`. The same mistake with `secret` is reported as info, because the field is " +
+			"secret either way and only the name is surprising. Evidence: gnark v0.16.3 `frontend/schema/tags.go` `parseTag` " +
+			"and `walk.go`.",
+		Limitations: "Only tags whose name part is exactly `public` or `secret` are matched. Visibility inherited from a parent " +
+			"struct is not evaluated.",
+	},
+	{
+		ID:         GoEqualityOnVariable,
+		Title:      "Go comparison of a circuit variable",
+		Class:      ClassNonLoadBearing,
+		Severities: []report.Severity{report.SeverityHigh},
+		Confidence: "high",
+		Summary:    "Go `==`, `!=`, or `switch` on a `frontend.Variable` compares the value the variable holds while the circuit is being compiled, a constraint expression rather than the witness, so the branch it guards is not a constraint.",
+		Description: "`frontend.Variable` is `any`. During `frontend.Compile` it holds a linear expression, not the prover's value, " +
+			"so `if c.Flag == 1 { api.AssertIsEqual(...) }` is decided once at compile time (the comparison is false) and the " +
+			"guarded constraint is never emitted. Express conditions in the circuit instead, for example with `api.IsZero`, " +
+			"`api.Select`, or `api.Mul(flag, ...)`. Comparisons with `nil`, and fields tagged `gnark:\"-\"` (which hold Go " +
+			"constants at compile time), are not reported. Evidence: gnark v0.16.3 `frontend/variable.go`.",
+		Limitations: "Only direct comparisons and switch tags are matched; a Variable converted to another type first, or compared " +
+			"through a helper, is not.",
+	},
+	{
+		ID:         DiscardedPredicate,
+		Title:      "Discarded predicate",
+		Class:      ClassNonLoadBearing,
+		Severities: []report.Severity{report.SeverityHigh},
+		Confidence: "high",
+		Summary:    "The result of a gnark predicate (`IsZero`, `Cmp`, a bounded comparator's `IsLess`/`IsLessEq`, a recursive verifier's `IsValidProof`, or a hash `Sum`) is discarded, so the check it computes constrains nothing.",
+		Description: "Predicates return a variable; they do not assert anything. A call used as a statement, or assigned only to " +
+			"`_`, computes a value the circuit never uses, so the line reads as a check that does not exist. Assert the result " +
+			"(`api.AssertIsEqual(api.IsZero(x), 1)`), use the assertion form, or feed it into later constraints. Go already " +
+			"rejects unused local variables, so these are the forms that compile. Evidence: gnark v0.16.3 `frontend/api.go` " +
+			"(`IsZero`, `Cmp`), `std/math/cmp/bounded.go`, `std/recursion/groth16/verifier.go` (`IsValidProof`), and " +
+			"`std/hash/hash.go`.",
+		Limitations: "A result stored and then never read, or discarded through a helper, is not matched.",
+	},
+	{
+		ID:         VacuousAssert,
+		Title:      "Vacuous assertion",
+		Class:      ClassNonLoadBearing,
+		Severities: []report.Severity{report.SeverityHigh, report.SeverityMedium},
+		Confidence: "high",
+		Summary:    "An assertion that holds by construction, such as `api.AssertIsEqual(x, x)` or an assertion over constants only, adds no restriction while reading like a check.",
+		Description: "High when both sides are the same expression (`AssertIsEqual(x, x)`, `AssertIsLessOrEqual(x, x)`, or a bounded " +
+			"comparator's `AssertIsLessEq(x, x)`); that is almost always a typo for a real check, such as `(computed, " +
+			"expected)` written as `(expected, expected)`. Medium when every operand is a constant (`AssertIsEqual(1, 1)`, " +
+			"`AssertIsBoolean(1)`), which is more often a placeholder. Unsatisfiable forms such as `AssertIsDifferent(x, x)` are " +
+			"liveness bugs, not vacuous ones, and are not reported.",
+		Limitations: "Expressions are compared structurally: the same variable, field path, or constant index. Algebraically equal " +
+			"but differently written operands are not matched.",
+	},
+	{
+		ID:         BitsUnconstrained,
+		Title:      "Unconstrained bit decomposition",
+		Class:      ClassUnboundWitness,
+		Severities: []report.Severity{report.SeverityHigh, report.SeverityMedium},
+		Confidence: "medium",
+		Summary:    "A `bits` decomposition opts out of digit constraints (`WithUnconstrainedOutputs` or `WithUnconstrainedInputs`) and nothing in the function constrains the digits, so the prover can choose non-boolean digits that still sum to the value.",
+		Description: "`bits.ToBinary(api, v, bits.WithUnconstrainedOutputs())` constrains only the weighted sum of the digits; the " +
+			"digits themselves are hint outputs. High when those digits are used in the function but never constrained " +
+			"(`AssertIsBoolean`, `AssertIsCrumb`, `bits.AssertIsTrit`, `api.FromBinary`, or `bits.FromBinary` without the " +
+			"option). Medium for `FromBinary`/`FromBase` with `WithUnconstrainedInputs` whose digits are prover advice (hint " +
+			"outputs or an unconstrained decomposition) with no such constraint. Digits passed to another function, returned, " +
+			"or stored elsewhere may be constrained there, so they are not reported. Evidence: gnark v0.16.3 " +
+			"`std/math/bits/conversion.go`.",
+		Limitations: "Options passed through a slice (`opts...`) are not resolved. Constraints in called functions are not " +
+			"followed, so any hand-off silences the rule.",
+	},
+	{
+		ID:         BitsOmitModulusCheck,
+		Title:      "Bit decomposition without modulus check",
+		Class:      ClassUnboundWitness,
+		Severities: []report.Severity{report.SeverityMedium},
+		Confidence: "high",
+		Summary:    "`bits.OmitModulusCheck()` skips the comparison against the field modulus, so a full-width decomposition of `a` can also be one of `a + r`: the bits are not unique.",
+		Description: "When the number of digits equals the field's bit length, both `a` and `a + r` (for modulus `r`) can have valid " +
+			"decompositions, and gnark's modulus check is what excludes the second. Omitting it is safe only when the " +
+			"decomposition is checked for uniqueness elsewhere or uniqueness does not matter; state which in a suppression. " +
+			"Evidence: gnark v0.16.3 `std/math/bits/conversion.go` `OmitModulusCheck`.",
+		Limitations: "The rule does not check the digit count; a decomposition narrower than the field is unique regardless.",
+	},
+	{
+		ID:         ComparatorNondeterminism,
+		Title:      "Nondeterministic bounded comparator",
+		Class:      ClassUnboundWitness,
+		Severities: []report.Severity{report.SeverityMedium},
+		Confidence: "high",
+		Summary:    "`cmp.NewBoundedComparator(api, bound, true)` allows nondeterministic behavior: when the operands differ by more than the bound, the constraint system can have several solutions, so comparison results are prover-selectable.",
+		Description: "The third argument `allowNonDeterministicBehaviour` trades soundness outside the bound for fewer constraints. " +
+			"It is sound only when range checks elsewhere guarantee `|a - b| <= bound` for every comparison. Prefer `false`, " +
+			"which makes out-of-bound inputs fail to prove or return a deterministic result. Evidence: gnark v0.16.3 " +
+			"`std/math/cmp/bounded.go`.",
+		Limitations: "Only a literal constant `true` is matched. Whether the operands are range-checked is not analyzed.",
+	},
+	{
+		ID:         IgnoreUnconstrainedInputs,
+		Title:      "Unconstrained-input check disabled",
+		Class:      ClassConfiguration,
+		Severities: []report.Severity{report.SeverityMedium},
+		Confidence: "high",
+		Summary:    "`frontend.IgnoreUnconstrainedInputs()` disables gnark's compile-time error for inputs that no constraint uses, a check gnark's documentation says should stay on in production.",
+		Description: "By default `frontend.Compile` fails when a public or secret input appears in no constraint, which catches " +
+			"inputs the circuit forgot to bind. The option turns that error off. Test code is excluded by default. Evidence: " +
+			"gnark v0.16.3 `frontend/compile.go`.",
+		Limitations: "Options assembled dynamically (`opts...`) are not resolved.",
+	},
+	{
+		ID:         UnsafeSetup,
+		Title:      "Unsafe setup outside tests",
+		Class:      ClassConfiguration,
+		Severities: []report.Severity{report.SeverityMedium, report.SeverityLow},
+		Confidence: "high",
+		Summary:    "Production code imports gnark's test-only `unsafekzg` SRS (medium), or runs a single-party `groth16.Setup` in a `main` package (low), so whoever ran setup could forge proofs.",
+		Description: "`test/unsafekzg` generates KZG parameters from locally known randomness; it exists for tests. A `groth16.Setup` " +
+			"run by one party leaves that party able to forge proofs unless the output comes from a multi-party ceremony. " +
+			"Both are reported only outside `_test.go` files: the import at its import line, and `groth16.Setup` only in a " +
+			"`main` package, where it most likely produces deployable keys.",
+		Limitations: "Whether the resulting keys are actually deployed cannot be seen from source. Key generation in library " +
+			"packages is not reported.",
 	},
 }
 
