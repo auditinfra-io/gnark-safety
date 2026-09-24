@@ -98,6 +98,29 @@ or variadic input expansion is explicitly shown as `unknown`. JSON output uses
 the versioned `1.0` schema and includes `hints`, `diagnostics`, and
 `limitations`.
 
+## Experimental safety analyzer
+
+`gnark-safety` is the type-aware successor to the inventory command. Its first
+rule recognizes two-output hints whose outputs are used in a reconstruction
+equality without an unconditional canonical remainder comparison:
+
+```bash
+GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --fail-on none ./...
+GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --format json --fail-on none ./...
+GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --format sarif --output results.sarif --fail-on none ./...
+GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety explain GNARK_HINT_RELATION_INCOMPLETE
+```
+
+The default `--fail-on high` policy exits 1 for a high-severity finding; use
+`--fail-on none` for inventory/report-only runs. Invalid configuration and
+package-loading failures exit 2. The JSON report retains the hint inventory and
+adds stable findings; SARIF 2.1.0 output is suitable for code-scanning import.
+
+This is deliberately not a claim of full circuit soundness. The initial rule
+is intra-function and reports its unsupported constructs in the top-level
+`limitations` field. See [`docs/architecture.md`](docs/architecture.md) and
+[`docs/rules.md`](docs/rules.md).
+
 ## Observed outcomes
 
 Observed on 2026-09-21 on Linux/x86_64; see [`evidence/`](evidence/README.md).
