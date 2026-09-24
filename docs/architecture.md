@@ -3,7 +3,8 @@
 The experimental analyzer is split at stable data boundaries:
 
 1. `internal/analyzer` loads requested roots with `go/packages`, uses type
-   information to distinguish gnark's `frontend.Compiler.NewHint` from
+   information (through `internal/gnarkapi`) to distinguish gnark's
+   `frontend.Compiler.NewHint` and deprecated `frontend.API.NewHint` from
    unrelated methods, extracts hint metadata, and applies the initial
    conservative syntax rule.
 2. `pkg/report` is the public, versioned report model. Unknown hint metadata is

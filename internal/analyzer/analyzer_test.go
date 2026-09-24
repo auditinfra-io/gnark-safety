@@ -145,3 +145,28 @@ func TestUnknownInvariantsRejectsNegativeOutputCount(t *testing.T) {
 		t.Fatalf("negative output count produced invariants: %#v", got)
 	}
 }
+
+// TestDeprecatedAPINewHint guards the gap where frontend.API.NewHint calls
+// were not recognized and a vulnerable circuit scanned as clean.
+func TestDeprecatedAPINewHint(t *testing.T) {
+	r, err := Scan("../..", []string{"./internal/analyzer/testdata/deprecated"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Hints) != 4 {
+		t.Fatalf("got %d hints, want 4: %#v", len(r.Hints), r.Hints)
+	}
+	got := map[string]string{}
+	for _, f := range r.Findings {
+		got[f.Function] = f.RuleID
+	}
+	want := map[string]string{"(*Circuit).Define": relationRule, "methodExpression": relationRule, "promoted": relationRule}
+	if len(got) != len(want) {
+		t.Fatalf("got findings %v, want %v", got, want)
+	}
+	for function, rule := range want {
+		if got[function] != rule {
+			t.Errorf("%s: got rule %q, want %q", function, got[function], rule)
+		}
+	}
+}

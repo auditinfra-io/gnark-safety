@@ -15,10 +15,10 @@ func TestFixtureInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := len(r.Hints), 10; got != want {
+	if got, want := len(r.Hints), 11; got != want {
 		t.Fatalf("got %d hints, want %d: %#v", got, want, r.Hints)
 	}
-	var unknownHint, unknownOutput, unknownInputs, methodExpression, generic, methodValue bool
+	var unknownHint, unknownOutput, unknownInputs, methodExpression, generic, methodValue, deprecated bool
 	for _, h := range r.Hints {
 		if h.Hint == "unknown" {
 			unknownHint = true
@@ -37,6 +37,8 @@ func TestFixtureInventory(t *testing.T) {
 			methodExpression = h.Hint == "github.com/auditinfra-io/gnark-safety/cmd/gnark-hint-scan/testdata/fixture.knownHint" && value(h.OutputCount) == 2 && value(h.InputCount) == 1
 		case "instantiated":
 			generic = h.Hint == "github.com/auditinfra-io/gnark-safety/cmd/gnark-hint-scan/testdata/fixture.genericHint"
+		case "deprecatedShortcut":
+			deprecated = h.Hint == "github.com/auditinfra-io/gnark-safety/cmd/gnark-hint-scan/testdata/fixture.knownHint"
 		case "methodValue":
 			methodValue = h.Hint == "(github.com/auditinfra-io/gnark-safety/cmd/gnark-hint-scan/testdata/fixture.hintHandler).Compute"
 		}
@@ -44,8 +46,8 @@ func TestFixtureInventory(t *testing.T) {
 	if !unknownHint || !unknownOutput || !unknownInputs {
 		t.Fatalf("missing explicit unknown cases: hint=%v output=%v inputs=%v", unknownHint, unknownOutput, unknownInputs)
 	}
-	if !methodExpression || !generic || !methodValue {
-		t.Fatalf("special call forms not reported correctly: method expression=%v generic=%v method value=%v", methodExpression, generic, methodValue)
+	if !methodExpression || !generic || !methodValue || !deprecated {
+		t.Fatalf("special call forms not reported correctly: method expression=%v generic=%v method value=%v deprecated=%v", methodExpression, generic, methodValue, deprecated)
 	}
 }
 

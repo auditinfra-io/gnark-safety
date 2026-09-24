@@ -1,4 +1,4 @@
-// gnark-hint-scan inventories direct calls to gnark's Compiler.NewHint API.
+// gnark-hint-scan inventories direct calls to gnark's frontend NewHint API.
 package main
 
 import (
@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/auditinfra-io/gnark-safety/internal/gnarkapi"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -23,7 +24,7 @@ const schemaVersion = "1.0"
 
 var limitations = []string{
 	"Inventory only: constraint completeness and circuit soundness were not analyzed.",
-	"Only direct calls to github.com/consensys/gnark/frontend.Compiler.NewHint are reported; reachability and call graphs are not analyzed.",
+	"Only direct calls to github.com/consensys/gnark/frontend.Compiler.NewHint and the deprecated frontend.API.NewHint are reported; reachability and call graphs are not analyzed.",
 	"Dynamically selected hint functions and non-constant output counts may be reported as unknown.",
 }
 
@@ -172,7 +173,7 @@ func inspectFile(r *report, p *packages.Package, file *ast.File, fset *token.Fil
 			return true
 		}
 		sel := p.TypesInfo.Selections[selExpr]
-		if sel == nil || !isGnarkNewHint(sel.Obj()) {
+		if sel == nil || !gnarkapi.IsNewHint(sel.Obj()) {
 			return true
 		}
 		// A method expression (Compiler.NewHint(compiler, ...)) has an explicit
@@ -209,22 +210,6 @@ func inspectFile(r *report, p *packages.Package, file *ast.File, fset *token.Fil
 		r.Hints = append(r.Hints, h)
 		return true
 	})
-}
-
-func isGnarkNewHint(obj types.Object) bool {
-	f, ok := obj.(*types.Func)
-	if !ok || f.Name() != "NewHint" || f.Pkg() == nil || f.Pkg().Path() != "github.com/consensys/gnark/frontend" {
-		return false
-	}
-	sig, ok := f.Type().(*types.Signature)
-	if !ok || sig.Recv() == nil {
-		return false
-	}
-	named, ok := types.Unalias(sig.Recv().Type()).(*types.Named)
-	if ok {
-		return named.Obj().Name() == "Compiler"
-	}
-	return false
 }
 
 func hintIdentity(info *types.Info, e ast.Expr) string {

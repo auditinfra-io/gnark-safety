@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/auditinfra-io/gnark-safety/internal/gnarkapi"
 	"github.com/auditinfra-io/gnark-safety/pkg/report"
 	"golang.org/x/tools/go/packages"
 )
@@ -156,7 +157,7 @@ func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, fil
 				return true
 			}
 			sel := p.TypesInfo.Selections[selExpr]
-			if sel == nil || !isMethod(sel.Obj(), "github.com/consensys/gnark/frontend", "Compiler", "NewHint") {
+			if sel == nil || !gnarkapi.IsNewHint(sel.Obj()) {
 				return true
 			}
 			if len(r.Hints) >= maxHints {
@@ -681,7 +682,7 @@ func isFrontendCall(info *types.Info, call *ast.CallExpr, name string) bool {
 		return false
 	}
 	obj := info.Uses[sel.Sel]
-	return obj != nil && obj.Name() == name && obj.Pkg() != nil && obj.Pkg().Path() == "github.com/consensys/gnark/frontend"
+	return obj != nil && obj.Name() == name && obj.Pkg() != nil && obj.Pkg().Path() == gnarkapi.FrontendPath
 }
 
 func isComparatorCall(info *types.Info, call *ast.CallExpr, name string) bool {
@@ -804,18 +805,6 @@ func relative(dir, path string) string {
 		return filepath.ToSlash(rel)
 	}
 	return filepath.ToSlash(path)
-}
-func isMethod(obj types.Object, pkg, recv, name string) bool {
-	f, ok := obj.(*types.Func)
-	if !ok || f.Name() != name || f.Pkg() == nil || f.Pkg().Path() != pkg {
-		return false
-	}
-	sig, ok := f.Type().(*types.Signature)
-	if !ok || sig.Recv() == nil {
-		return false
-	}
-	named, ok := types.Unalias(sig.Recv().Type()).(*types.Named)
-	return ok && named.Obj().Name() == recv
 }
 func identity(info *types.Info, e ast.Expr) string {
 	if p, ok := e.(*ast.ParenExpr); ok {

@@ -99,8 +99,9 @@ Inventory only: constraint completeness and circuit soundness were not analyzed.
 
 The scanner examines every function and method in the requested non-test Go
 packages, including helpers. It identifies direct calls to gnark's resolved
-`frontend.Compiler.NewHint` method, so import aliases work and unrelated
-methods with that name are ignored. Dependencies are loaded for type resolution
+`frontend.Compiler.NewHint` method and the deprecated `frontend.API.NewHint`
+shortcut, so import aliases and embedded APIs work and unrelated methods with
+that name are ignored. Dependencies are loaded for type resolution
 but are not themselves reported unless a requested package pattern includes
 them. Package loading invokes the Go toolchain and may resolve dependencies.
 

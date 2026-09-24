@@ -36,6 +36,10 @@ func methodExpression(api frontend.API, input frontend.Variable) {
 	frontend.Compiler.NewHint(api.Compiler(), knownHint, 2, input)
 }
 
+func deprecatedShortcut(api frontend.API) {
+	api.NewHint(knownHint, 1)
+}
+
 func genericHint[T any](_ *big.Int, _ []*big.Int, _ []*big.Int) error { return nil }
 
 func instantiated(api frontend.API) {
