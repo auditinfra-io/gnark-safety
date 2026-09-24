@@ -123,7 +123,7 @@ func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *to
 				h.Unknown = append(h.Unknown, "input_count")
 			}
 			r.Hints = append(r.Hints, h)
-			if incompleteRelation(fn.Body, call) {
+			if h.OutputCount != nil && *h.OutputCount == 2 && incompleteRelation(fn.Body, call, p.TypesInfo) {
 				r.Findings = append(r.Findings, report.Finding{RuleID: relationRule, Severity: report.SeverityHigh, Confidence: "high", File: path, Line: pos.Line, Column: pos.Column, Function: function, Message: "Hint outputs participate in reconstruction, but the canonical remainder bound r < d is not constrained.", Evidence: []string{"hint output: " + h.Hint, "constraint: n = q*d + r", "missing constraint: r < d"}, Limitations: []string{}})
 			}
 			return true
@@ -132,11 +132,11 @@ func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *to
 }
 
 // incompleteRelation recognizes the deliberately narrow first rule: a
-// two-output hint whose indexed outputs both occur in AssertIsEqual, with no
-// AssertIsLess involving the second output. It intentionally declines more
-// complex aliases rather than claiming general soundness.
-func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr) bool {
-	var slice string
+// two-output hint whose indexed outputs occur in one n=q*d+r equality, with
+// no unconditional AssertIsLess(r, d). It intentionally declines more complex
+// aliases rather than claiming general soundness.
+func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info) bool {
+	var outputs types.Object
 	ast.Inspect(body, func(n ast.Node) bool {
 		as, ok := n.(*ast.AssignStmt)
 		if !ok {
@@ -145,16 +145,16 @@ func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr) bool {
 		for i, rhs := range as.Rhs {
 			if rhs == hintCall && i < len(as.Lhs) {
 				if id, ok := as.Lhs[i].(*ast.Ident); ok {
-					slice = id.Name
+					outputs = objectOf(info, id)
 				}
 			}
 		}
 		return true
 	})
-	if slice == "" {
+	if outputs == nil {
 		return false
 	}
-	aliases := map[string]int{}
+	aliases := map[types.Object]int{}
 	ast.Inspect(body, func(n ast.Node) bool {
 		as, ok := n.(*ast.AssignStmt)
 		if !ok {
@@ -165,72 +165,176 @@ func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr) bool {
 			if !ok || i >= len(as.Lhs) {
 				continue
 			}
-			base, ok := idx.X.(*ast.Ident)
-			if !ok || base.Name != slice {
+			if objectOf(info, idx.X) != outputs {
 				continue
 			}
 			v := constantIndex(idx.Index)
 			id, ok := as.Lhs[i].(*ast.Ident)
 			if ok && v >= 0 {
-				aliases[id.Name] = v
+				aliases[objectOf(info, id)] = v
 			}
 		}
 		return true
 	})
-	var conditional []struct{ start, end token.Pos }
-	ast.Inspect(body, func(n ast.Node) bool {
-		if x, ok := n.(*ast.IfStmt); ok {
-			conditional = append(conditional, struct{ start, end token.Pos }{x.Body.Pos(), x.Body.End()})
-		}
-		return true
-	})
-	hasQ, hasR, hasLess := false, false, false
+	var divisor ast.Expr
 	ast.Inspect(body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok {
+		if !ok || !isFrontendCall(info, call, "AssertIsEqual") || len(call.Args) != 2 {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		switch sel.Sel.Name {
-		case "AssertIsEqual":
-			ast.Inspect(call, func(x ast.Node) bool {
-				id, ok := x.(*ast.Ident)
-				if !ok {
-					return true
-				}
-				idx, exists := aliases[id.Name]
-				if exists && idx == 0 {
-					hasQ = true
-				}
-				if exists && idx == 1 {
-					hasR = true
-				}
-				return true
-			})
-		case "AssertIsLess":
-			for _, span := range conditional {
-				if call.Pos() >= span.start && call.End() <= span.end {
-					return true
-				}
-			}
-			ast.Inspect(call, func(x ast.Node) bool {
-				id, ok := x.(*ast.Ident)
-				if !ok {
-					return true
-				}
-				idx, exists := aliases[id.Name]
-				if exists && idx == 1 {
-					hasLess = true
-				}
-				return true
-			})
+		if d, ok := reconstructionDivisor(info, call.Args[0], outputs, aliases); ok && plainRelationSide(info, call.Args[1], outputs, aliases) {
+			divisor = d
+		} else if d, ok := reconstructionDivisor(info, call.Args[1], outputs, aliases); ok && plainRelationSide(info, call.Args[0], outputs, aliases) {
+			divisor = d
 		}
 		return true
 	})
-	return hasQ && hasR && !hasLess
+	if divisor == nil {
+		return false
+	}
+	hasBound := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) != 2 || !isComparatorCall(info, call, "AssertIsLess") || conditionallyExecuted(body, call) {
+			return true
+		}
+		if outputIndex(info, call.Args[0], outputs, aliases) == 1 && sameValue(info, call.Args[1], divisor) {
+			hasBound = true
+		}
+		return true
+	})
+	return !hasBound
+}
+
+func plainRelationSide(info *types.Info, e ast.Expr, outputs types.Object, aliases map[types.Object]int) bool {
+	return objectOf(info, e) != nil && outputIndex(info, e, outputs, aliases) < 0
+}
+
+// reconstructionDivisor accepts exactly Add(Mul(q, d), r), including swapped
+// operands of the commutative Add and Mul calls. Both hint outputs must occur
+// in this single expression.
+func reconstructionDivisor(info *types.Info, e ast.Expr, outputs types.Object, aliases map[types.Object]int) (ast.Expr, bool) {
+	add, ok := apiCallArgs(info, e, "Add")
+	if !ok || len(add) != 2 {
+		return nil, false
+	}
+	for i := 0; i < 2; i++ {
+		if outputIndex(info, add[1-i], outputs, aliases) != 1 {
+			continue
+		}
+		mul, ok := apiCallArgs(info, add[i], "Mul")
+		if !ok || len(mul) != 2 {
+			continue
+		}
+		if outputIndex(info, mul[0], outputs, aliases) == 0 {
+			return mul[1], true
+		}
+		if outputIndex(info, mul[1], outputs, aliases) == 0 {
+			return mul[0], true
+		}
+	}
+	return nil, false
+}
+
+func outputIndex(info *types.Info, e ast.Expr, outputs types.Object, aliases map[types.Object]int) int {
+	e = unparen(e)
+	if idx, ok := e.(*ast.IndexExpr); ok && objectOf(info, idx.X) == outputs {
+		return constantIndex(idx.Index)
+	}
+	if i, ok := aliases[objectOf(info, e)]; ok {
+		return i
+	}
+	return -1
+}
+
+func apiCallArgs(info *types.Info, e ast.Expr, name string) ([]ast.Expr, bool) {
+	call, ok := unparen(e).(*ast.CallExpr)
+	if !ok || !isFrontendCall(info, call, name) {
+		return nil, false
+	}
+	return call.Args, true
+}
+
+func isFrontendCall(info *types.Info, call *ast.CallExpr, name string) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	obj := info.Uses[sel.Sel]
+	return obj != nil && obj.Name() == name && obj.Pkg() != nil && obj.Pkg().Path() == "github.com/consensys/gnark/frontend"
+}
+
+func isComparatorCall(info *types.Info, call *ast.CallExpr, name string) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	obj := info.Uses[sel.Sel]
+	return obj != nil && obj.Name() == name && obj.Pkg() != nil && obj.Pkg().Path() == "github.com/consensys/gnark/std/math/cmp"
+}
+
+func objectOf(info *types.Info, e ast.Expr) types.Object {
+	switch x := unparen(e).(type) {
+	case *ast.Ident:
+		if obj := info.Uses[x]; obj != nil {
+			return obj
+		}
+		return info.Defs[x]
+	case *ast.SelectorExpr:
+		return info.Uses[x.Sel]
+	}
+	return nil
+}
+
+func sameValue(info *types.Info, a, b ast.Expr) bool {
+	ao, bo := objectOf(info, a), objectOf(info, b)
+	return ao != nil && ao == bo
+}
+func unparen(e ast.Expr) ast.Expr {
+	for {
+		p, ok := e.(*ast.ParenExpr)
+		if !ok {
+			return e
+		}
+		e = p.X
+	}
+}
+
+func conditionallyExecuted(body *ast.BlockStmt, target ast.Node) bool {
+	conditional := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if n == nil || conditional {
+			return !conditional
+		}
+		var regions []ast.Node
+		switch x := n.(type) {
+		case *ast.IfStmt:
+			regions = []ast.Node{x.Body}
+			if x.Else != nil {
+				regions = append(regions, x.Else)
+			}
+		case *ast.ForStmt:
+			regions = []ast.Node{x.Body}
+		case *ast.RangeStmt:
+			regions = []ast.Node{x.Body}
+		case *ast.SwitchStmt:
+			regions = []ast.Node{x.Body}
+		case *ast.TypeSwitchStmt:
+			regions = []ast.Node{x.Body}
+		case *ast.SelectStmt:
+			regions = []ast.Node{x.Body}
+		case *ast.FuncLit:
+			regions = []ast.Node{x.Body}
+		}
+		for _, r := range regions {
+			if target.Pos() >= r.Pos() && target.End() <= r.End() {
+				conditional = true
+				return false
+			}
+		}
+		return true
+	})
+	return conditional
 }
 
 func constantIndex(e ast.Expr) int {

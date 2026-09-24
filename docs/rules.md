@@ -5,10 +5,12 @@
 **Severity:** high. **Confidence:** high for the recognized shape.
 
 The first rule identifies a direct, type-resolved two-output `NewHint` call
-when both indexed outputs participate in an `AssertIsEqual` reconstruction but
-the function has no unconditional `AssertIsLess` covering the remainder. A
-comparison guarded by a Go `if` is not considered universal coverage because a
-caller may select the unchecked path.
+when one `AssertIsEqual` contains the typed `Add(Mul(q, d), r)` reconstruction
+but the function has no unconditional, type-resolved `AssertIsLess(r, d)`.
+Indexed outputs may be used directly or through local aliases. Comparisons with
+the wrong operand order or a different bound do not count as coverage. A
+comparison inside an `if`/`else`, loop, switch, select, or function literal is
+not considered universal coverage because that region may not execute.
 
 The finding points to the hint call and records three evidence items: the hint
 identity, the observed reconstruction, and the missing canonical bound. The

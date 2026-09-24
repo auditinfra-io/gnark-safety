@@ -19,6 +19,30 @@ func TestCanonicalFixture(t *testing.T) {
 	}
 }
 
+func TestRelationShapeAndCoverage(t *testing.T) {
+	r, err := Scan("../..", []string{"./internal/analyzer/testdata/relation"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, f := range r.Findings {
+		got[f.Function] = true
+	}
+	for _, name := range []string{"wrongBound", "invertedBound", "elseBound", "loopBound", "directIndex"} {
+		if !got[name] {
+			t.Errorf("missing finding for %s", name)
+		}
+	}
+	for _, name := range []string{"separateAssertions", "safe"} {
+		if got[name] {
+			t.Errorf("unexpected finding for %s", name)
+		}
+	}
+	if len(r.Findings) != 5 {
+		t.Fatalf("got %d findings, want 5: %#v", len(r.Findings), r.Findings)
+	}
+}
+
 func TestRuleHelp(t *testing.T) {
 	if _, ok := RuleHelp(relationRule); !ok {
 		t.Fatal("documented rule is missing")
