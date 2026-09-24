@@ -1,11 +1,26 @@
 package analyzer
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/auditinfra-io/gnark-safety/pkg/report"
 )
+
+func TestScanResourceLimits(t *testing.T) {
+	_, err := ScanContext(context.Background(), "../..", []string{"./internal/analyzer/testdata/relation"}, Options{MaxHints: 1})
+	if err == nil || !strings.Contains(err.Error(), "hint limit exceeded") {
+		t.Fatalf("expected hint limit error, got %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = ScanContext(ctx, "../..", []string{"."}, Options{})
+	if err == nil || !strings.Contains(err.Error(), "canceled") {
+		t.Fatalf("expected cancellation error, got %v", err)
+	}
+}
 
 func TestCanonicalFixture(t *testing.T) {
 	r, err := Scan("../..", []string{"."})

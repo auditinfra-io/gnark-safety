@@ -20,6 +20,12 @@ recursive helpers, complex aliases, or dynamic hint selection. These limits
 are emitted in every report. Later dataflow and deeper call-graph passes can
 consume the report model without changing the command-line schema.
 
+`ScanContext` carries cancellation through `go/packages` and the AST walk and
+applies a hint-call ceiling. The CLI adds a wall-clock deadline and renders into
+a size-limited buffer before writing output. These controls bound application
+behavior cooperatively; only an external sandbox can impose hard process,
+memory, filesystem, and network limits on the Go subprocess.
+
 For a recognized quotient/remainder reconstruction, the analyzer evaluates
 participation, range, relation, canonicality, and field safety independently.
 It records direct constraint evidence and calculates the maximum bounded

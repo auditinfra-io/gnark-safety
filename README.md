@@ -124,6 +124,12 @@ GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --format sarif --output resu
 GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety explain GNARK_HINT_RELATION_INCOMPLETE
 ```
 
+Scans default to a two-minute timeout, 10,000 hint call sites, and 16 MiB of
+rendered output. Override these with `--timeout`, `--max-hints`, and
+`--max-output-bytes`. These are defense-in-depth limits, not a sandbox; follow
+[`docs/untrusted-scanning.md`](docs/untrusted-scanning.md) before analyzing a
+repository outside your trust boundary.
+
 The default `--fail-on high` policy exits 1 for a high-severity finding; use
 `--fail-on none` for inventory/report-only runs. Invalid configuration and
 package-loading failures exit 2. The JSON report retains the hint inventory and

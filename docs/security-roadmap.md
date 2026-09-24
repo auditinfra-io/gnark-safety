@@ -122,6 +122,14 @@ limitations, and upstream advisory monitoring.
 
 ### 6. Harden scanner operation on untrusted repositories
 
+**Implemented at the application boundary:** package loading and AST traversal
+now share a cancellation context, and the CLI enforces positive timeout,
+hint-count, and rendered-output ceilings. Output is buffered within the limit
+before a destination file is written. The untrusted-scanning guide specifies a
+read-only mount, fixed toolchain, isolated caches, restricted networking,
+non-root execution, and OS-level CPU/memory/process limits, while explicitly
+stating that the built-in controls are not a sandbox.
+
 Package loading invokes the Go toolchain and may download modules or execute
 toolchain selection. Document that trust boundary prominently. For hosted use,
 scan in a network-restricted, resource-limited container with a read-only source

@@ -3,6 +3,7 @@
 package analyzer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -28,9 +29,29 @@ var limitations = []string{
 // Scan analyzes the requested package roots. Dependencies are loaded only for
 // type resolution and are not reported.
 func Scan(dir string, patterns []string) (report.Report, error) {
+	return ScanContext(context.Background(), dir, patterns, Options{})
+}
+
+type Options struct {
+	// MaxHints bounds reported call sites. Zero uses the default ceiling.
+	MaxHints int
+}
+
+const defaultMaxHints = 10000
+
+// ScanContext is Scan with cancellation and resource ceilings for callers that
+// process repositories outside their trust boundary.
+func ScanContext(ctx context.Context, dir string, patterns []string, opts Options) (report.Report, error) {
 	r := report.Report{SchemaVersion: report.SchemaVersion, Findings: []report.Finding{}, Hints: []report.Hint{}, Diagnostics: []string{}, Limitations: append([]string(nil), limitations...)}
+	maxHints := opts.MaxHints
+	if maxHints == 0 {
+		maxHints = defaultMaxHints
+	}
+	if maxHints < 0 {
+		return r, errors.New("max hints must be positive")
+	}
 	fset := token.NewFileSet()
-	pkgs, err := packages.Load(&packages.Config{Dir: dir, Fset: fset, Mode: packages.NeedName | packages.NeedModule | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps}, patterns...)
+	pkgs, err := packages.Load(&packages.Config{Context: ctx, Dir: dir, Fset: fset, Mode: packages.NeedName | packages.NeedModule | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps}, patterns...)
 	if err != nil {
 		return r, err
 	}
@@ -49,12 +70,17 @@ func Scan(dir string, patterns []string) (report.Report, error) {
 	}
 	absDir, _ := filepath.Abs(dir)
 	for _, p := range pkgs {
+		if err := ctx.Err(); err != nil {
+			return r, fmt.Errorf("analysis canceled: %w", err)
+		}
 		if r.Module == "" && p.Module != nil {
 			r.Module = p.Module.Path
 		}
 		helpers := packageFunctions(p)
 		for _, file := range p.Syntax {
-			inspectFile(&r, p, file, fset, absDir, helpers)
+			if err := inspectFile(ctx, &r, p, file, fset, absDir, helpers, maxHints); err != nil {
+				return r, err
+			}
 		}
 	}
 	sort.Slice(r.Hints, func(i, j int) bool {
@@ -84,8 +110,12 @@ func packageFunctions(p *packages.Package) map[*types.Func]*ast.FuncDecl {
 	return functions
 }
 
-func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *token.FileSet, dir string, helpers map[*types.Func]*ast.FuncDecl) {
+func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, file *ast.File, fset *token.FileSet, dir string, helpers map[*types.Func]*ast.FuncDecl, maxHints int) error {
+	var inspectErr error
 	for _, decl := range file.Decls {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("analysis canceled: %w", err)
+		}
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil {
 			continue
@@ -95,6 +125,13 @@ func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *to
 			function = "(" + types.ExprString(fn.Recv.List[0].Type) + ")." + function
 		}
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if inspectErr != nil {
+				return false
+			}
+			if err := ctx.Err(); err != nil {
+				inspectErr = fmt.Errorf("analysis canceled: %w", err)
+				return false
+			}
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true
@@ -106,6 +143,10 @@ func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *to
 			sel := p.TypesInfo.Selections[selExpr]
 			if sel == nil || !isMethod(sel.Obj(), "github.com/consensys/gnark/frontend", "Compiler", "NewHint") {
 				return true
+			}
+			if len(r.Hints) >= maxHints {
+				inspectErr = fmt.Errorf("hint limit exceeded: maximum %d", maxHints)
+				return false
 			}
 			offset := 0
 			if sel.Kind() == types.MethodExpr {
@@ -151,7 +192,11 @@ func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *to
 			}
 			return true
 		})
+		if inspectErr != nil {
+			return inspectErr
+		}
 	}
+	return nil
 }
 
 var invariantKinds = []string{"participation", "range", "relation", "canonicality", "field_safety"}
