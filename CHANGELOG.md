@@ -29,6 +29,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **GitHub Action** (`action.yml`). It builds the analyzer at the ref in
+  `uses:` (or installs a named release), scans once, uploads SARIF to code
+  scanning whenever the scan completed, and fails the job at `fail-on`. A scan
+  that cannot run fails the job without uploading. Inputs reach its scripts
+  only through the environment; see the README for inputs and outputs.
+- **pre-commit hook** (`.pre-commit-hooks.yaml`, id `gnark-safety`).
+- **Release binaries.** Tagged releases attach reproducible archives for
+  Linux, macOS, and Windows on amd64 and arm64
+  (`scripts/build-release.sh`), with their checksums inside the evidence
+  bundle. A preflight refuses tags without a `CHANGELOG.md` section.
+- **`gnark-safety-vet`** runs the rules under `go vet -vettool`, through a
+  `go/analysis` adapter that a parity test keeps in step with the CLI.
+- `--sarif-output FILE` writes SARIF in the same pass as the primary output.
+- `--relative-to DIR` reports paths relative to `DIR`, such as the repository
+  root, so SARIF from a module in a subdirectory maps in code scanning.
 - Rule registry (`internal/rules`) as the single source of truth for rule
   metadata. `explain`, SARIF rule metadata, and the rule tables in `README.md`
   and `docs/rules.md` are rendered from it (`go generate ./internal/rules`),

@@ -23,6 +23,11 @@ Go 1.25.7 or newer is required. The analyzer type-checks the packages you
 scan, so they must build, and their module dependencies must be downloadable
 or already in the module cache.
 
+Tagged releases also publish reproducible prebuilt archives for Linux, macOS,
+and Windows (amd64 and arm64), with a checksum list in the release evidence;
+see [`docs/releases.md`](docs/releases.md). CI can use the
+[GitHub Action](#github-action) instead.
+
 ## Example
 
 [`examples/divmod`](examples/divmod) contains two circuits that share one
@@ -65,6 +70,7 @@ $ echo $?
 gnark-safety scan ./...                                  # text report; exit 1 on high or critical
 gnark-safety scan --format json ./...                    # machine-readable report (schema 2.0)
 gnark-safety scan --format sarif --output gnark-safety.sarif ./...   # GitHub code scanning
+gnark-safety scan --sarif-output gnark-safety.sarif ./...  # readable log plus SARIF in one pass
 gnark-safety scan --fail-on medium ./circuits/...        # gate at a different severity
 gnark-safety scan --field bn254 ./...                    # compare bounds with a known scalar field
 gnark-safety inventory ./...                             # list every hint call site
@@ -74,6 +80,9 @@ gnark-safety --version
 ```
 
 Arguments are Go package patterns, resolved from the current directory.
+Reported paths are relative to the current directory; `--relative-to DIR`
+makes them relative to `DIR` instead. Use the repository root when the module
+lives in a subdirectory, so SARIF locations resolve in code scanning.
 
 **Exit codes.** `0` means the scan passed. `1` means a finding at or above
 `--fail-on` (default `high`; accepts `critical`, `high`, `medium`, `low`,
@@ -178,6 +187,21 @@ The hook runs `gnark-safety scan --fail-on high ./...` from the repository
 root when Go files change. Overriding `args` replaces all of them, so start
 with `scan`, for example `args: [scan, --fail-on, medium, ./circuits/...]`.
 
+### go vet
+
+`gnark-safety-vet` runs the same rules as a `go vet` tool. It is useful where
+`go vet` is already wired into editors or scripts:
+
+```bash
+go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety-vet@latest
+go vet -vettool="$(command -v gnark-safety-vet)" ./...
+```
+
+`go vet` type-checks each package together with its tests and prints findings
+as `file:line:col: severity [RULE] message`. It has no severity gate, SARIF,
+example downgrading, or coverage summary; use `gnark-safety scan` for those. A
+test keeps both reporting the same findings at the same positions.
+
 ### Suppressing a reviewed finding
 
 Put a directive on the flagged line or on the line above it. A rule ID and a
@@ -234,7 +258,9 @@ full circuit review.
 | Path | Contents |
 |---|---|
 | `cmd/gnark-safety` | The CLI. |
+| `cmd/gnark-safety-vet`, `internal/vet` | The `go vet -vettool` binary and its `go/analysis` adapter. |
 | `internal/analyzer`, `internal/rules`, `internal/output` | Analysis, the rule registry, and text/JSON/SARIF rendering. |
+| `action.yml`, `.pre-commit-hooks.yaml`, `scripts/` | The GitHub Action, the pre-commit hook, and the release scripts. `internal/contract` tests all of them. |
 | `pkg/report` | The public, versioned report schema. |
 | [`examples/divmod`](examples/divmod) | The educational vulnerable/corrected pair, with solver, differential, adversarial-hint, and Groth16/PLONK proof tests. |
 | `cmd/reproduce`, `cmd/release-evidence`, [`evidence/`](evidence/README.md) | Reproducible evidence and signed-release bundles; see [`docs/releases.md`](docs/releases.md). |

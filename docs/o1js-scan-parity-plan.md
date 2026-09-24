@@ -335,12 +335,25 @@ Not applicable to gnark, recorded so nobody ports it by mistake:
 - **Exit criteria:** met. Both headline transcripts are executed by a test, a
   self-scan passes at the default gate, and the registry-drift test is green.
 
-**Phase 2 (v0.2.0): distribution**
+**Phase 2 (v0.2.0): distribution** (implemented in PR #9)
 
-- `action.yml` with a contract test, GoReleaser binaries in the evidence bundle,
-  a pre-commit recipe, and a documented `go vet -vettool` path.
-- **Exit criteria:** a sample repository's workflow uploads SARIF and gates on
-  high, and the action contract test runs in CI.
+- [x] `action.yml` with contract tests that execute its scripts, and an
+  `action` CI job that runs it from the checkout against the example.
+- [x] Release binaries in the evidence bundle, with a CHANGELOG preflight.
+  Built by `scripts/build-release.sh` rather than GoReleaser: it keeps releases
+  inside the existing evidence workflow, adds no third-party action, and its
+  reproducibility is tested.
+- [x] A pre-commit hook, checked with `pre-commit try-repo`.
+- [x] `go vet -vettool` through `cmd/gnark-safety-vet`, the first step of D1:
+  a `go/analysis` adapter over the existing analyzer, kept in parity by a
+  test. Porting each rule to a native `analysis.Analyzer` remains D1 work.
+- [x] `--sarif-output` and `--relative-to`, which the action needs to scan
+  once and to map modules in subdirectories.
+- **Exit criteria:** partly met. The contract tests pass locally, and the
+  `action` job exists, but no CI run has executed because Actions runners are
+  blocked for this repository. An end-to-end SARIF upload also needs code
+  scanning enabled on a repository that can use the action. Both remain open
+  until an owner restores runners.
 
 **Phase 3 (v0.3.0): Wave 1 rules and canary infrastructure**
 
