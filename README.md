@@ -159,6 +159,11 @@ field/range reasoning, interprocedural analysis, and differential tests against
 ordinary Go specifications. This is a research roadmap, not an assertion that
 an upstream audit finding affects this fixture.
 
+[`docs/o1js-scan-parity-plan.md`](docs/o1js-scan-parity-plan.md) is the plan
+for turning this repository into the gnark counterpart of
+[o1js-scan](https://github.com/auditinfra-io/o1js-scan): packaging, CI
+integration, a broader rule catalog, and public calibration.
+
 Please report a suspected vulnerability privately as described in
 [`SECURITY.md`](SECURITY.md). Dependency updates are monitored through
 Dependabot and CI runs vulnerability, race, static-analysis, and fuzz checks.
