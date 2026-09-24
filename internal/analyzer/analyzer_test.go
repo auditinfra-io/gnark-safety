@@ -19,14 +19,14 @@ func TestScanResourceLimits(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = ScanContext(ctx, "../..", []string{"."}, Options{})
+	_, err = ScanContext(ctx, "../..", []string{"./examples/divmod"}, Options{})
 	if err == nil || !strings.Contains(err.Error(), "canceled") {
 		t.Fatalf("expected cancellation error, got %v", err)
 	}
 }
 
 func TestCanonicalFixture(t *testing.T) {
-	r, err := Scan("../..", []string{"."})
+	r, err := Scan("../..", []string{"./examples/divmod"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,13 +50,13 @@ func TestCanonicalFixture(t *testing.T) {
 }
 
 func TestConfiguredFieldAssessment(t *testing.T) {
-	r, err := ScanContext(context.Background(), "../..", []string{"."}, Options{FieldModulus: ecc.BN254.ScalarField(), FieldName: "BN254 scalar field"})
+	r, err := ScanContext(context.Background(), "../..", []string{"./examples/divmod"}, Options{FieldModulus: ecc.BN254.ScalarField(), FieldName: "BN254 scalar field"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertInvariant(t, r.Hints[0].Invariants, 0, "field_safety", report.InvariantSatisfied, "below BN254 scalar field modulus")
 
-	r, err = ScanContext(context.Background(), "../..", []string{"."}, Options{FieldModulus: big.NewInt(101), FieldName: "test field"})
+	r, err = ScanContext(context.Background(), "../..", []string{"./examples/divmod"}, Options{FieldModulus: big.NewInt(101), FieldName: "test field"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestDeprecatedAPINewHint(t *testing.T) {
 // severity it uses, and every registered rule is exercised by a fixture.
 func TestRegistryCoverage(t *testing.T) {
 	emitted := map[string]bool{}
-	for _, pattern := range []string{".", "./internal/analyzer/testdata/relation", "./internal/analyzer/testdata/deprecated"} {
+	for _, pattern := range []string{"./examples/divmod", "./internal/analyzer/testdata/relation", "./internal/analyzer/testdata/deprecated"} {
 		r, err := Scan("../..", []string{pattern})
 		if err != nil {
 			t.Fatal(err)

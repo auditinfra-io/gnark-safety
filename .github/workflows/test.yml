@@ -47,4 +47,4 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: go test -run '^$' -fuzz '^FuzzQuotientRemainderHint$' -fuzztime 30s
+      - run: go test -run '^$' -fuzz '^FuzzQuotientRemainderHint$' -fuzztime 30s ./examples/divmod

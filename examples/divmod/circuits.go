@@ -1,4 +1,4 @@
-package gnarksafety
+package divmod
 
 import (
 	"math/big"

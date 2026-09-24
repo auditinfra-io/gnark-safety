@@ -11,7 +11,7 @@ import (
 
 func TestJSONAndExitPolicy(t *testing.T) {
 	var out, stderr bytes.Buffer
-	code := run([]string{"scan", "--format", "json", "."}, &out, &stderr, "../..")
+	code := run([]string{"scan", "--format", "json", "--include-examples", "./examples/divmod"}, &out, &stderr, "../..")
 	if code != 1 {
 		t.Fatalf("exit %d, want 1: %s", code, stderr.String())
 	}
@@ -24,7 +24,7 @@ func TestJSONAndExitPolicy(t *testing.T) {
 	}
 	out.Reset()
 	stderr.Reset()
-	if code := run([]string{"scan", "--fail-on", "none", "."}, &out, &stderr, "../.."); code != 0 {
+	if code := run([]string{"scan", "--fail-on", "none", "--include-examples", "./examples/divmod"}, &out, &stderr, "../.."); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
 }
@@ -42,7 +42,7 @@ func TestHighThresholdIgnoresLowerFindings(t *testing.T) {
 
 func TestSARIF(t *testing.T) {
 	var out, stderr bytes.Buffer
-	if code := run([]string{"scan", "--format", "sarif", "--fail-on", "none", "."}, &out, &stderr, "../.."); code != 0 {
+	if code := run([]string{"scan", "--format", "sarif", "--fail-on", "none", "./examples/divmod"}, &out, &stderr, "../.."); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
 	if !strings.Contains(out.String(), `"version": "2.1.0"`) || !strings.Contains(out.String(), "GNARK_HINT_RELATION_INCOMPLETE") {
@@ -75,10 +75,10 @@ func TestVersion(t *testing.T) {
 
 func TestResourceLimitValidationAndOutputLimit(t *testing.T) {
 	for _, args := range [][]string{
-		{"scan", "--timeout=0", "."},
-		{"scan", "--max-hints=0", "."},
-		{"scan", "--max-output-bytes=0", "."},
-		{"scan", "--field=no-such-field", "."},
+		{"scan", "--timeout=0", "./examples/divmod"},
+		{"scan", "--max-hints=0", "./examples/divmod"},
+		{"scan", "--max-output-bytes=0", "./examples/divmod"},
+		{"scan", "--field=no-such-field", "./examples/divmod"},
 	} {
 		var out, stderr bytes.Buffer
 		if code := run(args, &out, &stderr, "../.."); code != 2 {
@@ -87,7 +87,7 @@ func TestResourceLimitValidationAndOutputLimit(t *testing.T) {
 	}
 
 	var out, stderr bytes.Buffer
-	code := run([]string{"scan", "--format=json", "--max-output-bytes=1", "."}, &out, &stderr, "../..")
+	code := run([]string{"scan", "--format=json", "--max-output-bytes=1", "./examples/divmod"}, &out, &stderr, "../..")
 	if code != 2 || !strings.Contains(stderr.String(), "output limit exceeded") || out.Len() != 0 {
 		t.Fatalf("unexpected limited output: exit=%d stdout=%q stderr=%q", code, out.String(), stderr.String())
 	}
@@ -118,7 +118,7 @@ func TestFailOnLevels(t *testing.T) {
 
 func TestSummaryLine(t *testing.T) {
 	var out, stderr bytes.Buffer
-	if code := run([]string{"scan", "--format", "json", "."}, &out, &stderr, "../.."); code != 1 {
+	if code := run([]string{"scan", "--format", "json", "--include-examples", "./examples/divmod"}, &out, &stderr, "../.."); code != 1 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
 	want := "gnark-safety: 1 finding(s) [1 high] in 1 file(s); scanned 1 package(s), 1 importing gnark; _test.go files excluded — fails (--fail-on high)\n"
@@ -171,5 +171,45 @@ func TestSuppressedFindingsDoNotGate(t *testing.T) {
 	log := stderr.String()
 	if !strings.Contains(log, "5 finding(s) [5 high]") || !strings.Contains(log, "; 3 suppressed;") || !strings.Contains(log, "gnark-safety: warning: internal/analyzer/testdata/suppress/suppress.go:") {
 		t.Fatalf("unexpected stderr:\n%s", log)
+	}
+}
+
+// TestSelfScanPassesDefaultGate is a Phase 1 exit criterion: scanning this
+// repository reports the demo's deliberate bug only as downgraded example
+// code, so the default gate passes.
+func TestSelfScanPassesDefaultGate(t *testing.T) {
+	var out, stderr bytes.Buffer
+	if code := run([]string{"scan", "./..."}, &out, &stderr, "../.."); code != 0 {
+		t.Fatalf("self-scan exit %d:\n%s%s", code, out.String(), stderr.String())
+	}
+	if !strings.Contains(out.String(), "examples/divmod/circuits.go:44:26: low [GNARK_HINT_RELATION_INCOMPLETE]") || !strings.Contains(stderr.String(), "1 downgraded as example code") {
+		t.Fatalf("unexpected self-scan:\n%s%s", out.String(), stderr.String())
+	}
+}
+
+func TestInventory(t *testing.T) {
+	var out, stderr bytes.Buffer
+	if code := run([]string{"inventory", "./examples/divmod"}, &out, &stderr, "../.."); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	want := "examples/divmod/circuits.go:20:35: github.com/auditinfra-io/gnark-safety/examples/divmod: constrainDivision (hint=github.com/auditinfra-io/gnark-safety/examples/divmod.QuotientRemainderHint, outputs=2, inputs=2)\nInventory only: constraint completeness and circuit soundness were not analyzed.\n"
+	if out.String() != want {
+		t.Fatalf("inventory text\n got %q\nwant %q", out.String(), want)
+	}
+	out.Reset()
+	if code := run([]string{"inventory", "--format", "json", "./examples/divmod"}, &out, &stderr, "../.."); code != 0 {
+		t.Fatalf("json exit %d: %s", code, stderr.String())
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if _, hasFindings := doc["findings"]; hasFindings || doc["schema_version"] != "2.0" || len(doc["hints"].([]any)) != 1 {
+		t.Fatalf("unexpected inventory JSON: %s", out.String())
+	}
+	for _, args := range [][]string{{"inventory"}, {"inventory", "--format", "sarif", "./examples/divmod"}, {"inventory", "./does-not-exist"}} {
+		if code := run(args, &out, &stderr, "../.."); code != 2 {
+			t.Errorf("run(%v) exit %d, want 2", args, code)
+		}
 	}
 }

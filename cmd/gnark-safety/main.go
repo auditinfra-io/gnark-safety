@@ -39,6 +39,9 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 		fmt.Fprintf(stderr, "unknown rule: %s (run `gnark-safety explain` to list rules)\n", args[1])
 		return 2
 	}
+	if len(args) > 0 && args[0] == "inventory" {
+		return inventory(args[1:], stdout, stderr, dir)
+	}
 	if len(args) == 0 || args[0] != "scan" {
 		usage(stderr)
 		return 2
@@ -117,6 +120,45 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	return 0
 }
 
+// inventory lists every gnark hint call site without applying rules. It
+// replaces the deprecated gnark-hint-scan command.
+func inventory(args []string, stdout, stderr io.Writer, dir string) int {
+	fs := flag.NewFlagSet("inventory", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	format := fs.String("format", "text", "text or json")
+	includeTests := fs.Bool("include-tests", false, "also inventory _test.go files")
+	timeout := fs.Duration("timeout", 2*time.Minute, "package loading and analysis timeout")
+	maxHints := fs.Int("max-hints", 10000, "maximum hint call sites")
+	maxOutput := fs.Int64("max-output-bytes", 16<<20, "maximum rendered output size")
+	if fs.Parse(args) != nil || fs.NArg() == 0 || (*format != "text" && *format != "json") || *timeout <= 0 || *maxHints <= 0 || *maxOutput <= 0 {
+		usage(stderr)
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	defer cancel()
+	r, err := analyzer.ScanContext(ctx, dir, fs.Args(), analyzer.Options{MaxHints: *maxHints, IncludeTests: *includeTests, IncludeExamples: true})
+	if err != nil {
+		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
+		return 2
+	}
+	var rendered bytes.Buffer
+	w := &limitedWriter{writer: &rendered, remaining: *maxOutput}
+	if *format == "json" {
+		err = output.InventoryJSON(w, r)
+	} else {
+		err = output.InventoryText(w, r)
+	}
+	if err == nil {
+		_, err = stdout.Write(rendered.Bytes())
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
+		return 2
+	}
+	fmt.Fprintf(stderr, "gnark-safety: %d hint call site(s); scanned %d package(s), %d importing gnark\n", len(r.Hints), r.Coverage.Packages, r.Coverage.GnarkPackages)
+	return 0
+}
+
 // hasFindingAtOrAbove reports whether any finding meets the gate threshold.
 func hasFindingAtOrAbove(r report.Report, threshold report.Severity) bool {
 	for _, finding := range r.Findings {
@@ -166,6 +208,7 @@ func summary(r report.Report, failOn string, fails bool) string {
 
 func usage(w io.Writer) {
 	fmt.Fprintln(w, `usage: gnark-safety scan [flags] <package patterns...>
+       gnark-safety inventory [--format text|json] [--include-tests] <package patterns...>
        gnark-safety explain [rule-id]
        gnark-safety --version
 

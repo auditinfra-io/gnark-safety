@@ -1,4 +1,8 @@
 // gnark-hint-scan inventories direct calls to gnark's frontend NewHint API.
+//
+// Deprecated: use `gnark-safety inventory`, which reports the same call
+// sites with the analyzer's type resolution. This command will be removed in
+// a future release.
 package main
 
 import (
@@ -68,7 +72,10 @@ type report struct {
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, ".")) }
 
+const deprecation = "gnark-hint-scan is deprecated and will be removed in a future release; use `gnark-safety inventory` instead."
+
 func run(args []string, stdout, stderr io.Writer, dir string) int {
+	fmt.Fprintln(stderr, deprecation)
 	if len(args) == 0 || args[0] != "scan" {
 		fmt.Fprintln(stderr, "usage: gnark-hint-scan scan [--format text|json] <package patterns...>")
 		return 2
@@ -190,7 +197,7 @@ func inspectFile(r *report, p *packages.Package, file *ast.File, fset *token.Fil
 		}
 		h := hintRecord{Package: p.PkgPath, File: filepath.ToSlash(path), Line: pos.Line, Column: pos.Column, Function: enclosing(stack), Hint: "unknown"}
 		if len(call.Args) > argOffset {
-			h.Hint = hintIdentity(p.TypesInfo, call.Args[argOffset])
+			h.Hint = gnarkapi.HintIdentity(p.TypesInfo, call.Args[argOffset])
 		}
 		if len(call.Args) > argOffset+1 {
 			if v := p.TypesInfo.Types[call.Args[argOffset+1]].Value; v != nil && v.Kind() == constant.Int {
@@ -210,33 +217,6 @@ func inspectFile(r *report, p *packages.Package, file *ast.File, fset *token.Fil
 		r.Hints = append(r.Hints, h)
 		return true
 	})
-}
-
-func hintIdentity(info *types.Info, e ast.Expr) string {
-	switch x := e.(type) {
-	case *ast.ParenExpr:
-		return hintIdentity(info, x.X)
-	case *ast.IndexExpr:
-		return hintIdentity(info, x.X)
-	case *ast.IndexListExpr:
-		return hintIdentity(info, x.X)
-	}
-	var obj types.Object
-	switch x := e.(type) {
-	case *ast.Ident:
-		obj = info.Uses[x]
-	case *ast.SelectorExpr:
-		obj = info.Uses[x.Sel]
-	}
-	f, ok := obj.(*types.Func)
-	if !ok || f.Pkg() == nil {
-		return "unknown"
-	}
-	if sig, ok := f.Type().(*types.Signature); ok && sig.Recv() != nil {
-		receiver := types.TypeString(sig.Recv().Type(), func(p *types.Package) string { return p.Path() })
-		return "(" + receiver + ")." + f.Name()
-	}
-	return f.Pkg().Path() + "." + f.Name()
 }
 
 func enclosing(stack []ast.Node) string {

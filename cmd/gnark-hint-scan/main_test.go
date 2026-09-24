@@ -3,9 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
+
+	"github.com/auditinfra-io/gnark-safety/internal/analyzer"
 )
 
 const repoRoot = "../.."
@@ -59,7 +63,7 @@ func value(v unknownInt) int {
 }
 
 func TestDemoIntegration(t *testing.T) {
-	r, err := scan(repoRoot, []string{"."})
+	r, err := scan(repoRoot, []string{"./examples/divmod"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,5 +125,43 @@ func TestInvalidArguments(t *testing.T) {
 		if code := run(args, &bytes.Buffer{}, &bytes.Buffer{}, repoRoot); code != 2 {
 			t.Errorf("run(%q)=%d", args, code)
 		}
+	}
+}
+
+// TestInventoryParity guards the fold into `gnark-safety inventory`: the
+// analyzer must report exactly the call sites, identities, and counts this
+// deprecated command reports.
+func TestInventoryParity(t *testing.T) {
+	patterns := []string{"./cmd/gnark-hint-scan/testdata/fixture", "./examples/divmod"}
+	legacy, err := scan(repoRoot, patterns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := analyzer.Scan(repoRoot, patterns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := func(file string, line, column int, hint string, outputs, inputs *int) string {
+		return fmt.Sprintf("%s:%d:%d %s outputs=%s inputs=%s", file, line, column, hint, display(unknownInt{outputs}), display(unknownInt{inputs}))
+	}
+	var want, got []string
+	for _, h := range legacy.Hints {
+		want = append(want, key(h.File, h.Line, h.Column, h.Hint, h.OutputCount.Value, h.InputCount.Value))
+	}
+	for _, h := range current.Hints {
+		got = append(got, key(h.File, h.Line, h.Column, h.Hint, h.OutputCount, h.InputCount))
+	}
+	sort.Strings(want)
+	sort.Strings(got)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("inventory drift\n got %v\nwant %v", got, want)
+	}
+}
+
+func TestDeprecationNotice(t *testing.T) {
+	var out, stderr bytes.Buffer
+	run([]string{"scan", "./cmd/gnark-hint-scan/testdata/nohint"}, &out, &stderr, repoRoot)
+	if !strings.Contains(stderr.String(), "gnark-safety inventory") {
+		t.Fatalf("missing deprecation notice: %q", stderr.String())
 	}
 }

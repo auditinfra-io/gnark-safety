@@ -192,3 +192,46 @@ func SARIF(w io.Writer, r report.Report) error {
 	e.SetIndent("", "  ")
 	return e.Encode(s)
 }
+
+// InventoryNotice states the scope of `gnark-safety inventory`.
+const InventoryNotice = "Inventory only: constraint completeness and circuit soundness were not analyzed."
+
+// InventoryText renders one line per hint call site.
+func InventoryText(w io.Writer, r report.Report) error {
+	for _, h := range r.Hints {
+		if _, err := fmt.Fprintf(w, "%s:%d:%d: %s: %s (hint=%s, outputs=%s, inputs=%s)\n", h.File, h.Line, h.Column, h.Package, h.Function, h.Hint, count(h.OutputCount), count(h.InputCount)); err != nil {
+			return err
+		}
+	}
+	if len(r.Hints) == 0 {
+		if _, err := fmt.Fprintln(w, "No direct gnark hint calls found in the scanned packages."); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprintln(w, InventoryNotice)
+	return err
+}
+
+func count(n *int) string {
+	if n == nil {
+		return "unknown"
+	}
+	return fmt.Sprint(*n)
+}
+
+// InventoryJSON renders the report without findings: the hint call sites,
+// their invariant assessments, and the scan's coverage and limitations.
+func InventoryJSON(w io.Writer, r report.Report) error {
+	doc := struct {
+		SchemaVersion string          `json:"schema_version"`
+		Tool          report.Tool     `json:"tool"`
+		Module        string          `json:"module,omitempty"`
+		Coverage      report.Coverage `json:"coverage"`
+		Hints         []report.Hint   `json:"hints"`
+		Diagnostics   []string        `json:"diagnostics"`
+		Limitations   []string        `json:"limitations"`
+	}{r.SchemaVersion, r.Tool, r.Module, r.Coverage, r.Hints, r.Diagnostics, append([]string{InventoryNotice}, r.Limitations...)}
+	e := json.NewEncoder(w)
+	e.SetIndent("", "  ")
+	return e.Encode(doc)
+}

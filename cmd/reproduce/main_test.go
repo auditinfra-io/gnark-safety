@@ -12,9 +12,14 @@ func TestDiscoverSourceFilesIncludesUntrackedGoFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const name = "reproduce-discovery-test.go"
+	// testdata is ignored by the Go tool, so the probe file cannot become a
+	// package that concurrently running tests would load.
+	const name = "cmd/reproduce/testdata/reproduce-discovery-test.go"
 	path := filepath.Join(root, name)
-	if err := os.WriteFile(path, []byte("package gnarksafety\n"), 0o644); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("package probe\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.Remove(path) })

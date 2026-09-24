@@ -250,7 +250,7 @@ func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, fil
 			path := relative(dir, pos.Filename)
 			h := report.Hint{Package: p.PkgPath, File: path, Line: pos.Line, Column: pos.Column, Function: function, Hint: "unknown"}
 			if len(call.Args) > offset {
-				h.Hint = identity(p.TypesInfo, call.Args[offset])
+				h.Hint = gnarkapi.HintIdentity(p.TypesInfo, call.Args[offset])
 				if h.Hint == "unknown" {
 					h.Unknown = append(h.Unknown, "hint_function")
 				}
@@ -879,21 +879,4 @@ func relative(dir, path string) string {
 		return filepath.ToSlash(rel)
 	}
 	return filepath.ToSlash(path)
-}
-func identity(info *types.Info, e ast.Expr) string {
-	if p, ok := e.(*ast.ParenExpr); ok {
-		return identity(info, p.X)
-	}
-	var obj types.Object
-	switch x := e.(type) {
-	case *ast.Ident:
-		obj = info.Uses[x]
-	case *ast.SelectorExpr:
-		obj = info.Uses[x.Sel]
-	}
-	f, ok := obj.(*types.Func)
-	if !ok || f.Pkg() == nil {
-		return "unknown"
-	}
-	return f.Pkg().Path() + "." + f.Name()
 }
