@@ -17,7 +17,7 @@ func TestJSONAndExitPolicy(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if doc["schema_version"] != "1.0" {
+	if doc["schema_version"] != "1.1" {
 		t.Fatalf("unexpected report: %s", out.String())
 	}
 	out.Reset()

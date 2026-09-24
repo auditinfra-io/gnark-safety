@@ -114,7 +114,10 @@ GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety explain GNARK_HINT_RELATION_INCOM
 The default `--fail-on high` policy exits 1 for a high-severity finding; use
 `--fail-on none` for inventory/report-only runs. Invalid configuration and
 package-loading failures exit 2. The JSON report retains the hint inventory and
-adds stable findings; SARIF 2.1.0 output is suitable for code-scanning import.
+adds stable findings. Schema 1.1 also records independent per-output
+participation, range, relation, canonicality, and field-safety assessments;
+unsupported conclusions remain explicitly `unknown`. SARIF 2.1.0 output is
+suitable for code-scanning import.
 
 This is deliberately not a claim of full circuit soundness. The initial rule
 is intra-function and reports its unsupported constructs in the top-level

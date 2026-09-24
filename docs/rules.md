@@ -21,3 +21,18 @@ corrected caller selects the checked path.
 This deliberately narrow recognition does not prove that unreported code is
 sound. More complex aliases, helper-mediated assertions, and alternative
 comparison gadgets remain unknown until interprocedural dataflow is added.
+
+## Per-output invariant assessments
+
+JSON schema 1.1 adds an `invariants` array to every hint. Each output receives
+separate `participation`, `range`, `relation`, `canonicality`, and
+`field_safety` assessments. Status is one of `satisfied`, `missing`, or
+`unknown`; only `missing` means the analyzer recognized the applicable shape
+and established that the required direct constraint was absent.
+
+For the quotient/remainder shape, an unconditional constant-width `ToBinary`
+provides range evidence, the reconstruction provides participation/relation
+evidence, and an unconditional `r < d` provides canonicality evidence. The
+analyzer calculates the bounded maximum of `q*d+r`, but reports field safety as
+unknown because the circuit's compilation field is not selected inside the
+analyzed function.

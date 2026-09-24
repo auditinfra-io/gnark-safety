@@ -1,6 +1,11 @@
 package analyzer
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/auditinfra-io/gnark-safety/pkg/report"
+)
 
 func TestCanonicalFixture(t *testing.T) {
 	r, err := Scan("../..", []string{"."})
@@ -17,6 +22,25 @@ func TestCanonicalFixture(t *testing.T) {
 	if f.RuleID != relationRule || f.Function != "constrainDivision" {
 		t.Fatalf("unexpected finding: %#v", f)
 	}
+	assertInvariant(t, r.Hints[0].Invariants, 0, "participation", report.InvariantSatisfied, "n = q*d + r")
+	assertInvariant(t, r.Hints[0].Invariants, 0, "range", report.InvariantSatisfied, "width: 8")
+	assertInvariant(t, r.Hints[0].Invariants, 1, "relation", report.InvariantSatisfied, "n = q*d + r")
+	assertInvariant(t, r.Hints[0].Invariants, 1, "canonicality", report.InvariantMissing, "r < d")
+	assertInvariant(t, r.Hints[0].Invariants, 0, "field_safety", report.InvariantUnknown, "65280")
+}
+
+func assertInvariant(t *testing.T, invariants []report.Invariant, output int, kind string, status report.InvariantStatus, evidence string) {
+	t.Helper()
+	for _, invariant := range invariants {
+		if invariant.OutputIndex != output || invariant.Kind != kind {
+			continue
+		}
+		if invariant.Status != status || !strings.Contains(strings.Join(invariant.Evidence, " "), evidence) {
+			t.Fatalf("unexpected invariant: %#v; want status=%s evidence containing %q", invariant, status, evidence)
+		}
+		return
+	}
+	t.Fatalf("missing invariant output=%d kind=%s in %#v", output, kind, invariants)
 }
 
 func TestRelationShapeAndCoverage(t *testing.T) {
@@ -41,6 +65,20 @@ func TestRelationShapeAndCoverage(t *testing.T) {
 	if len(r.Findings) != 5 {
 		t.Fatalf("got %d findings, want 5: %#v", len(r.Findings), r.Findings)
 	}
+	for _, hint := range r.Hints {
+		status := report.InvariantMissing
+		if hint.Function == "safe" {
+			status = report.InvariantSatisfied
+		}
+		if hint.Function == "separateAssertions" {
+			status = report.InvariantUnknown
+		}
+		assertInvariant(t, hint.Invariants, 1, "canonicality", status, map[report.InvariantStatus]string{
+			report.InvariantMissing:   "missing unconditional constraint",
+			report.InvariantSatisfied: "unconditional constraint",
+			report.InvariantUnknown:   "reconstruction not found",
+		}[status])
+	}
 }
 
 func TestRuleHelp(t *testing.T) {
@@ -49,5 +87,11 @@ func TestRuleHelp(t *testing.T) {
 	}
 	if _, ok := RuleHelp("NO_SUCH_RULE"); ok {
 		t.Fatal("unknown rule was accepted")
+	}
+}
+
+func TestUnknownInvariantsRejectsNegativeOutputCount(t *testing.T) {
+	if got := unknownInvariants(-1, "invalid"); got == nil || len(got) != 0 {
+		t.Fatalf("negative output count produced invariants: %#v", got)
 	}
 }

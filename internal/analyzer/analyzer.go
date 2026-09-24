@@ -9,6 +9,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"math/big"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -122,6 +123,11 @@ func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *to
 			} else {
 				h.Unknown = append(h.Unknown, "input_count")
 			}
+			if h.OutputCount != nil {
+				h.Invariants = assessInvariants(fn.Body, call, p.TypesInfo, *h.OutputCount)
+			} else {
+				h.Invariants = []report.Invariant{}
+			}
 			r.Hints = append(r.Hints, h)
 			if h.OutputCount != nil && *h.OutputCount == 2 && incompleteRelation(fn.Body, call, p.TypesInfo) {
 				r.Findings = append(r.Findings, report.Finding{RuleID: relationRule, Severity: report.SeverityHigh, Confidence: "high", File: path, Line: pos.Line, Column: pos.Column, Function: function, Message: "Hint outputs participate in reconstruction, but the canonical remainder bound r < d is not constrained.", Evidence: []string{"hint output: " + h.Hint, "constraint: n = q*d + r", "missing constraint: r < d"}, Limitations: []string{}})
@@ -131,11 +137,96 @@ func inspectFile(r *report.Report, p *packages.Package, file *ast.File, fset *to
 	}
 }
 
+var invariantKinds = []string{"participation", "range", "relation", "canonicality", "field_safety"}
+
+func unknownInvariants(outputCount int, reason string) []report.Invariant {
+	if outputCount < 0 {
+		return []report.Invariant{}
+	}
+	result := make([]report.Invariant, 0, outputCount*len(invariantKinds))
+	for output := 0; output < outputCount; output++ {
+		for _, kind := range invariantKinds {
+			result = append(result, report.Invariant{OutputIndex: output, Kind: kind, Status: report.InvariantUnknown, Evidence: []string{reason}})
+		}
+	}
+	return result
+}
+
+// assessInvariants reports independent facts instead of collapsing “used in a
+// constraint” into “safe”. It remains deliberately narrow: detailed statuses
+// are emitted only for the quotient/remainder reconstruction recognized by the
+// first rule, and unsupported shapes stay explicitly unknown.
+func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, outputCount int) []report.Invariant {
+	if outputCount != 2 {
+		return unknownInvariants(outputCount, "unsupported output count")
+	}
+	relation := analyzeRelation(body, hintCall, info)
+	if relation.outputs == nil || relation.divisor == nil {
+		return unknownInvariants(outputCount, "recognized quotient/remainder reconstruction not found")
+	}
+
+	qBits, qBounded := unconditionalOutputBitBound(body, relation.outputs, relation.aliases, 0, info)
+	rBits, rBounded := unconditionalOutputBitBound(body, relation.outputs, relation.aliases, 1, info)
+	dBits, dBounded := unconditionalBitBound(body, relation.divisor, info)
+	fieldEvidence := "compilation field is selected outside the analyzed function"
+	const maximumAnalyzedBitWidth = 4096
+	if qBounded && rBounded && dBounded && qBits <= maximumAnalyzedBitWidth && rBits <= maximumAnalyzedBitWidth && dBits <= maximumAnalyzedBitWidth {
+		maximum := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(qBits)), big.NewInt(1))
+		dMax := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(dBits)), big.NewInt(1))
+		rMax := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(rBits)), big.NewInt(1))
+		maximum.Mul(maximum, dMax).Add(maximum, rMax)
+		fieldEvidence = "bounded reconstruction maximum: " + maximum.String() + "; compilation field is selected outside the analyzed function"
+	} else if qBounded && rBounded && dBounded {
+		fieldEvidence = fmt.Sprintf("bounded reconstruction maximum omitted: bit width exceeds analysis limit %d; compilation field is selected outside the analyzed function", maximumAnalyzedBitWidth)
+	}
+
+	result := make([]report.Invariant, 0, 10)
+	for output := 0; output < 2; output++ {
+		result = append(result,
+			report.Invariant{OutputIndex: output, Kind: "participation", Status: report.InvariantSatisfied, Evidence: []string{"output participates in n = q*d + r"}},
+			report.Invariant{OutputIndex: output, Kind: "relation", Status: report.InvariantSatisfied, Evidence: []string{"constraint: n = q*d + r"}},
+		)
+		bits, bounded := qBits, qBounded
+		if output == 1 {
+			bits, bounded = rBits, rBounded
+		}
+		if bounded {
+			result = append(result, report.Invariant{OutputIndex: output, Kind: "range", Status: report.InvariantSatisfied, Evidence: []string{fmt.Sprintf("unconditional ToBinary width: %d", bits)}})
+		} else {
+			result = append(result, report.Invariant{OutputIndex: output, Kind: "range", Status: report.InvariantUnknown, Evidence: []string{"unconditional constant-width ToBinary not found"}})
+		}
+		canonicalStatus := report.InvariantMissing
+		canonicalEvidence := "missing unconditional constraint: r < d"
+		if relation.hasBound {
+			canonicalStatus = report.InvariantSatisfied
+			canonicalEvidence = "unconditional constraint: r < d"
+		}
+		result = append(result,
+			report.Invariant{OutputIndex: output, Kind: "canonicality", Status: canonicalStatus, Evidence: []string{canonicalEvidence}},
+			report.Invariant{OutputIndex: output, Kind: "field_safety", Status: report.InvariantUnknown, Evidence: []string{fieldEvidence}},
+		)
+	}
+	return result
+}
+
 // incompleteRelation recognizes the deliberately narrow first rule: a
 // two-output hint whose indexed outputs occur in one n=q*d+r equality, with
 // no unconditional AssertIsLess(r, d). It intentionally declines more complex
 // aliases rather than claiming general soundness.
 func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info) bool {
+	relation := analyzeRelation(body, hintCall, info)
+	return relation.divisor != nil && !relation.hasBound
+}
+
+type relationAnalysis struct {
+	outputs  types.Object
+	aliases  map[types.Object]int
+	divisor  ast.Expr
+	hasBound bool
+}
+
+func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info) relationAnalysis {
+	result := relationAnalysis{aliases: map[types.Object]int{}}
 	var outputs types.Object
 	ast.Inspect(body, func(n ast.Node) bool {
 		as, ok := n.(*ast.AssignStmt)
@@ -152,8 +243,9 @@ func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types
 		return true
 	})
 	if outputs == nil {
-		return false
+		return result
 	}
+	result.outputs = outputs
 	aliases := map[types.Object]int{}
 	ast.Inspect(body, func(n ast.Node) bool {
 		as, ok := n.(*ast.AssignStmt)
@@ -176,6 +268,7 @@ func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types
 		}
 		return true
 	})
+	result.aliases = aliases
 	var divisor ast.Expr
 	ast.Inspect(body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -190,8 +283,9 @@ func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types
 		return true
 	})
 	if divisor == nil {
-		return false
+		return result
 	}
+	result.divisor = divisor
 	hasBound := false
 	ast.Inspect(body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -203,7 +297,38 @@ func incompleteRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types
 		}
 		return true
 	})
-	return !hasBound
+	result.hasBound = hasBound
+	return result
+}
+
+func unconditionalOutputBitBound(body *ast.BlockStmt, outputs types.Object, aliases map[types.Object]int, index int, info *types.Info) (int, bool) {
+	return findBitBound(body, info, func(e ast.Expr) bool { return outputIndex(info, e, outputs, aliases) == index })
+}
+
+func unconditionalBitBound(body *ast.BlockStmt, value ast.Expr, info *types.Info) (int, bool) {
+	return findBitBound(body, info, func(e ast.Expr) bool { return sameValue(info, e, value) })
+}
+
+func findBitBound(body *ast.BlockStmt, info *types.Info, matches func(ast.Expr) bool) (int, bool) {
+	bits := 0
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isFrontendCall(info, call, "ToBinary") || len(call.Args) < 2 || conditionallyExecuted(body, call) || !matches(call.Args[0]) {
+			return true
+		}
+		value := info.Types[call.Args[1]].Value
+		if value == nil || value.Kind() != constant.Int {
+			return true
+		}
+		width, ok := constant.Int64Val(value)
+		if !ok || width <= 0 || int64(int(width)) != width {
+			return true
+		}
+		bits, found = int(width), true
+		return true
+	})
+	return bits, found
 }
 
 func plainRelationSide(info *types.Info, e ast.Expr, outputs types.Object, aliases map[types.Object]int) bool {

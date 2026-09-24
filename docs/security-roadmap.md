@@ -47,8 +47,14 @@ without pretending static analysis alone proves soundness.
 
 ### 2. Model invariants independently
 
-Extend the analyzer from its single quotient/remainder shape to report separate
-facts for each hint output:
+**Implemented for the recognized quotient/remainder shape:** JSON schema 1.1
+now reports a status and supporting evidence for each invariant and each hint
+output. Unsupported shapes remain `unknown`, while a recognized absent
+canonicality constraint is `missing`. The analyzer also records the bounded
+reconstruction maximum but does not claim field safety because callers select
+the compilation field outside the analyzed function.
+
+The analyzer reports separate facts for each hint output:
 
 1. **participation**—the output reaches a constraint;
 2. **range**—the intended integer or limb bounds are enforced;
@@ -105,8 +111,8 @@ service suitable for arbitrary repositories.
 
 A useful next release should build on the mutation registry with: (1) generated
 test skeletons for newly discovered hints, (2) interprocedural summaries for
-direct local helpers, (3) explicit range/canonicality evidence, (4) a
-multi-backend proof matrix, and (5) release artifacts containing SARIF and an
-SBOM. Until then,
+direct local helpers, (3) additional invariant recognizers beyond the initial
+relation shape, (4) a multi-backend proof matrix, and (5) release artifacts
+containing SARIF and an SBOM. Until then,
 reports must continue to state that absence of findings is not proof of circuit
 soundness.
