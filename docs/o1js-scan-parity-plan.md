@@ -105,10 +105,10 @@ so ship it as report schema 2.0 with a migration note. The project is pre-1.0;
 dual-emitting both schemas is not worth the complexity.
 
 **D4. Repository layout.** Move the educational circuits and their tests into
-`examples/divmod/`. Split `VulnerableCircuit` and `CorrectedCircuit` so a scan
-of each reproduces the headline transcript (vulnerable: HIGH, exit 1;
-corrected: clean, exit 0). The root package then stops failing the tool's own
-gate. `gnark-hint-scan` becomes `gnark-safety inventory` and the old binary is
+`examples/divmod/`, so the root package stops failing the tool's own gate.
+(Implemented without splitting the two circuits: call-site specialization
+reports the vulnerable caller and not the corrected one in a single scan,
+which keeps the pair's "differ only by `r < d`" property.) `gnark-hint-scan` becomes `gnark-safety inventory` and the old binary is
 kept for one release with a deprecation notice. The analyzer moves to an
 importable `pkg/` path to provide a library API.
 
@@ -316,17 +316,21 @@ Not applicable to gnark, recorded so nobody ports it by mistake:
   action: billing or spending limit), then confirm `quality` runs green.
 - [ ] Rebase or close Dependabot PRs #7 and #8 once `main` is green.
 
-**Phase 1 (v0.1.0): productize what exists**
+**Phase 1 (v0.1.0): productize what exists** (implemented in PR #9)
 
-- Match `frontend.API.NewHint`, and add the probe circuit above as a regression
-  fixture. Resolve hint calls through method values and interface embedding by
-  type rather than by receiver name.
-- D2 registry, D3 severities and schema 2.0, D4 layout, D5 hygiene, D6
+- [x] Match `frontend.API.NewHint`, including method expressions and embedded
+  APIs, with the probe circuit above as a regression fixture.
+- [x] D2 registry, D3 severities and schema 2.0, D4 layout, D5 hygiene, D6
   suppressions, D8 version identity, and the SARIF upgrade.
-- Call-site specialization so the flagship pair reports vulnerable → HIGH,
-  exit 1, and corrected → clean, exit 0.
-- **Exit criteria:** both headline transcripts are executed by a test; a
-  self-scan passes at the default gate; the registry-drift test is green.
+- [x] Call-site specialization so the flagship pair reports the vulnerable
+  caller and not the corrected one.
+- [x] `gnark-safety inventory` replaces `gnark-hint-scan` (deprecated, kept
+  for one release, with a parity test).
+- [ ] The library API remains under `internal/`; moving the analyzer to an
+  importable `pkg/` path is deferred until the go/analysis migration (D1), so
+  the public API is designed once.
+- **Exit criteria:** met. Both headline transcripts are executed by a test, a
+  self-scan passes at the default gate, and the registry-drift test is green.
 
 **Phase 2 (v0.2.0): distribution**
 

@@ -28,7 +28,7 @@ jobs:
           go test -count=1 -v ./... | tee dist/release-evidence/test-output.txt
       - name: Generate evidence
         run: |
-          SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" go run ./cmd/release-evidence --output dist/release-evidence
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" go run -ldflags "-X github.com/auditinfra-io/gnark-safety/internal/version.override=${GITHUB_REF_NAME}" ./cmd/release-evidence --output dist/release-evidence
           cd dist/release-evidence
           sha256sum analysis.sarif sbom.spdx.json source-hashes.json test-output.txt toolchain.json > SHA256SUMS
           tar --sort=name --mtime="@0" --owner=0 --group=0 --numeric-owner -czf ../gnark-safety-release-evidence.tar.gz .

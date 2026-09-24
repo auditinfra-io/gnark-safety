@@ -1,121 +1,137 @@
-# A reproducible gnark hint-safety demonstration
+# gnark-safety
 
-A small, synthetic educational fixture showing that a gnark **hint computes a
-witness value but does not prove that the value has the intended meaning**. It
-is not a report of a gnark vulnerability. The two circuits differ by one
-semantic check, making the consequence visible both to the constraint solver
-and to a real Groth16 verifier.
+A static analyzer for **soundness bugs in [gnark](https://github.com/Consensys/gnark)
+circuits**: prover-controlled values that the circuit never binds to the
+meaning the developer intended.
 
-## Intended arithmetic
+gnark hints compute witness values outside the circuit. The proof then
+establishes only the constraints the circuit encodes, so every property of a
+hint output that matters (its range, its relation to the inputs, its
+uniqueness) has to be constrained explicitly. `gnark-safety` loads your Go
+packages with full type information and reports hint outputs whose
+constraints are missing or incomplete. It is the gnark counterpart of
+[o1js-scan](https://github.com/auditinfra-io/o1js-scan), which covers o1js and
+Noir.
 
-For public unsigned integers `n` (dividend) and `d` (divisor), the private hint
-outputs `q` (quotient) and `r` (remainder). The intended relation is:
-
-```text
-n = q*d + r,  d > 0,  0 <= r < d
-```
-
-All four values are constrained to 8 bits (`0..255`). Consequently the largest
-right-hand side allowed by those individual ranges is
-`255*255+255 = 65,280`, vastly smaller than the BN254 scalar-field modulus.
-Thus field wraparound cannot masquerade as the integer equality used here.
-
-`VulnerableCircuit` checks the 8-bit ranges, nonzero divisor, and reconstruction
-but intentionally omits `r < d`. Both hint outputs still participate in
-constraints. `CorrectedCircuit` is otherwise identical and adds the missing
-bounded comparison.
-
-For `n=17,d=5`, honest advice is `q=3,r=2`. The adversarial test replacement
-returns `q=2,r=7`: it still reconstructs 17, but 7 is not a valid remainder for
-divisor 5. gnark's supported `solver.OverrideHint` option replaces only this
-fixture's quotient/remainder hint. It models prover-controlled witness advice;
-it does not alter verification, bypass gnark, or propose an attack on gnark.
-
-An honest hint implementation is useful for constructing a witness, but it does
-not make the constraint system sound. A proof establishes only the encoded
-constraints, so every semantic property of hint outputs must be constrained.
-
-## Reproduce
-
-Prerequisites are Git and a Go installation capable of Go's toolchain
-auto-selection. The module pins gnark v0.16.3, whose `go.mod` requires Go
-1.25.7, and explicitly requires gnark-crypto v0.21.0 in `go.mod`. `go.sum` records module-content checksums; it does not select
-dependency versions.
-
-From the repository root:
+## Install
 
 ```bash
-git clone https://github.com/auditinfra-io/gnark-safety.git
-cd gnark-safety
-GOTOOLCHAIN=go1.25.7 go mod download
-GOTOOLCHAIN=go1.25.7 go test -count=1 -v ./...
+go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@latest
 ```
 
-Regenerate the machine-readable environment, source hashes, and retained test
-output with:
+Go 1.25.7 or newer is required. The analyzer type-checks the packages you
+scan, so they must build, and their module dependencies must be downloadable
+or already in the module cache.
+
+## Example
+
+[`examples/divmod`](examples/divmod) contains two circuits that share one
+quotient/remainder helper. `VulnerableCircuit` omits the `r < d` bound, and
+`CorrectedCircuit` enforces it. The scanner reports the call that disables the
+bound and stays quiet about the corrected one:
+
+```console
+$ gnark-safety scan --include-examples ./examples/divmod
+examples/divmod/circuits.go:44:26: high [GNARK_HINT_RELATION_INCOMPLETE] This call passes enforceCanonicalRemainder=false to constrainDivision, which then skips the canonical remainder bound r < d on its hint outputs.
+
+1 finding(s).
+gnark-safety: 1 finding(s) [1 high] in 1 file(s); scanned 1 package(s), 1 importing gnark; _test.go files excluded — fails (--fail-on high)
+$ echo $?
+1
+```
+
+Without the bound, a prover can supply `q=2, r=7` for `n=17, d=5`. That
+witness still satisfies `n = q*d + r`, and a Groth16 proof built from it
+verifies. The example's tests demonstrate this with gnark's
+`solver.OverrideHint`.
+
+`--include-examples` is needed here only because the demo lives under
+`examples/`. By default the scanner downgrades example code to low so that a
+repository's own samples cannot fail its build:
+
+```console
+$ gnark-safety scan ./examples/divmod
+examples/divmod/circuits.go:44:26: low [GNARK_HINT_RELATION_INCOMPLETE] This call passes enforceCanonicalRemainder=false to constrainDivision, which then skips the canonical remainder bound r < d on its hint outputs.
+
+1 finding(s).
+gnark-safety: 1 finding(s) [1 low] in 1 file(s); scanned 1 package(s), 1 importing gnark; 1 downgraded as example code; _test.go files excluded — passes (--fail-on high)
+$ echo $?
+0
+```
+
+## Usage
 
 ```bash
-GOTOOLCHAIN=go1.25.7 go run ./cmd/reproduce
+gnark-safety scan ./...                                  # text report; exit 1 on high or critical
+gnark-safety scan --format json ./...                    # machine-readable report (schema 2.0)
+gnark-safety scan --format sarif --output gnark-safety.sarif ./...   # GitHub code scanning
+gnark-safety scan --fail-on medium ./circuits/...        # gate at a different severity
+gnark-safety scan --field bn254 ./...                    # compare bounds with a known scalar field
+gnark-safety inventory ./...                             # list every hint call site
+gnark-safety explain                                     # list rules
+gnark-safety explain GNARK_HINT_RELATION_INCOMPLETE      # explain one rule
+gnark-safety --version
 ```
 
-To run just the solver matrix or real-proof checks:
+Arguments are Go package patterns, resolved from the current directory.
 
-```bash
-GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestRequiredHintSafetyMatrix
-GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestGroth16
+**Exit codes.** `0` means the scan passed. `1` means a finding at or above
+`--fail-on` (default `high`; accepts `critical`, `high`, `medium`, `low`,
+`info`, or `none`). `2` means a usage error, a package that failed to load or
+type-check, or a scan in which **no package imports gnark**. That last case
+exists because a mistyped pattern or a moved package must not read as a clean
+pass. Pass `--allow-empty` when no circuits are expected. Every run prints a
+one-line summary to stderr with the finding counts, what was scanned, and the
+gate verdict.
+
+**Test and example code.** `_test.go` files are excluded unless
+`--include-tests` is passed. Findings in `example/`, `examples/`, or
+`_examples/` directories are downgraded to low, with the original severity
+recorded, unless `--include-examples` is passed. Example code is simplified on
+purpose, but it is also copied into production, so it is reported rather than
+hidden.
+
+**Output.** The JSON report records:
+
+- the tool version and scan coverage;
+- stable findings with evidence;
+- a per-hint inventory with independent participation, range, relation,
+  canonicality, and field-safety assessments.
+
+Unsupported conclusions stay explicitly `unknown`. SARIF 2.1.0 output carries
+per-rule help links, GitHub `security-severity` scores, and suppressions.
+
+**Fields.** Use `--field bn254` or `--field bls12-381` when the compilation
+field is known. The analyzer then compares a recognized bounded reconstruction
+maximum with that scalar-field modulus. The default `--field unknown` makes no
+field-safety claim.
+
+**Resource limits.** Scans default to a two-minute timeout, 10,000 hint call
+sites, and 16 MiB of rendered output. Override these with `--timeout`,
+`--max-hints`, and `--max-output-bytes`. These are defense-in-depth limits,
+not a sandbox; follow [`docs/untrusted-scanning.md`](docs/untrusted-scanning.md)
+before analyzing a repository outside your trust boundary.
+
+### Suppressing a reviewed finding
+
+Put a directive on the flagged line or on the line above it. A rule ID and a
+reason are required:
+
+```go
+//gnark-safety:ignore GNARK_HINT_RELATION_INCOMPLETE the caller constrains r < d
+out, err := api.Compiler().NewHint(quotientRemainder, 2, n, d)
 ```
 
-The differential suite exhaustively checks the hint against the ordinary-Go
-8-bit division specification, then checks a smaller valid/adversarial corpus
-against R1CS and sparse R1CS on BN254 and BLS12-381. The proof matrix generates
-and verifies corrected-circuit proofs with Groth16 and PLONK on both curves:
+Suppressed findings move to the report's `suppressed` list, never fail the
+gate, and appear in SARIF with an `inSource` suppression, so code scanning
+keeps the audit trail. A directive with no reason, an unknown rule, or a space
+after `//` suppresses nothing and prints a warning. So does a directive that
+no longer matches any finding.
 
-```bash
-GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run 'TestHintMatchesSpecificationExhaustively|TestCorrectedCircuitMatchesSpecificationMatrix'
-GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestCorrectedProofBackendCurveMatrix
-```
+## Rules
 
-PLONK setup in the proof matrix uses gnark's explicitly test-only `unsafekzg`
-SRS generator. It must not be copied as production trusted-setup guidance.
-
-## Hint-call inventory CLI
-
-`gnark-hint-scan` is a small source inventory tool. Build it and scan this
-module from the repository root with:
-
-```bash
-GOTOOLCHAIN=go1.25.7 go build -o ./gnark-hint-scan ./cmd/gnark-hint-scan
-./gnark-hint-scan scan ./...
-./gnark-hint-scan scan --format json ./...
-```
-
-The text inventory for the demonstration includes its single source call site
-(both circuits share this helper):
-
-```text
-circuits.go:20:35: github.com/auditinfra-io/gnark-safety: constrainDivision (hint=github.com/auditinfra-io/gnark-safety.QuotientRemainderHint, outputs=2, inputs=2)
-Inventory only: constraint completeness and circuit soundness were not analyzed.
-```
-
-The scanner examines every function and method in the requested non-test Go
-packages, including helpers. It identifies direct calls to gnark's resolved
-`frontend.Compiler.NewHint` method and the deprecated `frontend.API.NewHint`
-shortcut, so import aliases and embedded APIs work and unrelated methods with
-that name are ignored. Dependencies are loaded for type resolution
-but are not themselves reported unless a requested package pattern includes
-them. Package loading invokes the Go toolchain and may resolve dependencies.
-
-This release does not analyze call-graph reachability, trace constraints,
-detect missing constraints, establish circuit soundness, or execute circuit or
-hint code. A dynamically selected hint function, a non-constant output count,
-or variadic input expansion is explicitly shown as `unknown`. JSON output uses
-the versioned `1.0` schema and includes `hints`, `diagnostics`, and
-`limitations`.
-
-## Experimental safety analyzer
-
-`gnark-safety` is the type-aware successor to the inventory command. Its
-rules, generated from the registry in `internal/rules`:
+Generated from the registry in [`internal/rules`](internal/rules/rules.go).
+Full descriptions are in [`docs/rules.md`](docs/rules.md).
 
 <!-- BEGIN GENERATED RULE TABLE -->
 | Rule | Severity | Class | What it means |
@@ -124,116 +140,56 @@ rules, generated from the registry in `internal/rules`:
 | [`GNARK_HINT_OUTPUT_UNUSED`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_hint_output_unused) | medium | unbound witness | A hint output is extracted from the returned slice but never referenced again. An unused prover-computed value often means a forgotten constraint, but it can also be intentional padding, so the rule asks for review. |
 <!-- END GENERATED RULE TABLE -->
 
-Run the scanner and read a rule's full explanation with:
+The catalog is intentionally small today.
+[`docs/o1js-scan-parity-plan.md`](docs/o1js-scan-parity-plan.md) lays out the
+next rules, each checked against the gnark v0.16.3 API: struct-tag visibility
+typos, Go `==` on circuit variables, discarded predicates, unconstrained bit
+decompositions, unverified recursive proofs, and unbound Merkle roots.
 
-```bash
-GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --fail-on none ./...
-GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --format json --fail-on none ./...
-GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety scan --format sarif --output results.sarif --fail-on none ./...
-GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety explain GNARK_HINT_RELATION_INCOMPLETE
-GOTOOLCHAIN=go1.25.7 go run ./cmd/gnark-safety explain GNARK_HINT_OUTPUT_UNUSED
-```
+## Where this tool stops
 
-Scans default to a two-minute timeout, 10,000 hint call sites, and 16 MiB of
-rendered output. Override these with `--timeout`, `--max-hints`, and
-`--max-output-bytes`. These are defense-in-depth limits, not a sandbox; follow
-[`docs/untrusted-scanning.md`](docs/untrusted-scanning.md) before analyzing a
-repository outside your trust boundary.
+- **A clean run is not an audit.** It means no shape these rules recognize
+  matched, not that the circuit is sound.
+- **A finding is a lead, not a verdict.** Every rule documents what it does
+  not match; see "Where it stops" in [`docs/rules.md`](docs/rules.md).
+- **Analysis is type-aware but shallow.** Hint calls are resolved by type
+  (`Compiler.NewHint` and the deprecated `API.NewHint`, including import
+  aliases and embedded APIs). Bounds are followed through one level of
+  package-local helpers, and bounds guarded by a bool parameter are resolved
+  at constant call sites. Deeper call graphs, reflection, generated code, and
+  dynamically selected hints are reported in each report's `limitations`
+  rather than guessed.
 
-Use `--field bn254` or `--field bls12-381` when the compilation field is known.
-The analyzer will compare a recognized bounded reconstruction maximum with that
-scalar-field modulus. The default `--field unknown` makes no field-safety claim.
+For a protocol holding real value, treat this as a first pass and budget for a
+full circuit review.
 
-The default `--fail-on high` policy exits 1 for a finding at high severity or
-above; `--fail-on` accepts `critical`, `high`, `medium`, `low`, `info`, or
-`none` for report-only runs. Invalid configuration and package-loading
-failures exit 2. So does a scan in which no package imports gnark, because a
-mistyped pattern must not read as a clean pass; pass `--allow-empty` when no
-circuits are expected. Every run prints a one-line summary to stderr with the
-finding counts, how many packages were scanned, and the gate verdict.
+## Repository layout
 
-`_test.go` files are excluded unless `--include-tests` is passed. Findings in
-`example/`, `examples/`, or `_examples/` directories are downgraded to low,
-recording the original severity, unless `--include-examples` is passed:
-example code is simplified on purpose, but it is also copied into production,
-so it is reported rather than hidden.
+| Path | Contents |
+|---|---|
+| `cmd/gnark-safety` | The CLI. |
+| `internal/analyzer`, `internal/rules`, `internal/output` | Analysis, the rule registry, and text/JSON/SARIF rendering. |
+| `pkg/report` | The public, versioned report schema. |
+| [`examples/divmod`](examples/divmod) | The educational vulnerable/corrected pair, with solver, differential, adversarial-hint, and Groth16/PLONK proof tests. |
+| `cmd/reproduce`, `cmd/release-evidence`, [`evidence/`](evidence/README.md) | Reproducible evidence and signed-release bundles; see [`docs/releases.md`](docs/releases.md). |
+| `cmd/gnark-hint-scan` | Deprecated; use `gnark-safety inventory`. |
 
-Silence a finding you have reviewed with a directive on the flagged line or
-the line above it. A rule ID and a reason are required:
+Run the full suite with `GOTOOLCHAIN=go1.25.7 go test -count=1 ./...`.
+After changing a rule's metadata, run `go generate ./internal/rules` to
+regenerate the rule tables. A test fails until you do.
 
-```go
-//gnark-safety:ignore GNARK_HINT_RELATION_INCOMPLETE the caller constrains r < d
-out, err := api.Compiler().NewHint(quotientRemainder, 2, n, d)
-```
+## Security and research
 
-Suppressed findings move to the report's `suppressed` list, never fail the
-gate, and appear in SARIF with an `inSource` suppression so code scanning
-keeps the audit trail. A directive with no reason, an unknown rule, a space
-after `//`, or no matching finding is reported as a warning instead of
-silently doing nothing. The JSON report retains the hint inventory and
-adds stable findings. Schema 2.0 uses a critical/high/medium/low/info severity
-scale, records the tool name and version, and keeps independent per-output
-participation, range, relation, canonicality, and field-safety assessments;
-unsupported conclusions remain explicitly `unknown`. SARIF 2.1.0 output carries
-per-rule help links and GitHub `security-severity` scores for code-scanning
-import. `gnark-safety --version` prints the build version.
+- [`docs/security-roadmap.md`](docs/security-roadmap.md) maps themes from
+  gnark's published audits to this project's analysis and testing.
+- [`docs/o1js-scan-parity-plan.md`](docs/o1js-scan-parity-plan.md) is the
+  roadmap toward parity with o1js-scan in packaging, CI integration, rule
+  breadth, and public calibration.
+- Report a suspected vulnerability privately as described in
+  [`SECURITY.md`](SECURITY.md).
+- Tagged releases publish an SPDX SBOM, SARIF, source hashes, toolchain
+  metadata, and retained test output.
 
-This is deliberately not a claim of full circuit soundness. The initial rule
-follows only one level of direct local helper calls and reports unsupported
-constructs in the top-level `limitations` field. See
-[`docs/architecture.md`](docs/architecture.md) and [`docs/rules.md`](docs/rules.md).
+## License
 
-## Security and audit research
-
-[`docs/security-roadmap.md`](docs/security-roadmap.md) maps themes from gnark's
-published audits and security guidance to concrete next steps for this project.
-The highest-value follow-ups are adversarial-hint mutation testing, explicit
-field/range reasoning, interprocedural analysis, and differential tests against
-ordinary Go specifications. This is a research roadmap, not an assertion that
-an upstream audit finding affects this fixture.
-
-[`docs/o1js-scan-parity-plan.md`](docs/o1js-scan-parity-plan.md) is the plan
-for turning this repository into the gnark counterpart of
-[o1js-scan](https://github.com/auditinfra-io/o1js-scan): packaging, CI
-integration, a broader rule catalog, and public calibration.
-
-Please report a suspected vulnerability privately as described in
-[`SECURITY.md`](SECURITY.md). Dependency updates are monitored through
-Dependabot and CI runs vulnerability, race, static-analysis, and fuzz checks.
-Tagged releases additionally publish an SPDX SBOM, SARIF, source hashes,
-toolchain metadata, and retained test output; see
-[`docs/releases.md`](docs/releases.md) for reproduction and signature guidance.
-
-## Observed outcomes
-
-Observed on 2026-09-21 on Linux/x86_64; see [`evidence/`](evidence/README.md).
-
-| Case | Hint output | Observed result |
-|---|---|---|
-| Vulnerable, valid | `q=3,r=2` | solver accepts |
-| Corrected, valid | `q=3,r=2` | solver accepts |
-| Vulnerable, invalid | `q=2,r=7` | solver accepts; Groth16 proof verifies |
-| Corrected, same invalid | `q=2,r=7` | solver rejects; Groth16 proving fails |
-| Exact division, `n<d`, and representative 8-bit boundaries | honest | both circuits accept |
-| Vulnerable, zero divisor | adversarial `q=0,r=17` returned successfully | rejects on an unsatisfied constraint |
-
-The quotient and remainder are internal witness values: this demonstrates that a
-proof built from a noncanonical quotient/remainder witness verifies against an
-underspecified circuit, not a false public quotient claim or an exploitable
-application.
-
-The vulnerable and corrected circuits are compiled and set up separately. No
-claim is made that a proof or key from one circuit works with the other.
-
-## Scope and limits
-
-This standalone repository contains the public educational demonstration, the
-hint-call inventory CLI, and one deliberately narrow experimental detector. It
-includes no proprietary invariant pack, customer finding, or general-purpose
-safety analysis.
-
-One deliberately incomplete relation does not establish a general method for
-finding underconstrained circuits or measure any scanner's accuracy. It also
-does not exhaust gnark hint risks, curves, backends, or comparison gadgets. See
-[`docs/upstream-comparison.md`](docs/upstream-comparison.md) for what gnark
-already documents and tests, and the narrower value this paired fixture adds.
+MIT. See [`LICENSE`](LICENSE).
