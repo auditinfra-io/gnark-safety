@@ -149,6 +149,9 @@ an upstream audit finding affects this fixture.
 Please report a suspected vulnerability privately as described in
 [`SECURITY.md`](SECURITY.md). Dependency updates are monitored through
 Dependabot and CI runs vulnerability, race, static-analysis, and fuzz checks.
+Tagged releases additionally publish an SPDX SBOM, SARIF, source hashes,
+toolchain metadata, and retained test output; see
+[`docs/releases.md`](docs/releases.md) for reproduction and signature guidance.
 
 ## Observed outcomes
 

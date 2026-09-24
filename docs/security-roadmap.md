@@ -103,6 +103,13 @@ registration, and verifier integration mistakes.
 
 ### 5. Make dependency and release evidence auditable
 
+**Implemented:** tagged-release CI verifies the module cache, retains complete
+test output, generates SPDX 2.3 and SARIF artifacts, binds all tracked sources
+with SHA-256, records toolchain metadata, publishes artifact checksums, and
+attaches the bundle to the GitHub release. The release guide documents clean
+checkout reproduction, signed tags, checksum verification, the SBOM's license
+limitations, and upstream advisory monitoring.
+
 - Treat `go.mod` and `go.sum` as one reviewed change and run `go mod verify`.
 - Keep GitHub Actions pinned by commit and let Dependabot propose reviewed
   updates for both Go modules and actions.
@@ -128,6 +135,6 @@ A useful next release should build on the mutation registry with: (1) generated
 test skeletons for newly discovered hints, (2) summaries for deeper acyclic
 local call graphs, (3) additional invariant recognizers beyond the initial
 relation shape, (4) a larger differential corpus for future relations, and (5)
-release artifacts containing SARIF and an SBOM. Until then,
+independent reproduction of published release evidence. Until then,
 reports must continue to state that absence of findings is not proof of circuit
 soundness.
