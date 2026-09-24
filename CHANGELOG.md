@@ -39,6 +39,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Nine new rules (Wave 1).** Each is resolved by type against gnark v0.16.3:
+  - `GNARK_TAG_VISIBILITY_AS_NAME`: `gnark:"public"` names the field instead
+    of making it public;
+  - `GNARK_GO_EQUALITY_ON_VARIABLE`: Go `==`/`switch` on a `frontend.Variable`
+    deciding which constraints are emitted;
+  - `GNARK_DISCARDED_PREDICATE`: dropped `IsZero`, `Cmp`, comparator,
+    `IsValidProof`, or hash `Sum` results;
+  - `GNARK_VACUOUS_ASSERT`: self-comparisons and constant-only assertions;
+  - `GNARK_BITS_UNCONSTRAINED`: bit decompositions whose digits nothing
+    constrains;
+  - `GNARK_BITS_OMIT_MODULUS_CHECK`;
+  - `GNARK_COMPARATOR_NONDETERMINISTIC`;
+  - `GNARK_IGNORE_UNCONSTRAINED_INPUTS`;
+  - `GNARK_UNSAFE_SETUP`: `unsafekzg` outside tests, and single-party
+    `groth16.Setup` in `main`.
+- **Annotated corpus** (`internal/analyzer/testdata/corpus`). `// want`
+  annotations pin every true positive and false-positive guard, checked in
+  both directions.
+- **Executable witnesses** (`internal/witness`). Every high rule has a test in
+  which the reported circuit accepts a semantically invalid witness (through
+  the solver or a Groth16 proof) and the corrected one rejects it. A test
+  fails for any high rule without one.
+- **Metamorphic suite.** Reprinting, aliasing imports, parenthesizing
+  arguments, and swapping commutative operands must not change any verdict.
+  A committed manifest tracks known gaps; none exist today.
+- **gnark `std/` canary** (`scripts/canary-gnark-std.sh`, `canary/`). The
+  canary scans v0.15.0 and v0.16.3 on every change and `master` weekly. Every
+  finding is classified in a committed snapshot, and a release-matrix test
+  pins the delta between releases.
 - **GitHub Action** (`action.yml`). It builds the analyzer at the ref in
   `uses:` (or installs a named release), scans once, uploads SARIF to code
   scanning whenever the scan completed, and fails the job at `fail-on`. A scan

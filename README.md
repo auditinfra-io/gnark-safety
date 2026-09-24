@@ -239,11 +239,24 @@ Full descriptions are in [`docs/rules.md`](docs/rules.md).
 | [`GNARK_UNSAFE_SETUP`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_unsafe_setup) | medium / low | configuration | Production code imports gnark's test-only `unsafekzg` SRS (medium), or runs a single-party `groth16.Setup` in a `main` package (low), so whoever ran setup could forge proofs. |
 <!-- END GENERATED RULE TABLE -->
 
-The catalog is intentionally small today.
+Every rule is checked in four ways:
+
+- **Corpus.** Its true positives and false-positive guards are pinned line by
+  line in an annotated corpus (`internal/analyzer/testdata/corpus`).
+- **Metamorphic suite.** It must give the same verdicts after
+  spelling-only rewrites: import aliases, parentheses, swapped operands.
+- **Canary.** It runs against gnark's own `std/` library, where every finding
+  is read and classified ([`canary/`](canary/README.md)). On gnark v0.15.0 and
+  v0.16.3 the result is two medium findings, both intended, and no high ones.
+- **Executable witness (high rules).** Each high rule has a test
+  (`internal/witness`) in which the reported circuit accepts a semantically
+  invalid witness and the corrected circuit rejects it.
+
 [`docs/o1js-scan-parity-plan.md`](docs/o1js-scan-parity-plan.md) lays out the
-next rules, each checked against the gnark v0.16.3 API: struct-tag visibility
-typos, Go `==` on circuit variables, discarded predicates, unconstrained bit
-decompositions, unverified recursive proofs, and unbound Merkle roots.
+next rules: hint outputs that reach no constraint, `DivUnchecked` by a
+possibly-zero divisor, inverses guarded by `Select`, validation that exists
+only in hint code, unverified recursive proofs, unpinned verifying keys, and
+unbound Merkle roots.
 
 ## Where this tool stops
 

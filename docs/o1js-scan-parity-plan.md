@@ -355,12 +355,25 @@ Not applicable to gnark, recorded so nobody ports it by mistake:
   scanning enabled on a repository that can use the action. Both remain open
   until an owner restores runners.
 
-**Phase 3 (v0.3.0): Wave 1 rules and canary infrastructure**
+**Phase 3 (v0.3.0): Wave 1 rules and canary infrastructure** (implemented in PR #9)
 
-- Nine rules, the corpus, and the metamorphic suite; the gnark `std/` canary
-  and release matrix.
-- **Exit criteria:** every Wave 1 finding on gnark `std/` is classified, with 0
-  unclassified high findings, and every high rule has an executable witness.
+- [x] Nine Wave 1 rules, the annotated corpus, and the metamorphic suite.
+- [x] The gnark `std/` canary with classified snapshots for v0.15.0 and
+  v0.16.3, a weekly scan of `master`, and a pinned release-matrix delta.
+- [x] Executable witnesses for every high rule, enforced by a test.
+- Deviations from the Wave 1 table:
+  - `GNARK_COMPARATOR_NONDETERMINISTIC` ships at medium only. Its high variant
+    ("no operand range evidence") needs range reasoning and an executable
+    witness, so it moves to Wave 2.
+  - `GNARK_GO_EQUALITY_ON_VARIABLE` reports only comparisons that decide
+    whether constraint-emitting calls run. The unrestricted form was a high
+    false positive on gnark's `hash.go`.
+  - `GNARK_DISCARDED_PREDICATE` skips a method calling a predicate on its own
+    receiver, for the same reason on `MiMC.State`.
+- **Exit criteria:** met. gnark `std/` at both releases yields two medium
+  findings, both classified intended, and no high findings; every high rule
+  has an executable witness. The canary also found 172 false positives in
+  the older `GNARK_HINT_OUTPUT_UNUSED`, fixed before this phase closed.
 
 **Phase 4 (v0.4–0.6): Wave 2 and Wave 3 rules and calibration**
 

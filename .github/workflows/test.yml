@@ -24,7 +24,9 @@ jobs:
       - name: Verify module cache
         run: go mod verify
       - run: go vet ./...
-      - run: go test -count=1 -race -coverprofile=coverage.out ./...
+      # The analyzer suites type-check many fixture packages; under -race they
+      # take several minutes, so the default 10-minute test timeout is too tight.
+      - run: go test -count=1 -race -timeout 30m -coverprofile=coverage.out ./...
 
   analysis:
     runs-on: ubuntu-latest
