@@ -1,13 +1,13 @@
 module github.com/auditinfra-io/gnark-safety
 
-go 1.25.7
+go 1.26.0
 
 toolchain go1.27.1
 
 require (
 	github.com/consensys/gnark v0.16.3
 	github.com/consensys/gnark-crypto v0.21.0
-	golang.org/x/tools v0.48.0
+	golang.org/x/tools v0.50.0
 )
 
 require (
@@ -21,7 +21,7 @@ require (
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/mod v0.38.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 )
