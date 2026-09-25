@@ -3,6 +3,7 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -53,7 +54,7 @@ func TestSARIFRuleMetadataComesFromRegistry(t *testing.T) {
 	if run.Results[0].Level != "warning" || run.Results[1].Level != "error" {
 		t.Fatalf("unexpected SARIF levels: %#v", run.Results)
 	}
-	if len(run.Invocations) != 1 || !run.Invocations[0].ExecutionSuccessful || run.Invocations[0].Properties != input.Coverage {
+	if len(run.Invocations) != 1 || !run.Invocations[0].ExecutionSuccessful || !reflect.DeepEqual(run.Invocations[0].Properties, input.Coverage) {
 		t.Fatalf("missing invocation: %#v", run.Invocations)
 	}
 }

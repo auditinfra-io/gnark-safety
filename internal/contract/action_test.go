@@ -269,6 +269,26 @@ func TestActionScanScriptMultiplePatterns(t *testing.T) {
 	}
 }
 
+// TestActionScanScriptPolicies checks that the test-support and partial-scan
+// inputs reach the analyzer: a partial scan fails the step without SARIF
+// unless allow-partial is set.
+func TestActionScanScriptPolicies(t *testing.T) {
+	const support = "SCAN_PATH=./internal/analyzer/testdata/support/test/dummy"
+	if r := runScanScript(t, ".", support, "FAIL_ON=high"); r.status != 0 || r.outputs["exit-code"] != "0" {
+		t.Fatalf("a downgraded test-support finding should pass: status=%d outputs=%v\n%s", r.status, r.outputs, r.log)
+	}
+	if r := runScanScript(t, ".", support, "FAIL_ON=high", "INCLUDE_TEST_SUPPORT=true"); r.status != 0 || r.outputs["exit-code"] != "1" {
+		t.Fatalf("include-test-support should keep the high finding: status=%d outputs=%v\n%s", r.status, r.outputs, r.log)
+	}
+	const partial = "SCAN_PATH=./internal/analyzer/testdata/partial/good ./internal/analyzer/testdata/partial/broken"
+	if r := runScanScript(t, ".", partial, "FAIL_ON=none"); r.status != 2 || r.outputs["sarif-file"] != "" {
+		t.Fatalf("a partial scan must fail the step without SARIF: status=%d outputs=%v\n%s", r.status, r.outputs, r.log)
+	}
+	if r := runScanScript(t, ".", partial, "FAIL_ON=none", "ALLOW_PARTIAL=true"); r.status != 0 || r.outputs["exit-code"] != "0" || r.outputs["sarif-file"] == "" {
+		t.Fatalf("allow-partial should pass with SARIF: status=%d outputs=%v\n%s", r.status, r.outputs, r.log)
+	}
+}
+
 func TestActionScanScriptFailures(t *testing.T) {
 	r := runScanScript(t, ".", "SCAN_PATH=./cmd/gnark-hint-scan/testdata/nohint")
 	if r.status != 2 || r.outputs["exit-code"] != "2" || r.outputs["sarif-file"] != "" || r.sarif != "" {
@@ -279,6 +299,8 @@ func TestActionScanScriptFailures(t *testing.T) {
 		{"SCAN_PATH=-h"},
 		{"SCAN_PATH=   "},
 		{"SCAN_PATH=./examples/divmod", "INCLUDE_TESTS=yes"},
+		{"SCAN_PATH=./examples/divmod", "INCLUDE_TEST_SUPPORT=1"},
+		{"SCAN_PATH=./examples/divmod", "ALLOW_PARTIAL=on"},
 		{"SCAN_PATH=./examples/divmod", "FAIL_ON=review"},
 	} {
 		r := runScanScript(t, ".", env...)

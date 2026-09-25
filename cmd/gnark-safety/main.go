@@ -59,8 +59,10 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	relativeTo := fs.String("relative-to", "", "report paths relative to this directory (default: the current directory)")
 	failOn := fs.String("fail-on", "high", "lowest severity that fails the scan: critical, high, medium, low, info, or none")
 	allowEmpty := fs.Bool("allow-empty", false, "succeed even when no scanned package imports gnark")
+	allowPartial := fs.Bool("allow-partial", false, "succeed even when some requested packages failed to load and were not analyzed")
 	includeTests := fs.Bool("include-tests", false, "also analyze _test.go files")
 	includeExamples := fs.Bool("include-examples", false, "keep the original severity of findings in example directories")
+	includeTestSupport := fs.Bool("include-test-support", false, "keep the original severity of findings in test-support directories (test/, testutil/, e2e/, ...)")
 	timeout := fs.Duration("timeout", 2*time.Minute, "package loading and analysis timeout")
 	maxHints := fs.Int("max-hints", 10000, "maximum hint call sites")
 	maxOutput := fs.Int64("max-output-bytes", 16<<20, "maximum rendered output size")
@@ -80,7 +82,7 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	if pathBase != "" && !filepath.IsAbs(pathBase) {
 		pathBase = filepath.Join(dir, pathBase)
 	}
-	opts := analyzer.Options{MaxHints: *maxHints, IncludeTests: *includeTests, IncludeExamples: *includeExamples, PathBase: pathBase}
+	opts := analyzer.Options{MaxHints: *maxHints, IncludeTests: *includeTests, IncludeExamples: *includeExamples, IncludeTestSupport: *includeTestSupport, SkipUnloadable: true, PathBase: pathBase}
 	if *field == "bn254" {
 		opts.FieldModulus, opts.FieldName = ecc.BN254.ScalarField(), "BN254 scalar field"
 	} else if *field == "bls12-381" {
@@ -137,9 +139,16 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 		fmt.Fprintf(stderr, "gnark-safety: warning: %s\n", diagnostic)
 	}
 	fails := gated && hasFindingAtOrAbove(r, threshold)
-	fmt.Fprintln(stderr, summary(r, *failOn, fails))
+	// Like an empty scan, a partial one must not read as a clean pass: the
+	// packages that failed to load could hold the findings.
+	incomplete := len(r.Coverage.Skipped) > 0 && !*allowPartial
+	fmt.Fprintln(stderr, summary(r, *failOn, fails, incomplete))
 	if fails {
 		return 1
+	}
+	if incomplete {
+		fmt.Fprintf(stderr, "gnark-safety: %d requested package(s) failed to load and were not analyzed (see the warnings above). Fix or exclude them, or pass --allow-partial to accept a partial scan.\n", len(r.Coverage.Skipped))
+		return 2
 	}
 	return 0
 }
@@ -195,15 +204,24 @@ func hasFindingAtOrAbove(r report.Report, threshold report.Severity) bool {
 
 // summary is the one-line stderr verdict. It always states coverage so a
 // quiet scan is never silently quiet.
-func summary(r report.Report, failOn string, fails bool) string {
+func summary(r report.Report, failOn string, fails, incomplete bool) string {
 	verdict := "passes"
-	if fails {
+	switch {
+	case fails:
 		verdict = "fails"
+	case incomplete:
+		verdict = "incomplete"
 	}
 	c := r.Coverage
 	notes := []string{fmt.Sprintf("scanned %d package(s), %d importing gnark", c.Packages, c.GnarkPackages)}
 	if c.ExamplesDowngraded > 0 {
 		notes = append(notes, fmt.Sprintf("%d downgraded as example code", c.ExamplesDowngraded))
+	}
+	if len(c.Skipped) > 0 {
+		notes = append(notes, fmt.Sprintf("%d package(s) skipped because they failed to load", len(c.Skipped)))
+	}
+	if c.TestSupportDowngraded > 0 {
+		notes = append(notes, fmt.Sprintf("%d downgraded as test-support code", c.TestSupportDowngraded))
 	}
 	if len(r.Suppressed) > 0 {
 		notes = append(notes, fmt.Sprintf("%d suppressed", len(r.Suppressed)))
@@ -245,15 +263,17 @@ scan flags:
   --fail-on severity|none      lowest severity that exits 1: critical, high,
                                medium, low, info, or none (default high)
   --allow-empty                exit 0 even if no scanned package imports gnark
+  --allow-partial              exit 0 even if some packages failed to load
   --include-tests              also analyze _test.go files
   --include-examples           keep original severity in example directories
+  --include-test-support       keep original severity in test-support directories
   --field unknown|bn254|bls12-381
   --timeout duration           default 2m
   --max-hints n                default 10000
   --max-output-bytes n         default 16777216
 
-Exit codes: 0 pass, 1 a finding at or above --fail-on, 2 usage, loading, or
-empty-scan error.`)
+Exit codes: 0 pass, 1 a finding at or above --fail-on, 2 usage, loading,
+empty-scan, or partial-scan error.`)
 }
 
 type limitedWriter struct {

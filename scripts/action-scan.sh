@@ -23,7 +23,9 @@ if [ -n "${REPO_ROOT:-}" ]; then
 fi
 for pair in "include-tests:${INCLUDE_TESTS:-false}:--include-tests" \
             "include-examples:${INCLUDE_EXAMPLES:-false}:--include-examples" \
-            "allow-empty:${ALLOW_EMPTY:-false}:--allow-empty"; do
+            "include-test-support:${INCLUDE_TEST_SUPPORT:-false}:--include-test-support" \
+            "allow-empty:${ALLOW_EMPTY:-false}:--allow-empty" \
+            "allow-partial:${ALLOW_PARTIAL:-false}:--allow-partial"; do
   IFS=: read -r name value flag <<< "$pair"
   case "$value" in
     true) args+=("$flag") ;;

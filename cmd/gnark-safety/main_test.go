@@ -145,6 +145,33 @@ func TestEmptyScanIsNotAPass(t *testing.T) {
 	}
 }
 
+// TestPartialScanIsNotAPass: packages that load are analyzed and reported,
+// but a scan that skipped a package exits 2 unless --allow-partial is given,
+// and findings at the gate still exit 1.
+func TestPartialScanIsNotAPass(t *testing.T) {
+	const good, broken = "./internal/analyzer/testdata/partial/good", "./internal/analyzer/testdata/partial/broken"
+	var out, stderr bytes.Buffer
+	code := run([]string{"scan", "--format", "json", "--fail-on", "none", good, broken}, &out, &stderr, "../..")
+	if code != 2 || !strings.Contains(stderr.String(), "--allow-partial") || !strings.Contains(stderr.String(), "warning: package") || !strings.Contains(stderr.String(), "1 package(s) skipped") || !strings.Contains(stderr.String(), "— incomplete (") {
+		t.Fatalf("exit %d, stderr %q", code, stderr.String())
+	}
+	var r report.Report
+	if err := json.Unmarshal(out.Bytes(), &r); err != nil || len(r.Findings) != 1 || len(r.Coverage.Skipped) != 1 {
+		t.Fatalf("the partial report was not written: %v %s", err, out.String())
+	}
+	out.Reset()
+	stderr.Reset()
+	if code := run([]string{"scan", "--fail-on", "none", "--allow-partial", good, broken}, &out, &stderr, "../.."); code != 0 {
+		t.Fatalf("--allow-partial exit %d, stderr %q", code, stderr.String())
+	}
+	if code := run([]string{"scan", good, broken}, &out, &stderr, "../.."); code != 1 {
+		t.Fatalf("a finding at the gate must exit 1 even when the scan is partial: exit %d", code)
+	}
+	if code := run([]string{"scan", "--allow-partial", broken}, &out, &stderr, "../.."); code != 2 {
+		t.Fatalf("a scan in which nothing loads must exit 2: exit %d", code)
+	}
+}
+
 func TestIncludeTestsFlag(t *testing.T) {
 	const pattern = "./internal/analyzer/testdata/testonly"
 	var out, stderr bytes.Buffer

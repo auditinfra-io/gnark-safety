@@ -34,8 +34,16 @@ inputs:
     description: 'Keep the original severity of findings in example directories instead of downgrading them to low.'
     required: false
     default: 'false'
+  include-test-support:
+    description: 'Keep the original severity of findings in test-support directories (test/, testutil/, e2e/, ...) instead of downgrading them to low.'
+    required: false
+    default: 'false'
   allow-empty:
     description: 'Pass even when no scanned package imports gnark. By default such a scan fails, so a wrong path cannot read as a clean result.'
+    required: false
+    default: 'false'
+  allow-partial:
+    description: 'Pass even when some requested packages failed to load and were not analyzed. By default such a scan fails, so a package the analyzer could not read cannot hide its findings.'
     required: false
     default: 'false'
   field:
@@ -88,7 +96,9 @@ runs:
         FAIL_ON: ${{ inputs.fail-on }}
         INCLUDE_TESTS: ${{ inputs.include-tests }}
         INCLUDE_EXAMPLES: ${{ inputs.include-examples }}
+        INCLUDE_TEST_SUPPORT: ${{ inputs.include-test-support }}
         ALLOW_EMPTY: ${{ inputs.allow-empty }}
+        ALLOW_PARTIAL: ${{ inputs.allow-partial }}
         FIELD: ${{ inputs.field }}
         REPO_ROOT: ${{ github.workspace }}
         SARIF_FILE: ${{ runner.temp }}/gnark-safety.sarif

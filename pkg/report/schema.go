@@ -114,6 +114,21 @@ type Coverage struct {
 	// ExamplesDowngraded counts findings lowered to low because they are in
 	// example code.
 	ExamplesDowngraded int `json:"examples_downgraded"`
+	// TestSupportDowngraded counts findings lowered to low because they are
+	// in test-support code (test/, testutil/, e2e/, ...).
+	TestSupportDowngraded int `json:"test_support_downgraded"`
+	// Skipped lists requested packages that failed to load or type-check
+	// and were not analyzed. A report with skipped packages is partial.
+	Skipped []SkippedPackage `json:"skipped,omitempty"`
+}
+
+// SkippedPackage is a requested package that was not analyzed.
+type SkippedPackage struct {
+	// Package is the go/packages ID, such as example.com/m/wasm.
+	Package string `json:"package"`
+	// Errors are the first load or type-checking errors for the package or
+	// its dependencies.
+	Errors []string `json:"errors"`
 }
 
 // Tool identifies the analyzer build that produced a report.

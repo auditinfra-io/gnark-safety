@@ -379,6 +379,24 @@ Not applicable to gnark, recorded so nobody ports it by mistake:
 
 - SSA dataflow, generalized invariants, std semantic rules, the application
   canary corpus, the held-out benchmark, and the audit-recall study.
+- **Calibration round 1 (done).** 11 public gnark application repositories
+  (12 modules, 486 packages) were scanned and every finding was read. The
+  per-finding classification stays outside this repository under the
+  embargo rule.
+  - **Before:** 20 findings: 6 high, 10 medium, and 4 low. 9 were false
+    positives (4 of the 6 high), 11 were accurate but intended, and none was
+    a bug.
+  - **Fixes:** value-based canonical-bound evidence (constant bounds, range
+    checks, range-checked limbs with the all-ones check, and all-branch range
+    checks), `if err == nil` success blocks, and constant-only
+    vacuous-assertion idioms. Also constant provenance for Go equality, a
+    test-support directory policy, and partial scans (`--allow-partial`).
+  - **After:** 12 findings: 1 high, 4 medium, and 7 low. The high one is a
+    range check that one configuration of its code skips (unreachable with
+    today's builders), and the rest are accurate but intended. The `std/`
+    canary is unchanged.
+  - All 11 repositories were used for tuning, so a held-out set must use
+    repositories not yet scanned, with labels frozen before scanning.
 - **Exit criteria:** a published calibration document with classified budgets,
   and a held-out result committed after its frozen labels.
 

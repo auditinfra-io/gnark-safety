@@ -138,10 +138,10 @@ func (c *ruleContext) checkFunction(fn *ast.FuncDecl) {
 		switch x := n.(type) {
 		case *ast.BinaryExpr:
 			if branches := c.guardedBranches(stack); branches != nil && c.emitsConstraints(branches...) {
-				c.checkEquality(x, function)
+				c.checkEquality(x, fn.Body, function)
 			}
 		case *ast.SwitchStmt:
-			if x.Tag != nil && c.isVariable(x.Tag) && !c.isConstantField(x.Tag) && c.emitsConstraints(x.Body) {
+			if x.Tag != nil && c.isVariable(x.Tag) && !c.isConstantField(x.Tag) && !c.fixedAtCompile(x.Tag, fn.Body) && c.emitsConstraints(x.Body) {
 				c.add(rules.GoEqualityOnVariable, report.SeverityHigh, x.Tag.Pos(), function, "A Go switch on a frontend.Variable selects a case while the circuit is compiled, not from the witness; no case adds a constraint conditioned on the value.", "switch tag: "+types.ExprString(x.Tag))
 			}
 		case *ast.CallExpr:
@@ -215,7 +215,7 @@ func (c *ruleContext) emitsConstraints(nodes ...ast.Node) bool {
 	return found
 }
 
-func (c *ruleContext) checkEquality(x *ast.BinaryExpr, function string) {
+func (c *ruleContext) checkEquality(x *ast.BinaryExpr, body *ast.BlockStmt, function string) {
 	if x.Op != token.EQL && x.Op != token.NEQ {
 		return
 	}
@@ -223,7 +223,7 @@ func (c *ruleContext) checkEquality(x *ast.BinaryExpr, function string) {
 		return
 	}
 	for _, side := range []ast.Expr{x.X, x.Y} {
-		if c.isVariable(side) && !c.isConstantField(side) {
+		if c.isVariable(side) && !c.isConstantField(side) && !c.fixedAtCompile(side, body) {
 			c.add(rules.GoEqualityOnVariable, report.SeverityHigh, x.OpPos, function, fmt.Sprintf("Go %s on a frontend.Variable compares compile-time constraint expressions, not witness values, so the result does not depend on the prover's input.", x.Op), "comparison: "+types.ExprString(x))
 			return
 		}
@@ -234,6 +234,164 @@ func (c *ruleContext) checkEquality(x *ast.BinaryExpr, function string) {
 func (c *ruleContext) isVariable(e ast.Expr) bool {
 	named, ok := types.Unalias(c.info.TypeOf(e)).(*types.Named)
 	return ok && named.Obj().Name() == variableTypeName && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == gnarkapi.FrontendPath
+}
+
+// fixedAtCompile reports whether e reads a local variable, or an element of a
+// local slice or array, that only ever holds Go constants: every assignment
+// to it or to its elements in body is a constant, nil, make, or a literal of
+// constants, and it is never passed on or referenced whole except by len,
+// cap, or range. Such a frontend.Variable is a compile-time value (a padding
+// mask, say), so comparing it in Go is ordinary code generation.
+func (c *ruleContext) fixedAtCompile(e ast.Expr, body *ast.BlockStmt) bool {
+	var root *ast.Ident
+	switch x := unparen(e).(type) {
+	case *ast.Ident:
+		root = x
+	case *ast.IndexExpr:
+		root, _ = unparen(x.X).(*ast.Ident)
+	}
+	if root == nil {
+		return false
+	}
+	obj, ok := c.info.Uses[root].(*types.Var)
+	if !ok || obj.Pos() < body.Pos() || obj.Pos() >= body.End() {
+		return false // parameters, fields, and package variables can hold anything
+	}
+	fixed := true
+	var stack []ast.Node
+	ast.Inspect(body, func(n ast.Node) bool {
+		if n == nil {
+			stack = stack[:len(stack)-1]
+			return true
+		}
+		stack = append(stack, n)
+		if id, ok := n.(*ast.Ident); ok && fixed && (c.info.Uses[id] == obj || c.info.Defs[id] == obj) {
+			fixed = c.constantUse(id, stack)
+		}
+		return true
+	})
+	return fixed
+}
+
+// constantUse reports whether the occurrence id, at the top of stack, keeps
+// its variable compile-time constant: a declaration or store of a constant, a
+// read of one element, len, cap, or range.
+func (c *ruleContext) constantUse(id *ast.Ident, stack []ast.Node) bool {
+	node, ancestors := ast.Node(id), stack[:len(stack)-1]
+	for len(ancestors) > 0 {
+		if paren, ok := ancestors[len(ancestors)-1].(*ast.ParenExpr); ok {
+			node, ancestors = paren, ancestors[:len(ancestors)-1]
+			continue
+		}
+		break
+	}
+	if len(ancestors) == 0 {
+		return false
+	}
+	switch parent := ancestors[len(ancestors)-1].(type) {
+	case *ast.AssignStmt:
+		for _, lhs := range parent.Lhs {
+			if lhs == node {
+				return c.storesConstant(parent, node)
+			}
+		}
+		// Copied whole: harmless for a single value, but a copied slice or
+		// map shares its elements, which the copy could then overwrite.
+		return !sharesElements(c.info.TypeOf(id))
+	case *ast.ValueSpec:
+		for i, name := range parent.Names {
+			if name == id {
+				return i >= len(parent.Values) || c.compileTimeValue(parent.Values[i])
+			}
+		}
+	case *ast.IndexExpr:
+		if parent.X != node {
+			return true // used as an index: a read
+		}
+		if len(ancestors) < 2 {
+			return true
+		}
+		switch grand := ancestors[len(ancestors)-2].(type) {
+		case *ast.AssignStmt:
+			for _, lhs := range grand.Lhs {
+				if lhs == parent {
+					return c.storesConstant(grand, parent)
+				}
+			}
+			return true
+		case *ast.UnaryExpr:
+			return grand.Op != token.AND
+		case *ast.IncDecStmt:
+			return false
+		}
+		return true
+	case *ast.CallExpr:
+		fun, ok := unparen(parent.Fun).(*ast.Ident)
+		if !ok {
+			return false
+		}
+		builtin, ok := c.info.Uses[fun].(*types.Builtin)
+		return ok && (builtin.Name() == "len" || builtin.Name() == "cap")
+	case *ast.RangeStmt:
+		return parent.X == node
+	}
+	return false
+}
+
+// storesConstant reports whether the assignment gives target a compile-time
+// value.
+func (c *ruleContext) storesConstant(assign *ast.AssignStmt, target ast.Node) bool {
+	if len(assign.Lhs) != len(assign.Rhs) || (assign.Tok != token.ASSIGN && assign.Tok != token.DEFINE) {
+		return false
+	}
+	for i, lhs := range assign.Lhs {
+		if lhs == target {
+			return c.compileTimeValue(assign.Rhs[i])
+		}
+	}
+	return false
+}
+
+// sharesElements reports whether copying a value of type t shares storage
+// with the original.
+func sharesElements(t types.Type) bool {
+	switch t.Underlying().(type) {
+	case *types.Slice, *types.Map, *types.Pointer, *types.Chan:
+		return true
+	}
+	return false
+}
+
+// compileTimeValue reports whether e is a Go constant, nil, a make call, a
+// conversion of a compile-time value, or a composite literal of them.
+func (c *ruleContext) compileTimeValue(e ast.Expr) bool {
+	e = unparen(e)
+	tv := c.info.Types[e]
+	if tv.Value != nil || tv.IsNil() {
+		return true
+	}
+	switch x := e.(type) {
+	case *ast.CompositeLit:
+		for _, element := range x.Elts {
+			if kv, ok := element.(*ast.KeyValueExpr); ok {
+				element = kv.Value
+			}
+			if !c.compileTimeValue(element) {
+				return false
+			}
+		}
+		return true
+	case *ast.CallExpr:
+		if fun, ok := unparen(x.Fun).(*ast.Ident); ok {
+			if builtin, ok := c.info.Uses[fun].(*types.Builtin); ok && builtin.Name() == "make" {
+				return true
+			}
+		}
+		if c.info.Types[x.Fun].IsType() && len(x.Args) == 1 {
+			return c.compileTimeValue(x.Args[0])
+		}
+	}
+	return false
 }
 
 // isConstantField reports whether e selects a struct field tagged
@@ -371,12 +529,61 @@ func (c *ruleContext) checkVacuous(call *ast.CallExpr, callee *types.Func, funct
 		a, b := call.Args[0], call.Args[1]
 		if sameExpr(c.info, a, b) {
 			c.add(rules.VacuousAssert, report.SeverityHigh, call.Pos(), function, fmt.Sprintf("%s compares %s with itself, so it always holds; one operand is probably meant to be a different value.", callee.Name(), types.ExprString(a)), "call: "+types.ExprString(call))
-		} else if isConstant(c.info, a) && isConstant(c.info, b) {
-			c.add(rules.VacuousAssert, report.SeverityMedium, call.Pos(), function, fmt.Sprintf("%s has only constant operands, so it constrains no witness value.", callee.Name()), "call: "+types.ExprString(call))
+		} else if c.constantAssertionHolds(callee.Name(), a, b) {
+			c.add(rules.VacuousAssert, report.SeverityMedium, call.Pos(), function, fmt.Sprintf("%s has only constant operands and always holds, so it constrains no witness value.", callee.Name()), "call: "+types.ExprString(call))
 		}
-	case isAPI && (callee.Name() == "AssertIsBoolean" || callee.Name() == "AssertIsCrumb") && len(call.Args) == 1 && isConstant(c.info, call.Args[0]):
-		c.add(rules.VacuousAssert, report.SeverityMedium, call.Pos(), function, fmt.Sprintf("%s of a constant constrains no witness value.", callee.Name()), "call: "+types.ExprString(call))
+	case isAPI && (callee.Name() == "AssertIsBoolean" || callee.Name() == "AssertIsCrumb") && len(call.Args) == 1 && c.constantAssertionHolds(callee.Name(), call.Args[0], nil):
+		c.add(rules.VacuousAssert, report.SeverityMedium, call.Pos(), function, fmt.Sprintf("%s of a constant always holds, so it constrains no witness value.", callee.Name()), "call: "+types.ExprString(call))
 	}
+}
+
+// constantAssertionHolds reports whether an assertion over constant integer
+// operands always holds. Two idioms over constants are deliberate and are
+// not reported: an assertion that always fails, such as AssertIsEqual(1, 0),
+// aborts compilation on purpose; and one over len or cap checks the shape of
+// fixed-size arrays while the circuit compiles.
+func (c *ruleContext) constantAssertionHolds(name string, a, b ast.Expr) bool {
+	operands := []ast.Expr{a}
+	if b != nil {
+		operands = append(operands, b)
+	}
+	values := make([]constant.Value, len(operands))
+	for i, operand := range operands {
+		value := c.info.Types[operand].Value
+		if value == nil || value.Kind() != constant.Int || mentionsLength(c.info, operand) {
+			return false
+		}
+		values[i] = value
+	}
+	switch name {
+	case "AssertIsEqual":
+		return constant.Compare(values[0], token.EQL, values[1])
+	case "AssertIsLessOrEqual", "AssertIsLessEq":
+		return constant.Compare(values[0], token.LEQ, values[1])
+	case "AssertIsBoolean":
+		return constant.Sign(values[0]) >= 0 && constant.Compare(values[0], token.LEQ, constant.MakeInt64(1))
+	case "AssertIsCrumb":
+		return constant.Sign(values[0]) >= 0 && constant.Compare(values[0], token.LEQ, constant.MakeInt64(3))
+	}
+	return false
+}
+
+// mentionsLength reports whether e calls the len or cap builtin.
+func mentionsLength(info *types.Info, e ast.Expr) bool {
+	found := false
+	ast.Inspect(e, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || found {
+			return !found
+		}
+		if id, ok := unparen(call.Fun).(*ast.Ident); ok {
+			if builtin, ok := info.Uses[id].(*types.Builtin); ok && (builtin.Name() == "len" || builtin.Name() == "cap") {
+				found = true
+			}
+		}
+		return !found
+	})
+	return found
 }
 
 // checkUnconstrainedOutputs reports a decomposition whose digits are hint
@@ -648,10 +855,6 @@ func hasOption(info *types.Info, call *ast.CallExpr, option string) bool {
 		}
 	}
 	return false
-}
-
-func isConstant(info *types.Info, e ast.Expr) bool {
-	return info.Types[e].Value != nil
 }
 
 func isBoolConstant(info *types.Info, e ast.Expr, want bool) bool {

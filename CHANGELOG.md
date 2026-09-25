@@ -8,6 +8,39 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Precision on application code.** A first scan of 11 public gnark
+  application repositories (12 modules, 486 packages) reported 6 high and 10
+  medium findings, none of them bugs. Reading each one led to these fixes,
+  every one pinned by corpus cases in both directions. Afterwards the same
+  repositories yield no high findings outside test-support code, except one
+  that is correct in principle: a range check that one configuration of the
+  code skips.
+  - `GNARK_HINT_RELATION_INCOMPLETE` accepts bounds whose value proves
+    `r < d` when `d` is known at compile time:
+    - a constant bound (`AssertIsLessOrEqual(r, lanes-1)`);
+    - a range check of `r`;
+    - range-checked limbs `r = hi*2^b + lo`, including the check that forces
+      `lo` to zero when `hi` is all ones, which is how emulated KoalaBear,
+      BabyBear, and Goldilocks code proves `r < p`.
+
+    `d` may be a constant, `math.Pow(2, k)`, or an unexported package-level
+    `*big.Int` built from a constant that nothing in the package changes.
+    Range checks count in every branch of an `if`/`else`. Constraints inside
+    an `if err == nil` block whose other path returns that error now count as
+    unconditional.
+  - `GNARK_VACUOUS_ASSERT` reports a constant-only assertion only when it
+    always holds. Assertions that always fail (`AssertIsEqual(1, 0)`, used to
+    abort compilation) and length checks over fixed-size arrays
+    (`AssertIsEqual(len(a), len(b))`) are no longer reported.
+  - `GNARK_GO_EQUALITY_ON_VARIABLE` no longer reports comparisons of local
+    variables or slices that only ever hold Go constants, such as a padding
+    mask. A slice that receives a witness value, directly or through an alias
+    sharing its elements, is still reported.
+- **One package that failed to load aborted the whole scan**, hiding every
+  finding in the packages that did load. The CLI now analyzes the packages
+  that load, names each skipped package in a warning and in the report's
+  `coverage.skipped`, and exits 2 unless `--allow-partial` is passed.
+  Findings at the gate still exit 1.
 - **CI and release builds used Go 1.25.7, whose standard library has three
   vulnerabilities reachable from this repository**: GO-2026-4601 and
   GO-2026-6218 in `net/url`, and GO-2026-4602 in `os`, fixed in Go 1.25.8
@@ -17,7 +50,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   analysis, fuzz, and canary jobs and the release workflow install; the
   minimum Go version for `go install` stays 1.25.7, and the test matrix
   still runs on it. CI's staticcheck moves from v0.6.1, which cannot read Go
-  1.27 export data, to v0.8.1.
+  1.27 export data, to v0.8.1. govulncheck moves from v1.1.4 to v1.8.0: the
+  old release builds on x/tools v0.29, which predates Go 1.26, and on Go 1.27
+  it crashed intermittently while building SSA. v1.8.0 reports the same
+  advisories.
 - **A `gnark-safety` binary failed with unexplained type errors when the
   `go` command on `PATH` was newer than the Go it was built with** (after a
   Go upgrade, say), even on code written for older Go: the analyzer
@@ -58,6 +94,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `--include-test-support` and the `include-test-support` Action input.
+  Findings in test-support directories (`test/`, `tests/`, `testutil/`,
+  `testutils/`, `testing/`, `testhelpers/`, `e2e/`) are downgraded to low
+  like example code, and are counted in `coverage.test_support_downgraded`.
+- `--allow-partial` and the `allow-partial` Action input (see Fixed).
 - **Nine new rules (Wave 1).** Each is resolved by type against gnark v0.16.3:
   - `GNARK_TAG_VISIBILITY_AS_NAME`: `gnark:"public"` names the field instead
     of making it public;
@@ -132,6 +173,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Example directories include names that start with `example_`, `examples_`,
+  `example-`, or `examples-`, such as `example_native_aggregation/`.
 - **Report schema 2.0.** Severities are `critical`, `high`, `medium`, `low`,
   and `info`; schema 1.x `review` becomes `medium`. The report adds `tool`
   (name and version), `coverage`, `suppressed`, and per-finding

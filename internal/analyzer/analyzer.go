@@ -57,6 +57,15 @@ type Options struct {
 	// deliberately simplified, but it is also copied into production, so it
 	// is reported rather than hidden.
 	IncludeExamples bool
+	// IncludeTestSupport keeps the original severity of findings in
+	// test-support directories (test/, testutil/, e2e/, ...), which are
+	// downgraded to low by default like examples.
+	IncludeTestSupport bool
+	// SkipUnloadable analyzes the requested packages that load and
+	// type-check, and records the others in Coverage.Skipped, instead of
+	// failing the whole scan when one package cannot be loaded. A caller that
+	// sets it must not treat a report with skipped packages as complete.
+	SkipUnloadable bool
 	// PathBase is the directory reported paths are made relative to. Empty
 	// means the scan directory. Setting it to the repository root keeps
 	// SARIF locations valid when the scanned module is in a subdirectory.
@@ -67,15 +76,41 @@ type Options struct {
 // gnark-crypto, whose path differs after "gnark").
 const gnarkModulePath = "github.com/consensys/gnark"
 
-// exampleDirs are path segments that mark example code.
+// exampleDirs are path segments that mark example code. Directories named
+// with one of them and a separator (example_native_aggregation) count too.
 var exampleDirs = map[string]bool{"example": true, "examples": true, "_examples": true}
+
+// testSupportDirs are path segments that mark code supporting tests rather
+// than production: dummy circuits, harnesses, and end-to-end drivers that are
+// not in _test.go files.
+var testSupportDirs = map[string]bool{"test": true, "tests": true, "testutil": true, "testutils": true, "testing": true, "testhelpers": true, "e2e": true}
 
 // IsExamplePath reports whether a slash-separated path lies in an example
 // directory.
 func IsExamplePath(path string) bool {
+	return inDirectory(path, func(segment string) bool {
+		if exampleDirs[segment] {
+			return true
+		}
+		for _, prefix := range []string{"example_", "examples_", "example-", "examples-"} {
+			if strings.HasPrefix(segment, prefix) {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+// IsTestSupportPath reports whether a slash-separated path lies in a
+// test-support directory.
+func IsTestSupportPath(path string) bool {
+	return inDirectory(path, func(segment string) bool { return testSupportDirs[segment] })
+}
+
+func inDirectory(path string, matches func(string) bool) bool {
 	segments := strings.Split(path, "/")
 	for _, segment := range segments[:len(segments)-1] {
-		if exampleDirs[segment] {
+		if matches(segment) {
 			return true
 		}
 	}
@@ -152,20 +187,47 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 	if len(pkgs) == 0 {
 		return r, errors.New("package patterns matched no packages")
 	}
+	// A package that fails to load or type-check, itself or through a
+	// dependency, cannot be analyzed reliably.
 	var loadErrs []string
-	packages.Visit(pkgs, nil, func(p *packages.Package) {
-		for _, e := range p.Errors {
-			loadErrs = append(loadErrs, e.Error())
+	seenErrs := map[string]bool{}
+	var usable []*packages.Package
+	analyzable := 0
+	for _, p := range pkgs {
+		errs := packageErrors(p)
+		for _, e := range errs {
+			if !seenErrs[e] {
+				seenErrs[e] = true
+				loadErrs = append(loadErrs, e)
+			}
 		}
-	})
-	if len(loadErrs) > 0 {
-		sort.Strings(loadErrs)
-		msg := "package loading/type checking failed:\n" + strings.Join(loadErrs, "\n")
-		if hint := toolchainSkewHint(runtime.Version(), goCommandVersion(ctx, dir)); hint != "" {
-			msg += "\n" + hint
+		if len(errs) == 0 {
+			usable = append(usable, p)
+			if !strings.HasSuffix(p.ID, ".test") {
+				analyzable++
+			}
+		} else if !strings.HasSuffix(p.ID, ".test") {
+			r.Coverage.Skipped = append(r.Coverage.Skipped, report.SkippedPackage{Package: p.ID, Errors: errs})
 		}
-		return r, errors.New(msg)
 	}
+	if len(loadErrs) > 0 {
+		hint := toolchainSkewHint(runtime.Version(), goCommandVersion(ctx, dir))
+		if !opts.SkipUnloadable || analyzable == 0 {
+			sort.Strings(loadErrs)
+			msg := "package loading/type checking failed:\n" + strings.Join(loadErrs, "\n")
+			if hint != "" {
+				msg += "\n" + hint
+			}
+			return r, errors.New(msg)
+		}
+		for _, skipped := range r.Coverage.Skipped {
+			r.Diagnostics = append(r.Diagnostics, fmt.Sprintf("package %s was not analyzed because it failed to load: %s", skipped.Package, skipped.Errors[0]))
+		}
+		if hint != "" {
+			r.Diagnostics = append(r.Diagnostics, hint)
+		}
+	}
+	pkgs = usable
 	base := dir
 	if opts.PathBase != "" {
 		base = opts.PathBase
@@ -215,14 +277,33 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 	return r, nil
 }
 
+// packageErrors returns the load and type-checking errors of p and of the
+// dependencies it was type-checked against, at most three of them.
+func packageErrors(p *packages.Package) []string {
+	var errs []string
+	seen := map[string]bool{}
+	packages.Visit([]*packages.Package{p}, nil, func(q *packages.Package) {
+		for _, e := range q.Errors {
+			if message := e.Error(); !seen[message] && len(errs) < 3 {
+				seen[message] = true
+				errs = append(errs, message)
+			}
+		}
+	})
+	if len(errs) == 0 && p.IllTyped {
+		errs = append(errs, "package or a dependency is ill-typed")
+	}
+	return errs
+}
+
 // AnalyzePackage runs every rule over one package that a driver such as
 // go vet has already parsed and type-checked. Reported paths are absolute
-// file names. Suppressions apply; example downgrading does not, because a
-// driver without severities has nothing to lower.
+// file names. Suppressions apply; example and test-support downgrading does
+// not, because a driver without severities has nothing to lower.
 func AnalyzePackage(fset *token.FileSet, pkg *types.Package, info *types.Info, files []*ast.File) (report.Report, error) {
 	r := newReport()
 	p := &packages.Package{ID: pkg.Path(), Name: pkg.Name(), PkgPath: pkg.Path(), Types: pkg, TypesInfo: info, Syntax: files, Fset: fset}
-	opts := Options{IncludeExamples: true}
+	opts := Options{IncludeExamples: true, IncludeTestSupport: true}
 	directives, err := analyzeFiles(context.Background(), &r, p, files, fset, "", defaultMaxHints, opts)
 	if err != nil {
 		return r, err
@@ -257,17 +338,23 @@ func analyzeFiles(ctx context.Context, r *report.Report, p *packages.Package, fi
 	return directives, nil
 }
 
-// finish applies the example policy and suppressions, then sorts the
-// report so output is deterministic.
+// finish applies the example and test-support policy and suppressions, then
+// sorts the report so output is deterministic.
 func finish(r *report.Report, directives []*directive, opts Options) {
-	if !opts.IncludeExamples {
-		for i := range r.Findings {
-			f := &r.Findings[i]
-			if IsExamplePath(f.File) && f.Severity.Rank() > report.SeverityLow.Rank() {
-				f.OriginalSeverity, f.Severity = f.Severity, report.SeverityLow
-				f.Limitations = append(f.Limitations, "Downgraded from "+string(f.OriginalSeverity)+" to low because the file is in an example directory; example code is simplified on purpose but is often copied into production. Use --include-examples to keep the original severity.")
-				r.Coverage.ExamplesDowngraded++
-			}
+	for i := range r.Findings {
+		f := &r.Findings[i]
+		if f.Severity.Rank() <= report.SeverityLow.Rank() {
+			continue
+		}
+		switch {
+		case !opts.IncludeExamples && IsExamplePath(f.File):
+			f.OriginalSeverity, f.Severity = f.Severity, report.SeverityLow
+			f.Limitations = append(f.Limitations, "Downgraded from "+string(f.OriginalSeverity)+" to low because the file is in an example directory; example code is simplified on purpose but is often copied into production. Use --include-examples to keep the original severity.")
+			r.Coverage.ExamplesDowngraded++
+		case !opts.IncludeTestSupport && !IsExamplePath(f.File) && IsTestSupportPath(f.File):
+			f.OriginalSeverity, f.Severity = f.Severity, report.SeverityLow
+			f.Limitations = append(f.Limitations, "Downgraded from "+string(f.OriginalSeverity)+" to low because the file is in a test-support directory; dummy circuits and harnesses there do not ship, but check that production code does not import them. Use --include-test-support to keep the original severity.")
+			r.Coverage.TestSupportDowngraded++
 		}
 	}
 	applySuppressions(r, directives)
@@ -675,6 +762,8 @@ func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.In
 // relative to scope, so callers can ask about the body of a branch.
 func boundWithin(scope *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, outputs types.Object, aliases map[types.Object]int, divisor ast.Expr) (bool, string) {
 	found, evidence := false, ""
+	ev := newEvaluator(info, helpers)
+	d := ev.value(divisor)
 	ast.Inspect(scope, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok || len(call.Args) != 2 || conditionallyExecuted(scope, call) {
@@ -683,15 +772,33 @@ func boundWithin(scope *ast.BlockStmt, info *types.Info, helpers map[*types.Func
 		if outputIndex(info, call.Args[0], outputs, aliases) != 1 {
 			return true
 		}
+		bound := ev.value(call.Args[1])
 		if isComparatorCall(info, call, "AssertIsLess") && sameValue(info, call.Args[1], divisor) {
 			found, evidence = true, "unconditional constraint: r < d"
 		} else if isFrontendCall(info, call, "AssertIsLessOrEqual") && oneLessThan(info, call.Args[1], divisor) {
 			found, evidence = true, "unconditional equivalent constraint: r <= d-1"
+		} else if isComparatorCall(info, call, "AssertIsLess") && bound != nil && d != nil && bound.Cmp(d) <= 0 {
+			found, evidence = true, fmt.Sprintf("unconditional constraint: r < %s, and d = %s", bound, d)
+		} else if isFrontendCall(info, call, "AssertIsLessOrEqual") && bound != nil && d != nil && bound.Cmp(d) < 0 {
+			found, evidence = true, fmt.Sprintf("unconditional constraint: r <= %s, and d = %s", bound, d)
 		}
 		return true
 	})
 	if !found {
 		found, evidence = helperProvidesBound(scope, info, helpers, outputs, aliases, divisor)
+	}
+	if !found && d != nil && d.Sign() > 0 {
+		if maximum, how := remainderMaximum(scope, ev, helpers, outputs, aliases); maximum != nil && maximum.Cmp(d) < 0 {
+			found, evidence = true, fmt.Sprintf("%s: r <= %s, and d = %s", how, maximum, d)
+		}
+	}
+	if !found {
+		for _, guarded := range successGuards(scope, info, helpers) {
+			if found, evidence = boundWithin(guarded, info, helpers, outputs, aliases, divisor); found {
+				evidence += "; inside an if err == nil block whose other path returns the error"
+				break
+			}
+		}
 	}
 	return found, evidence
 }

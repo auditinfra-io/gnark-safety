@@ -245,16 +245,81 @@ func TestExampleDowngrade(t *testing.T) {
 
 func TestIsExamplePath(t *testing.T) {
 	for path, want := range map[string]bool{
-		"examples/divmod/circuit.go": true,
-		"a/example/b.go":             true,
-		"_examples/x.go":             true,
-		"examples.go":                false,
-		"src/examples_test/x.go":     false,
-		"circuits/example.go":        false,
+		"examples/divmod/circuit.go":            true,
+		"a/example/b.go":                        true,
+		"_examples/x.go":                        true,
+		"example_native_aggregation/compile.go": true,
+		"src/examples_test/x.go":                true,
+		"examples-v2/x.go":                      true,
+		"examples.go":                           false,
+		"circuits/example.go":                   false,
+		"exampleutil/x.go":                      false,
 	} {
 		if got := IsExamplePath(path); got != want {
 			t.Errorf("IsExamplePath(%q) = %v, want %v", path, got, want)
 		}
+	}
+}
+
+func TestIsTestSupportPath(t *testing.T) {
+	for path, want := range map[string]bool{
+		"circuits/test/statetransition/dummy.go": true,
+		"keccak/e2e/main.go":                     true,
+		"internal/testutil/circuit.go":           true,
+		"test/engine.go":                         true,
+		"test.go":                                false,
+		"circuits/testdata/x.go":                 false,
+		"latest/x.go":                            false,
+		"circuits/test.go":                       false,
+	} {
+		if got := IsTestSupportPath(path); got != want {
+			t.Errorf("IsTestSupportPath(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+func TestTestSupportDowngrade(t *testing.T) {
+	pattern := []string{"./internal/analyzer/testdata/support/test/dummy"}
+	r, err := Scan("../..", pattern)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Findings) != 1 {
+		t.Fatalf("got %#v", r.Findings)
+	}
+	f := r.Findings[0]
+	if f.Severity != report.SeverityLow || f.OriginalSeverity != report.SeverityHigh || r.Coverage.TestSupportDowngraded != 1 || r.Coverage.ExamplesDowngraded != 0 || !strings.Contains(strings.Join(f.Limitations, " "), "--include-test-support") {
+		t.Fatalf("test-support finding not downgraded: %#v coverage=%#v", f, r.Coverage)
+	}
+	r, err = ScanContext(context.Background(), "../..", pattern, Options{IncludeTestSupport: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f := r.Findings[0]; f.Severity != report.SeverityHigh || f.OriginalSeverity != "" || r.Coverage.TestSupportDowngraded != 0 {
+		t.Fatalf("IncludeTestSupport did not keep severity: %#v", f)
+	}
+}
+
+func TestSkipUnloadable(t *testing.T) {
+	good, broken := "./internal/analyzer/testdata/partial/good", "./internal/analyzer/testdata/partial/broken"
+	if _, err := Scan("../..", []string{good, broken}); err == nil || !strings.Contains(err.Error(), "cannot use") {
+		t.Fatalf("a strict scan must fail on the broken package: %v", err)
+	}
+	r, err := ScanContext(context.Background(), "../..", []string{good, broken}, Options{SkipUnloadable: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Findings) != 1 || !strings.HasSuffix(r.Findings[0].File, "good/good.go") {
+		t.Fatalf("the loadable package was not analyzed: %#v", r.Findings)
+	}
+	if len(r.Coverage.Skipped) != 1 || !strings.HasSuffix(r.Coverage.Skipped[0].Package, "partial/broken") || len(r.Coverage.Skipped[0].Errors) == 0 {
+		t.Fatalf("skipped = %#v", r.Coverage.Skipped)
+	}
+	if r.Coverage.Packages != 1 || len(r.Diagnostics) == 0 || !strings.Contains(r.Diagnostics[0], "partial/broken was not analyzed") {
+		t.Fatalf("coverage = %#v diagnostics = %q", r.Coverage, r.Diagnostics)
+	}
+	if _, err := ScanContext(context.Background(), "../..", []string{broken}, Options{SkipUnloadable: true}); err == nil {
+		t.Fatal("a scan in which nothing loads must fail even when skipping is allowed")
 	}
 }
 

@@ -1,69 +1,71 @@
 === RUN   TestFixtureInventory
---- PASS: TestFixtureInventory (6.47s)
+--- PASS: TestFixtureInventory (3.85s)
 === RUN   TestDemoIntegration
---- PASS: TestDemoIntegration (6.57s)
+--- PASS: TestDemoIntegration (3.47s)
 === RUN   TestNoHintsText
---- PASS: TestNoHintsText (0.03s)
+--- PASS: TestNoHintsText (0.02s)
 === RUN   TestPackageLoadingFailure
 --- PASS: TestPackageLoadingFailure (0.01s)
 === RUN   TestJSONDeterministicAndValid
---- PASS: TestJSONDeterministicAndValid (20.86s)
+--- PASS: TestJSONDeterministicAndValid (13.04s)
 === RUN   TestInvalidArguments
 --- PASS: TestInvalidArguments (0.00s)
 === RUN   TestInventoryParity
---- PASS: TestInventoryParity (10.74s)
+--- PASS: TestInventoryParity (6.06s)
 === RUN   TestDeprecationNotice
---- PASS: TestDeprecationNotice (0.06s)
+--- PASS: TestDeprecationNotice (0.04s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/cmd/gnark-hint-scan	44.912s
+ok  	github.com/auditinfra-io/gnark-safety/cmd/gnark-hint-scan	26.626s
 === RUN   TestJSONAndExitPolicy
---- PASS: TestJSONAndExitPolicy (12.58s)
+--- PASS: TestJSONAndExitPolicy (7.47s)
 === RUN   TestHighThresholdIgnoresLowerFindings
 --- PASS: TestHighThresholdIgnoresLowerFindings (0.00s)
 === RUN   TestSARIF
---- PASS: TestSARIF (4.81s)
+--- PASS: TestSARIF (3.57s)
 === RUN   TestExplain
 --- PASS: TestExplain (0.00s)
 === RUN   TestVersion
 --- PASS: TestVersion (0.00s)
 === RUN   TestResourceLimitValidationAndOutputLimit
---- PASS: TestResourceLimitValidationAndOutputLimit (5.61s)
+--- PASS: TestResourceLimitValidationAndOutputLimit (3.16s)
 === RUN   TestFailOnLevels
---- PASS: TestFailOnLevels (34.78s)
+--- PASS: TestFailOnLevels (23.68s)
 === RUN   TestSummaryLine
---- PASS: TestSummaryLine (5.88s)
+--- PASS: TestSummaryLine (11.88s)
 === RUN   TestEmptyScanIsNotAPass
---- PASS: TestEmptyScanIsNotAPass (0.05s)
+--- PASS: TestEmptyScanIsNotAPass (0.14s)
+=== RUN   TestPartialScanIsNotAPass
+--- PASS: TestPartialScanIsNotAPass (20.01s)
 === RUN   TestIncludeTestsFlag
---- PASS: TestIncludeTestsFlag (5.89s)
+--- PASS: TestIncludeTestsFlag (9.09s)
 === RUN   TestSuppressedFindingsDoNotGate
---- PASS: TestSuppressedFindingsDoNotGate (2.81s)
+--- PASS: TestSuppressedFindingsDoNotGate (4.36s)
 === RUN   TestSelfScanPassesDefaultGate
---- PASS: TestSelfScanPassesDefaultGate (3.36s)
+--- PASS: TestSelfScanPassesDefaultGate (5.17s)
 === RUN   TestInventory
---- PASS: TestInventory (5.62s)
+--- PASS: TestInventory (9.28s)
 === RUN   TestSARIFOutputSidecar
---- PASS: TestSARIFOutputSidecar (2.85s)
+--- PASS: TestSARIFOutputSidecar (3.62s)
 === RUN   TestRelativeTo
---- PASS: TestRelativeTo (2.73s)
+--- PASS: TestRelativeTo (3.15s)
 === RUN   TestREADMETranscripts
---- PASS: TestREADMETranscripts (5.27s)
+--- PASS: TestREADMETranscripts (6.58s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/cmd/gnark-safety	92.322s
+ok  	github.com/auditinfra-io/gnark-safety/cmd/gnark-safety	111.337s
 === RUN   TestVetParity
---- PASS: TestVetParity (14.00s)
+--- PASS: TestVetParity (10.25s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/cmd/gnark-safety-vet	14.099s
+ok  	github.com/auditinfra-io/gnark-safety/cmd/gnark-safety-vet	10.331s
 === RUN   TestMakeSPDXDeterministicAndIncludesReplacement
 --- PASS: TestMakeSPDXDeterministicAndIncludesReplacement (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/cmd/release-evidence	0.015s
+ok  	github.com/auditinfra-io/gnark-safety/cmd/release-evidence	0.007s
 === RUN   TestDiscoverSourceFilesIncludesUntrackedGoFiles
---- PASS: TestDiscoverSourceFilesIncludesUntrackedGoFiles (0.01s)
+--- PASS: TestDiscoverSourceFilesIncludesUntrackedGoFiles (0.02s)
 === RUN   TestPublishEvidenceReplacesBothArtifacts
 --- PASS: TestPublishEvidenceReplacesBothArtifacts (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.017s
+ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.025s
 === RUN   TestRequiredHintSafetyMatrix
 === RUN   TestRequiredHintSafetyMatrix/A_vulnerable_accepts_valid_output
 === RUN   TestRequiredHintSafetyMatrix/B_corrected_accepts_valid_output
@@ -90,9 +92,9 @@ ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.017s
 === RUN   TestBoundaryControls/largest_quotient
 === RUN   TestBoundaryControls/largest_quotient/vulnerable
 === RUN   TestBoundaryControls/largest_quotient/corrected
---- PASS: TestBoundaryControls (0.00s)
-    --- PASS: TestBoundaryControls/exact_division (0.00s)
-        --- PASS: TestBoundaryControls/exact_division/vulnerable (0.00s)
+--- PASS: TestBoundaryControls (0.02s)
+    --- PASS: TestBoundaryControls/exact_division (0.01s)
+        --- PASS: TestBoundaryControls/exact_division/vulnerable (0.01s)
         --- PASS: TestBoundaryControls/exact_division/corrected (0.00s)
     --- PASS: TestBoundaryControls/n_less_than_d (0.00s)
         --- PASS: TestBoundaryControls/n_less_than_d/vulnerable (0.00s)
@@ -114,7 +116,7 @@ ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.017s
 === RUN   TestAdversarialSafetyMatrix/n_less_than_d
 === RUN   TestAdversarialSafetyMatrix/outside_eight_bits
 === RUN   TestAdversarialSafetyMatrix/negative_output
---- PASS: TestAdversarialSafetyMatrix (0.00s)
+--- PASS: TestAdversarialSafetyMatrix (0.01s)
     --- PASS: TestAdversarialSafetyMatrix/remainder_equals_divisor (0.00s)
     --- PASS: TestAdversarialSafetyMatrix/remainder_greater_than_divisor (0.00s)
     --- PASS: TestAdversarialSafetyMatrix/divisor_one (0.00s)
@@ -149,7 +151,7 @@ ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.017s
 === RUN   TestZeroDivisorRejected
 --- PASS: TestZeroDivisorRejected (0.00s)
 === RUN   TestHintMatchesSpecificationExhaustively
---- PASS: TestHintMatchesSpecificationExhaustively (0.10s)
+--- PASS: TestHintMatchesSpecificationExhaustively (0.08s)
 === RUN   TestCorrectedCircuitMatchesSpecificationMatrix
 === RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs
 === RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n0_d1_q0_r0
@@ -187,8 +189,8 @@ ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.017s
 === RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d5_q4_r-3
 === RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n255_d255_q-1_r510
 === RUN   TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d0_q0_r17
---- PASS: TestCorrectedCircuitMatchesSpecificationMatrix (0.00s)
-    --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs (0.00s)
+--- PASS: TestCorrectedCircuitMatchesSpecificationMatrix (0.02s)
+    --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs (0.01s)
         --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n0_d1_q0_r0 (0.00s)
         --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n17_d5_q3_r2 (0.00s)
         --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bn254/r1cs/n255_d1_q255_r0 (0.00s)
@@ -215,7 +217,7 @@ ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.017s
         --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n17_d5_q4_r-3 (0.00s)
         --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n255_d255_q-1_r510 (0.00s)
         --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/r1cs/n17_d0_q0_r17 (0.00s)
-    --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs (0.00s)
+    --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs (0.01s)
         --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n0_d1_q0_r0 (0.00s)
         --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n17_d5_q3_r2 (0.00s)
         --- PASS: TestCorrectedCircuitMatchesSpecificationMatrix/bls12_381/scs/n255_d1_q255_r0 (0.00s)
@@ -227,11 +229,11 @@ ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.017s
 === RUN   TestEveryHintCallHasMutationCoverage
 --- PASS: TestEveryHintCallHasMutationCoverage (0.00s)
 === RUN   TestGroth16VulnerableInvalidHintProofVerifies
---- PASS: TestGroth16VulnerableInvalidHintProofVerifies (0.05s)
+--- PASS: TestGroth16VulnerableInvalidHintProofVerifies (0.03s)
 === RUN   TestGroth16CorrectedValidHintProofVerifies
---- PASS: TestGroth16CorrectedValidHintProofVerifies (0.06s)
+--- PASS: TestGroth16CorrectedValidHintProofVerifies (0.03s)
 === RUN   TestGroth16CorrectedInvalidHintCannotProve
---- PASS: TestGroth16CorrectedInvalidHintCannotProve (0.04s)
+--- PASS: TestGroth16CorrectedInvalidHintCannotProve (0.03s)
 === RUN   TestCorrectedProofBackendCurveMatrix
 === RUN   TestCorrectedProofBackendCurveMatrix/bn254
 === RUN   TestCorrectedProofBackendCurveMatrix/bn254/groth16
@@ -239,13 +241,13 @@ ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.017s
 === RUN   TestCorrectedProofBackendCurveMatrix/bls12_381
 === RUN   TestCorrectedProofBackendCurveMatrix/bls12_381/groth16
 === RUN   TestCorrectedProofBackendCurveMatrix/bls12_381/plonk
---- PASS: TestCorrectedProofBackendCurveMatrix (0.43s)
-    --- PASS: TestCorrectedProofBackendCurveMatrix/bn254 (0.15s)
-        --- PASS: TestCorrectedProofBackendCurveMatrix/bn254/groth16 (0.05s)
-        --- PASS: TestCorrectedProofBackendCurveMatrix/bn254/plonk (0.10s)
-    --- PASS: TestCorrectedProofBackendCurveMatrix/bls12_381 (0.27s)
-        --- PASS: TestCorrectedProofBackendCurveMatrix/bls12_381/groth16 (0.08s)
-        --- PASS: TestCorrectedProofBackendCurveMatrix/bls12_381/plonk (0.19s)
+--- PASS: TestCorrectedProofBackendCurveMatrix (0.21s)
+    --- PASS: TestCorrectedProofBackendCurveMatrix/bn254 (0.08s)
+        --- PASS: TestCorrectedProofBackendCurveMatrix/bn254/groth16 (0.03s)
+        --- PASS: TestCorrectedProofBackendCurveMatrix/bn254/plonk (0.05s)
+    --- PASS: TestCorrectedProofBackendCurveMatrix/bls12_381 (0.13s)
+        --- PASS: TestCorrectedProofBackendCurveMatrix/bls12_381/groth16 (0.03s)
+        --- PASS: TestCorrectedProofBackendCurveMatrix/bls12_381/plonk (0.10s)
 === RUN   FuzzQuotientRemainderHint
 === RUN   FuzzQuotientRemainderHint/seed#0
 === RUN   FuzzQuotientRemainderHint/seed#1
@@ -259,43 +261,49 @@ ok  	github.com/auditinfra-io/gnark-safety/cmd/reproduce	0.017s
     --- PASS: FuzzQuotientRemainderHint/seed#3 (0.00s)
     --- PASS: FuzzQuotientRemainderHint/seed#4 (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/examples/divmod	0.753s
+ok  	github.com/auditinfra-io/gnark-safety/examples/divmod	0.462s
 === RUN   TestScanResourceLimits
---- PASS: TestScanResourceLimits (7.40s)
+--- PASS: TestScanResourceLimits (6.55s)
 === RUN   TestCanonicalFixture
---- PASS: TestCanonicalFixture (4.97s)
+--- PASS: TestCanonicalFixture (6.75s)
 === RUN   TestConfiguredFieldAssessment
---- PASS: TestConfiguredFieldAssessment (10.43s)
+--- PASS: TestConfiguredFieldAssessment (10.82s)
 === RUN   TestRelationShapeAndCoverage
---- PASS: TestRelationShapeAndCoverage (6.04s)
+--- PASS: TestRelationShapeAndCoverage (5.08s)
 === RUN   TestUnknownInvariantsRejectsNegativeOutputCount
 --- PASS: TestUnknownInvariantsRejectsNegativeOutputCount (0.00s)
 === RUN   TestDeprecatedAPINewHint
---- PASS: TestDeprecatedAPINewHint (5.13s)
+--- PASS: TestDeprecatedAPINewHint (4.79s)
 === RUN   TestRegistryCoverage
---- PASS: TestRegistryCoverage (40.01s)
+--- PASS: TestRegistryCoverage (44.29s)
 === RUN   TestIncludeTests
---- PASS: TestIncludeTests (5.60s)
+--- PASS: TestIncludeTests (4.60s)
 === RUN   TestExampleDowngrade
---- PASS: TestExampleDowngrade (5.77s)
+--- PASS: TestExampleDowngrade (4.81s)
 === RUN   TestIsExamplePath
 --- PASS: TestIsExamplePath (0.00s)
+=== RUN   TestIsTestSupportPath
+--- PASS: TestIsTestSupportPath (0.00s)
+=== RUN   TestTestSupportDowngrade
+--- PASS: TestTestSupportDowngrade (4.54s)
+=== RUN   TestSkipUnloadable
+--- PASS: TestSkipUnloadable (6.73s)
 === RUN   TestSuppressions
---- PASS: TestSuppressions (2.58s)
+--- PASS: TestSuppressions (2.38s)
 === RUN   TestCallSiteSpecialization
---- PASS: TestCallSiteSpecialization (2.03s)
+--- PASS: TestCallSiteSpecialization (2.33s)
 === RUN   TestPathBase
---- PASS: TestPathBase (3.88s)
+--- PASS: TestPathBase (4.37s)
 === RUN   TestUnusedOutputClassification
---- PASS: TestUnusedOutputClassification (2.00s)
+--- PASS: TestUnusedOutputClassification (2.29s)
 === RUN   TestToolchainSkewHint
 --- PASS: TestToolchainSkewHint (0.00s)
 === RUN   TestCorpus
---- PASS: TestCorpus (2.43s)
+--- PASS: TestCorpus (2.80s)
 === RUN   TestMetamorphic
---- PASS: TestMetamorphic (11.78s)
+--- PASS: TestMetamorphic (14.87s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/internal/analyzer	110.160s
+ok  	github.com/auditinfra-io/gnark-safety/internal/analyzer	128.174s
 === RUN   TestSnapshotsAreClassified
 --- PASS: TestSnapshotsAreClassified (0.00s)
 === RUN   TestReleaseMatrix
@@ -305,7 +313,7 @@ ok  	github.com/auditinfra-io/gnark-safety/internal/analyzer	110.160s
 === RUN   TestValidate
 --- PASS: TestValidate (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/internal/canary	0.009s
+ok  	github.com/auditinfra-io/gnark-safety/internal/canary	0.017s
 ?   	github.com/auditinfra-io/gnark-safety/internal/canary/check	[no test files]
 === RUN   TestActionInputsAreUsedAndDocumented
 --- PASS: TestActionInputsAreUsedAndDocumented (0.00s)
@@ -314,27 +322,29 @@ ok  	github.com/auditinfra-io/gnark-safety/internal/canary	0.009s
 === RUN   TestActionPinsThirdPartyActions
 --- PASS: TestActionPinsThirdPartyActions (0.00s)
 === RUN   TestActionInstallScript
---- PASS: TestActionInstallScript (1.72s)
+--- PASS: TestActionInstallScript (2.25s)
 === RUN   TestActionScanScriptGate
---- PASS: TestActionScanScriptGate (11.59s)
+--- PASS: TestActionScanScriptGate (14.66s)
 === RUN   TestActionScanScriptSubdirectory
---- PASS: TestActionScanScriptSubdirectory (5.81s)
+--- PASS: TestActionScanScriptSubdirectory (5.71s)
 === RUN   TestActionScanScriptMultiplePatterns
---- PASS: TestActionScanScriptMultiplePatterns (5.37s)
+--- PASS: TestActionScanScriptMultiplePatterns (5.49s)
+=== RUN   TestActionScanScriptPolicies
+--- PASS: TestActionScanScriptPolicies (20.19s)
 === RUN   TestActionScanScriptFailures
---- PASS: TestActionScanScriptFailures (0.13s)
+--- PASS: TestActionScanScriptFailures (0.09s)
 === RUN   TestPreCommitHook
---- PASS: TestPreCommitHook (5.93s)
+--- PASS: TestPreCommitHook (5.50s)
 === RUN   TestReleasePreflight
---- PASS: TestReleasePreflight (0.05s)
+--- PASS: TestReleasePreflight (0.06s)
 === RUN   TestBuildRelease
---- PASS: TestBuildRelease (10.28s)
+--- PASS: TestBuildRelease (7.82s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/internal/contract	40.902s
+ok  	github.com/auditinfra-io/gnark-safety/internal/contract	61.787s
 === RUN   TestIsNewHint
 --- PASS: TestIsNewHint (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/internal/gnarkapi	0.011s
+ok  	github.com/auditinfra-io/gnark-safety/internal/gnarkapi	0.017s
 === RUN   TestSARIFRuleMetadataComesFromRegistry
 --- PASS: TestSARIFRuleMetadataComesFromRegistry (0.00s)
 === RUN   TestSARIFLevelsCoverEverySeverity
@@ -346,7 +356,7 @@ ok  	github.com/auditinfra-io/gnark-safety/internal/gnarkapi	0.011s
 === RUN   TestSARIFSuppressionsAndNotifications
 --- PASS: TestSARIFSuppressionsAndNotifications (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/internal/output	0.010s
+ok  	github.com/auditinfra-io/gnark-safety/internal/output	0.015s
 === RUN   TestRegistryIsWellFormed
 --- PASS: TestRegistryIsWellFormed (0.00s)
 === RUN   TestExplainCoversEveryRule
@@ -356,32 +366,32 @@ ok  	github.com/auditinfra-io/gnark-safety/internal/output	0.010s
 === RUN   TestRegenerateRejectsMissingMarkers
 --- PASS: TestRegenerateRejectsMissingMarkers (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/internal/rules	0.013s
+ok  	github.com/auditinfra-io/gnark-safety/internal/rules	0.008s
 ?   	github.com/auditinfra-io/gnark-safety/internal/rules/gendocs	[no test files]
 === RUN   TestFromBuildInfo
 --- PASS: TestFromBuildInfo (0.00s)
 === RUN   TestOverrideWins
 --- PASS: TestOverrideWins (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/internal/version	0.008s
+ok  	github.com/auditinfra-io/gnark-safety/internal/version	0.007s
 ?   	github.com/auditinfra-io/gnark-safety/internal/vet	[no test files]
 === RUN   TestEveryHighRuleHasAWitness
 --- PASS: TestEveryHighRuleHasAWitness (0.00s)
 === RUN   TestWitnesses
-=== RUN   TestWitnesses/GNARK_TAG_VISIBILITY_AS_NAME
-=== RUN   TestWitnesses/GNARK_GO_EQUALITY_ON_VARIABLE
 === RUN   TestWitnesses/GNARK_DISCARDED_PREDICATE
 === RUN   TestWitnesses/GNARK_VACUOUS_ASSERT
 === RUN   TestWitnesses/GNARK_BITS_UNCONSTRAINED
---- PASS: TestWitnesses (7.30s)
-    --- PASS: TestWitnesses/GNARK_TAG_VISIBILITY_AS_NAME (7.30s)
-    --- PASS: TestWitnesses/GNARK_GO_EQUALITY_ON_VARIABLE (0.00s)
-    --- PASS: TestWitnesses/GNARK_DISCARDED_PREDICATE (0.00s)
+=== RUN   TestWitnesses/GNARK_TAG_VISIBILITY_AS_NAME
+=== RUN   TestWitnesses/GNARK_GO_EQUALITY_ON_VARIABLE
+--- PASS: TestWitnesses (10.44s)
+    --- PASS: TestWitnesses/GNARK_DISCARDED_PREDICATE (8.94s)
     --- PASS: TestWitnesses/GNARK_VACUOUS_ASSERT (0.00s)
     --- PASS: TestWitnesses/GNARK_BITS_UNCONSTRAINED (0.00s)
+    --- PASS: TestWitnesses/GNARK_TAG_VISIBILITY_AS_NAME (1.50s)
+    --- PASS: TestWitnesses/GNARK_GO_EQUALITY_ON_VARIABLE (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/internal/witness	7.567s
+ok  	github.com/auditinfra-io/gnark-safety/internal/witness	10.664s
 === RUN   TestSeverityOrder
 --- PASS: TestSeverityOrder (0.00s)
 PASS
-ok  	github.com/auditinfra-io/gnark-safety/pkg/report	0.010s
+ok  	github.com/auditinfra-io/gnark-safety/pkg/report	0.032s

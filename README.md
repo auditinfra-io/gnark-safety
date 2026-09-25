@@ -89,19 +89,28 @@ lives in a subdirectory, so SARIF locations resolve in code scanning.
 
 **Exit codes.** `0` means the scan passed. `1` means a finding at or above
 `--fail-on` (default `high`; accepts `critical`, `high`, `medium`, `low`,
-`info`, or `none`). `2` means a usage error, a package that failed to load or
-type-check, or a scan in which **no package imports gnark**. That last case
-exists because a mistyped pattern or a moved package must not read as a clean
-pass. Pass `--allow-empty` when no circuits are expected. Every run prints a
-one-line summary to stderr with the finding counts, what was scanned, and the
-gate verdict.
+`info`, or `none`). `2` means a usage error, a scan in which **no package
+imports gnark**, or a scan in which **a requested package failed to load or
+type-check**. Neither may read as a clean pass: a mistyped pattern or a moved
+package would otherwise turn CI green, and a package the analyzer could not
+read could hold the findings. Packages that do load are still analyzed and
+reported, and each one skipped is named in a warning and in the report's
+`coverage.skipped`. Pass `--allow-empty` when no circuits are expected, and
+`--allow-partial` to accept a scan with skipped packages (a package that only
+builds for `GOOS=js`, say). Findings at the gate take precedence and exit
+`1`. Every run prints a one-line summary to stderr with the finding counts,
+what was scanned, and the gate verdict.
 
 **Test and example code.** `_test.go` files are excluded unless
-`--include-tests` is passed. Findings in `example/`, `examples/`, or
-`_examples/` directories are downgraded to low, with the original severity
-recorded, unless `--include-examples` is passed. Example code is simplified on
-purpose, but it is also copied into production, so it is reported rather than
-hidden.
+`--include-tests` is passed. Findings in example directories (`example/`,
+`examples/`, `_examples/`, and names such as `example_native/`) are downgraded
+to low, with the original severity recorded, unless `--include-examples` is
+passed. Example code is simplified on purpose, but it is also copied into
+production, so it is reported rather than hidden. Findings in test-support
+directories (`test/`, `tests/`, `testutil/`, `testutils/`, `testing/`,
+`testhelpers/`, `e2e/`), which hold dummy circuits and harnesses outside
+`_test.go` files, are downgraded the same way unless `--include-test-support`
+is passed.
 
 **Output.** The JSON report records:
 
@@ -160,7 +169,9 @@ jobs:
 | `sarif-category` | `gnark-safety` | Code scanning category, to keep several scans of one repository apart. |
 | `include-tests` | `false` | Also analyze `_test.go` files. |
 | `include-examples` | `false` | Keep the original severity of findings in example directories. |
+| `include-test-support` | `false` | Keep the original severity of findings in test-support directories. |
 | `allow-empty` | `false` | Pass even when no scanned package imports gnark. |
+| `allow-partial` | `false` | Pass even when some requested packages failed to load and were not analyzed. |
 | `field` | `unknown` | Scalar field for bound checks: `unknown`, `bn254`, or `bls12-381`. |
 | `version` | empty | Release to `go install`, such as `v0.2.0`. Empty builds the analyzer from the action at the ref in `uses:`. |
 | `go-version` | `stable` | Go version for `actions/setup-go`. The analyzer is built and run with it, so it must be at least your module's `go` version. Empty uses the Go already on `PATH`. |

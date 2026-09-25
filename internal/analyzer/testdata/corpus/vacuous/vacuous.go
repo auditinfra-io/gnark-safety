@@ -33,5 +33,14 @@ func (c *Circuit) Define(api frontend.API) error {
 	// Unsatisfiable, not vacuous: a liveness bug this rule leaves alone.
 	api.AssertIsDifferent(c.Y, c.Y)
 	comparator.AssertIsLess(c.Y, c.Y)
+
+	// Constant assertions that always fail abort compilation on purpose, and
+	// comparisons of array lengths check the circuit's shape: not reported.
+	api.AssertIsEqual(1, 0)
+	api.AssertIsLessOrEqual(3, 2)
+	api.AssertIsBoolean(2)
+	var limbs [2]frontend.Variable
+	api.AssertIsEqual(len(limbs), len(c.Values))
+	api.AssertIsLessOrEqual(2, 3) // want GNARK_VACUOUS_ASSERT:medium
 	return nil
 }

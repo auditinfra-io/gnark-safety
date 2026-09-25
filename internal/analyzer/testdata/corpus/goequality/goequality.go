@@ -62,3 +62,31 @@ func (c *Circuit) check(api frontend.API) error {
 
 // constrainHelper takes the API, so calling it can add constraints.
 func constrainHelper(api frontend.API, x frontend.Variable) { api.AssertIsBoolean(x) }
+
+// pad XORs a padding mask into data. The mask holds only Go constants, so
+// comparing its elements chooses code, not constraints: not reported. Once a
+// witness value is stored into a slice, directly or through an alias sharing
+// its elements, comparing its elements is reported.
+func (c *Circuit) pad(api frontend.API, data []frontend.Variable) {
+	mask := make([]frontend.Variable, len(data))
+	for i := range mask {
+		mask[i] = 0
+	}
+	mask[len(mask)-1] = 1
+	for i := range data {
+		if mask[i] != 0 {
+			data[i] = api.Xor(data[i], mask[i])
+		}
+	}
+	mixed := make([]frontend.Variable, 2)
+	mixed[0] = c.X
+	if mixed[0] == 0 { // want GNARK_GO_EQUALITY_ON_VARIABLE
+		api.AssertIsEqual(c.Y, 0)
+	}
+	shared := make([]frontend.Variable, 1)
+	alias := shared
+	alias[0] = c.Y
+	if shared[0] != 0 { // want GNARK_GO_EQUALITY_ON_VARIABLE
+		api.AssertIsEqual(c.X, 1)
+	}
+}
