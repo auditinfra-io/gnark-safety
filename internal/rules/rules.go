@@ -95,14 +95,29 @@ var specs = []Spec{
 			"parameter `p` that the function never reassigns, the function is unexported and not a method, and every use of it " +
 			"in its package is a direct call with a constant for `p`, the finding moves to each call that disables the bound, and calls that enable it are not " +
 			"reported. A shared helper therefore reports the vulnerable caller rather than the helper.",
-		Limitations: "One level of unconditional, direct, package-local helper calls is summarized. Deeper, recursive, external, " +
-			"or dynamically dispatched helpers, other aliasing, and alternative comparison gadgets remain unknown. A range check " +
-			"in a switch, or deferred to a later batch (a commit-based range checker's collected checks), is not seen. " +
-			"Value-based evidence assumes a pairing-friendly scalar field and ignores reconstructions wider than 240 bits. An " +
-			"`if err == nil` block counts as unconditional on the assumption that callers propagate the error. Algebraically " +
-			"neutral wrappers such as `Sub(x, 0)` are not simplified. Call-site specialization applies only to unexported plain " +
-			"functions whose every use is a direct call in the same package with a constant guard; exported functions, methods, " +
-			"escaping function values, and runtime arguments keep the finding at the hint. A quiet result is not evidence of soundness.",
+		Limitations: "The rule matches only a two-output hint; a different output count, including one that cannot be " +
+			"determined statically, is not analyzed by this rule at all, regardless of whether its outputs are bounded. Within " +
+			"a two-output hint, only the literal `AssertIsEqual(n, Add(Mul(q, d), r))` shape (operand and Add/Mul order may " +
+			"vary), written as one nested expression, is recognized as the reconstruction; the same relation split across " +
+			"intermediate local variables, or built any other way, is not, and is then not checked for a bound either. Both of " +
+			"these stay quiet: no finding, on a hint that may have no bound at all. " +
+			"One level of unconditional, direct, package-local helper calls is summarized when a reconstruction is recognized; " +
+			"a bound placed two or more helper calls away, or in a helper declared in a different package, is invisible to this " +
+			"analysis. Unlike the two cases above, this one does not stay quiet: the reconstruction is still recognized, and " +
+			"finding no bound within its reach, the rule reports it anyway — so a finding can be a false positive when the real " +
+			"bound is one hop or one package further out than this analysis looks; check the call graph before treating such a " +
+			"finding as confirmed. The bound itself need not be a comparator call: an unconditional range check of `r` below a " +
+			"compile-time-constant `d`, or a range-checked two-limb reconstruction `r = hi*2^b + lo` (including the check that " +
+			"forces `lo` to zero when `hi` is saturated, how emulated-field code proves `r < p`), also counts as a bound. Any " +
+			"other arithmetic argument for canonicality is not recognized and fails the same way as an out-of-reach helper: a " +
+			"reportable false positive, not silence. A range check in a switch, or deferred to a later batch (a commit-based " +
+			"range checker's collected checks), is not seen. Value-based evidence assumes a pairing-friendly scalar field and " +
+			"ignores reconstructions wider than 240 bits. An `if err == nil` block counts as unconditional on the assumption " +
+			"that callers propagate the error. Algebraically neutral wrappers such as `Sub(x, 0)` are not simplified. Call-site " +
+			"specialization applies only to unexported plain functions whose every use is a direct call in the same package " +
+			"with a constant guard; exported functions, methods, escaping function values, and runtime arguments keep the " +
+			"finding at the hint. A quiet result is not evidence of soundness, and a reported one is not evidence of a real " +
+			"gap until the shapes above are ruled out.",
 	},
 	{
 		ID:         HintOutputUnused,
