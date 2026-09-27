@@ -19,17 +19,17 @@ Noir.
 go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@latest
 ```
 
-Go 1.25.7 or newer is required to build. `go.mod` also pins `toolchain
-go1.27.1`: three published Go standard-library vulnerabilities reachable
-through `gnark-safety-vet` are present in Go 1.25.7 and fixed only in later
-releases (see [`CHANGELOG.md`](CHANGELOG.md)), so with Go's default
-toolchain management (`GOTOOLCHAIN=auto`) `go install` fetches and builds
-with 1.27.1 automatically, even when your local Go already satisfies the
-1.25.7 floor. With `GOTOOLCHAIN=local` (common in CI), that automatic fetch
-does not happen: an older local Go builds as-is if it is at least 1.25.7 —
-without the fix — or install fails outright with `go.mod requires go >=
-1.25.7` if it is older still; pin Go 1.27.1 or newer directly in a
-`GOTOOLCHAIN=local` environment to get the same fix. The analyzer
+Go 1.26.0 or newer is required to build: that is the `go` line in
+`go.mod`, which `golang.org/x/tools` v0.50.0 and its `golang.org/x/*`
+dependencies require. `go.mod` also names `toolchain go1.27.1`, because three
+published Go standard-library vulnerabilities reachable through
+`gnark-safety-vet` are fixed only in later releases (see
+[`CHANGELOG.md`](CHANGELOG.md)). With Go's default toolchain management
+(`GOTOOLCHAIN=auto`), any older `go` command therefore downloads and builds
+with Go 1.27.1. With `GOTOOLCHAIN=local` (common in CI) there is no
+download: Go 1.26.0 through 1.27.0 builds as-is, without that fix, and
+anything older fails with `go.mod requires go >= 1.26.0`. Pin Go 1.27.1 or
+newer directly in a `GOTOOLCHAIN=local` environment. The analyzer
 type-checks the packages you scan, so they must build, and their module
 dependencies must be downloadable or already in the module cache. It must
 also be built with a Go release at least as new as the `go` command on your
@@ -185,7 +185,7 @@ jobs:
 | `allow-partial` | `false` | Pass even when some requested packages failed to load and were not analyzed. |
 | `field` | `unknown` | Scalar field for bound checks: `unknown`, `bn254`, or `bls12-381`. |
 | `version` | empty | Release to `go install`, such as `v0.2.0`. Empty builds the analyzer from the action at the ref in `uses:`. |
-| `go-version` | `stable` | Go version for `actions/setup-go`. The analyzer is built and run with it, so it must be at least your module's `go` version (1.25.7); with the default `GOTOOLCHAIN=auto` the build then fetches the pinned `toolchain` version (1.27.1) automatically. Empty uses the Go already on `PATH`. |
+| `go-version` | `stable` | Go version for `actions/setup-go`. The analyzer is built and run with it, so it must be at least your module's `go` version and this module's (1.26.0). `setup-go` exports `GOTOOLCHAIN=local`, so no other toolchain is downloaded. Empty uses the Go already on `PATH`. |
 
 The action's outputs are `sarif-file` and `exit-code`. An upload runs whenever
 the scan completed, including when it failed the gate, so the findings that
@@ -319,7 +319,9 @@ full circuit review.
 | `cmd/reproduce`, `cmd/release-evidence`, [`evidence/`](evidence/README.md) | Reproducible evidence and signed-release bundles; see [`docs/releases.md`](docs/releases.md). |
 | `cmd/gnark-hint-scan` | Deprecated; use `gnark-safety inventory`. |
 
-Run the full suite with `GOTOOLCHAIN=go1.25.7 go test -count=1 ./...`.
+Run the full suite with `go test -count=1 ./...` (Go 1.27.1 under the
+default `GOTOOLCHAIN=auto`), or with `GOTOOLCHAIN=go1.26.0` to test the
+minimum.
 After changing a rule's metadata, run `go generate ./internal/rules` to
 regenerate the rule tables. A test fails until you do.
 

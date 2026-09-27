@@ -1,7 +1,8 @@
 # Reproduction evidence
 
 This directory retains concise output from the documented run. Regenerate it
-from the repository root with `GOTOOLCHAIN=go1.25.7 go run ./cmd/reproduce`.
+from the repository root with `go run ./cmd/reproduce`; `results.json` records
+the Go version that actually ran.
 The command runs the complete suite first and fails instead of publishing
 evidence if a required semantic behavior regresses.
 

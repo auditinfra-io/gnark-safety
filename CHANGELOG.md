@@ -47,13 +47,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and 1.25.13. They are reachable from `gnark-safety-vet` through
   `unitchecker`; `gnark-safety` and the other commands do not reach them.
   `govulncheck` in CI would have failed on them. `go.mod` now names `toolchain go1.27.1`, which CI's
-  analysis, fuzz, and canary jobs and the release workflow install; the
-  minimum Go version for `go install` stays 1.25.7, and the test matrix
-  still runs on it. CI's staticcheck moves from v0.6.1, which cannot read Go
+  analysis, fuzz, and canary jobs and the release workflow install. (The
+  minimum is now 1.26.0; see the next entry.) CI's staticcheck moves from v0.6.1, which cannot read Go
   1.27 export data, to v0.8.1. govulncheck moves from v1.1.4 to v1.8.0: the
   old release builds on x/tools v0.29, which predates Go 1.26, and on Go 1.27
   it crashed intermittently while building SSA. v1.8.0 reports the same
   advisories.
+- **The documented minimum Go version was wrong.** Updating
+  `golang.org/x/tools` to v0.50.0 raised `go.mod`'s `go` line to 1.26.0
+  (x/tools, x/mod, x/sync, and x/sys all require it), but the README, the
+  release notes, and the example's instructions still said 1.25.7, and the
+  README's test command, `GOTOOLCHAIN=go1.25.7 go test ./...`, failed with
+  `go.mod requires go >= 1.26.0`. The CI matrix's "1.25.7" leg would have
+  failed the same way at its first `go` command, because `actions/setup-go`
+  exports `GOTOOLCHAIN=local`. The leg now names 1.26.0, and the documentation
+  states 1.26.0. The README also said the Action's build "fetches the pinned
+  toolchain version (1.27.1) automatically"; under setup-go's
+  `GOTOOLCHAIN=local` it builds with exactly the `go-version` input.
 - **A `gnark-safety` binary failed with unexplained type errors when the
   `go` command on `PATH` was newer than the Go it was built with** (after a
   Go upgrade, say), even on code written for older Go: the analyzer
