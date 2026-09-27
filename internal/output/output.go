@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/auditinfra-io/gnark-safety/internal/rules"
 	"github.com/auditinfra-io/gnark-safety/pkg/report"
@@ -20,17 +21,29 @@ func JSON(w io.Writer, r report.Report) error {
 	return e.Encode(r)
 }
 
+// Text renders one line per finding and a footer that says what the result
+// does and does not mean, including when the scan was partial, so a report
+// saved with --output carries it too.
 func Text(w io.Writer, r report.Report) error {
 	for _, f := range r.Findings {
 		if _, err := fmt.Fprintf(w, "%s:%d:%d: %s [%s] %s\n", f.File, f.Line, f.Column, f.Severity, f.RuleID, f.Message); err != nil {
 			return err
 		}
 	}
+	var footer string
 	if len(r.Findings) == 0 {
-		_, err := fmt.Fprintln(w, "No findings.")
-		return err
+		footer = "No findings: no pattern these rules recognize matched. That is not evidence that the circuits are sound.\n"
+	} else {
+		footer = fmt.Sprintf("\n%d finding(s). Each is a lead for review, not a confirmed vulnerability; `gnark-safety explain <rule>` says what a rule checks and where it stops.\n", len(r.Findings))
 	}
-	_, err := fmt.Fprintf(w, "\n%d finding(s).\n", len(r.Findings))
+	if skipped := r.Coverage.Skipped; len(skipped) > 0 {
+		names := make([]string, len(skipped))
+		for i, s := range skipped {
+			names[i] = s.Package
+		}
+		footer += fmt.Sprintf("Partial scan: %d requested package(s) failed to load and were not analyzed: %s.\n", len(skipped), strings.Join(names, ", "))
+	}
+	_, err := io.WriteString(w, footer)
 	return err
 }
 

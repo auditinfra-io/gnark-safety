@@ -33,6 +33,8 @@ const (
 const maximumAnalyzedBitWidth = 4096
 
 var limitations = []string{
+	"No findings means that no pattern these rules recognize matched; it is not evidence that the circuits are sound.",
+	"A finding is a lead for review, not a confirmed vulnerability; its confidence, its evidence, and the rule's documented limitations say how far the rule can tell.",
 	"Analysis follows one level of unconditional direct local helper calls; deeper or recursive call graphs are not modeled.",
 	"Reflection, generated code, external helpers, complex aliasing, and dynamic hint selection are not modeled.",
 }
@@ -223,6 +225,7 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 		for _, skipped := range r.Coverage.Skipped {
 			r.Diagnostics = append(r.Diagnostics, fmt.Sprintf("package %s was not analyzed because it failed to load: %s", skipped.Package, skipped.Errors[0]))
 		}
+		r.Limitations = append(r.Limitations, fmt.Sprintf("Partial scan: %d requested package(s) failed to load and were not analyzed (see coverage.skipped), so findings in them are not reported.", len(r.Coverage.Skipped)))
 		if hint != "" {
 			r.Diagnostics = append(r.Diagnostics, hint)
 		}

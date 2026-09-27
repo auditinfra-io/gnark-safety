@@ -123,7 +123,7 @@ func TestSummaryLine(t *testing.T) {
 	if code := run([]string{"scan", "--format", "json", "--include-examples", "./examples/divmod"}, &out, &stderr, "../.."); code != 1 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
-	want := "gnark-safety: 1 finding(s) [1 high] in 1 file(s); scanned 1 package(s), 1 importing gnark; _test.go files excluded — fails (--fail-on high)\n"
+	want := "gnark-safety: 1 finding(s) [1 high] in 1 file(s); scanned 1 package(s), 1 importing gnark; 1 hint call(s), 1 in the quotient/remainder shape; _test.go files excluded — fails (--fail-on high)\n"
 	if stderr.String() != want {
 		t.Fatalf("summary\n got %q\nwant %q", stderr.String(), want)
 	}
@@ -158,6 +158,18 @@ func TestPartialScanIsNotAPass(t *testing.T) {
 	var r report.Report
 	if err := json.Unmarshal(out.Bytes(), &r); err != nil || len(r.Findings) != 1 || len(r.Coverage.Skipped) != 1 {
 		t.Fatalf("the partial report was not written: %v %s", err, out.String())
+	}
+	if !strings.Contains(strings.Join(r.Limitations, "\n"), "Partial scan: 1 requested package(s)") {
+		t.Fatalf("the JSON report must say it is partial: %q", r.Limitations)
+	}
+	// A text report saved with --output carries the partial-scan notice too,
+	// not only the stderr summary.
+	saved := filepath.Join(t.TempDir(), "report.txt")
+	if code := run([]string{"scan", "--fail-on", "none", "--output", saved, good, broken}, &out, &stderr, "../.."); code != 2 {
+		t.Fatalf("text exit %d", code)
+	}
+	if content, err := os.ReadFile(saved); err != nil || !strings.Contains(string(content), "Partial scan: 1 requested package(s) failed to load and were not analyzed: ") {
+		t.Fatalf("saved text report does not say it is partial: %q %v", content, err)
 	}
 	out.Reset()
 	stderr.Reset()

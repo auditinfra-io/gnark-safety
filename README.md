@@ -53,8 +53,8 @@ bound and stays quiet about the corrected one:
 $ gnark-safety scan --include-examples ./examples/divmod
 examples/divmod/circuits.go:44:26: high [GNARK_HINT_RELATION_INCOMPLETE] This call passes enforceCanonicalRemainder=false to constrainDivision, which then skips the canonical remainder bound r < d on its hint outputs.
 
-1 finding(s).
-gnark-safety: 1 finding(s) [1 high] in 1 file(s); scanned 1 package(s), 1 importing gnark; _test.go files excluded — fails (--fail-on high)
+1 finding(s). Each is a lead for review, not a confirmed vulnerability; `gnark-safety explain <rule>` says what a rule checks and where it stops.
+gnark-safety: 1 finding(s) [1 high] in 1 file(s); scanned 1 package(s), 1 importing gnark; 1 hint call(s), 1 in the quotient/remainder shape; _test.go files excluded — fails (--fail-on high)
 $ echo $?
 1
 ```
@@ -72,8 +72,8 @@ repository's own samples cannot fail its build:
 $ gnark-safety scan ./examples/divmod
 examples/divmod/circuits.go:44:26: low [GNARK_HINT_RELATION_INCOMPLETE] This call passes enforceCanonicalRemainder=false to constrainDivision, which then skips the canonical remainder bound r < d on its hint outputs.
 
-1 finding(s).
-gnark-safety: 1 finding(s) [1 low] in 1 file(s); scanned 1 package(s), 1 importing gnark; 1 downgraded as example code; _test.go files excluded — passes (--fail-on high)
+1 finding(s). Each is a lead for review, not a confirmed vulnerability; `gnark-safety explain <rule>` says what a rule checks and where it stops.
+gnark-safety: 1 finding(s) [1 low] in 1 file(s); scanned 1 package(s), 1 importing gnark; 1 hint call(s), 1 in the quotient/remainder shape; 1 downgraded as example code; _test.go files excluded — passes (--fail-on high)
 $ echo $?
 0
 ```

@@ -38,6 +38,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `q*d + r` can exceed the field modulus. The rule still does not report
   that case, and the `field_safety` invariant now names the values with no
   recognized range check.
+- **Reports did not say what a result means.** A scan with no findings
+  printed only "No findings.", and a partial scan said so only on stderr, so
+  a report saved with `--output` looked complete and clean. The text report
+  now says that no findings is not evidence of soundness, that a finding is
+  a lead rather than a confirmed vulnerability, and, for a partial scan,
+  which packages were not analyzed. The JSON report's `limitations` say the
+  same. The stderr summary also counts hint calls and how many are in the
+  quotient/remainder shape that `GNARK_HINT_RELATION_INCOMPLETE` checks, so
+  a quiet scan of code the rule cannot read is visible. Exit codes are
+  unchanged.
 - **Precision on application code.** A first scan of 11 public gnark
   application repositories (12 modules, 486 packages) reported 6 high and 10
   medium findings, none of them bugs. Reading each one led to these fixes,

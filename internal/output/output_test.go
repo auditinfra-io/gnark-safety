@@ -84,14 +84,19 @@ func TestSARIFUnregisteredRuleGetsEntry(t *testing.T) {
 
 func TestTextOutput(t *testing.T) {
 	var buffer bytes.Buffer
-	if err := Text(&buffer, report.Report{}); err != nil || buffer.String() != "No findings.\n" {
+	if err := Text(&buffer, report.Report{}); err != nil || !strings.HasPrefix(buffer.String(), "No findings: ") || !strings.Contains(buffer.String(), "not evidence that the circuits are sound") {
 		t.Fatalf("empty report rendered %q, %v", buffer.String(), err)
+	}
+	buffer.Reset()
+	partial := report.Report{Coverage: report.Coverage{Skipped: []report.SkippedPackage{{Package: "example.com/m/wasm", Errors: []string{"x"}}}}}
+	if err := Text(&buffer, partial); err != nil || !strings.Contains(buffer.String(), "Partial scan: 1 requested package(s) failed to load and were not analyzed: example.com/m/wasm.") {
+		t.Fatalf("a partial scan must say so in the report itself: %q, %v", buffer.String(), err)
 	}
 	buffer.Reset()
 	if err := Text(&buffer, report.Report{Findings: []report.Finding{{RuleID: rules.HintRelationIncomplete, Severity: report.SeverityHigh, File: "a.go", Line: 1, Column: 2, Message: "m"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(buffer.String(), "a.go:1:2: high [GNARK_HINT_RELATION_INCOMPLETE] m\n") {
+	if !strings.HasPrefix(buffer.String(), "a.go:1:2: high [GNARK_HINT_RELATION_INCOMPLETE] m\n") || !strings.Contains(buffer.String(), "not a confirmed vulnerability") {
 		t.Fatalf("unexpected text: %q", buffer.String())
 	}
 }

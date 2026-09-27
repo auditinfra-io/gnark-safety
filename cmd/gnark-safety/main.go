@@ -202,8 +202,9 @@ func hasFindingAtOrAbove(r report.Report, threshold report.Severity) bool {
 	return false
 }
 
-// summary is the one-line stderr verdict. It always states coverage so a
-// quiet scan is never silently quiet.
+// summary is the one-line stderr verdict. It always states coverage, including
+// how many hints the relation rule could check, so a quiet scan is never
+// silently quiet.
 func summary(r report.Report, failOn string, fails, incomplete bool) string {
 	verdict := "passes"
 	switch {
@@ -213,7 +214,21 @@ func summary(r report.Report, failOn string, fails, incomplete bool) string {
 		verdict = "incomplete"
 	}
 	c := r.Coverage
-	notes := []string{fmt.Sprintf("scanned %d package(s), %d importing gnark", c.Packages, c.GnarkPackages)}
+	// A hint in the quotient/remainder shape is the only kind
+	// GNARK_HINT_RELATION_INCOMPLETE checks; the others go unchecked by it.
+	shaped := 0
+	for _, h := range r.Hints {
+		for _, invariant := range h.Invariants {
+			if invariant.Kind == "canonicality" && invariant.Status != report.InvariantUnknown {
+				shaped++
+				break
+			}
+		}
+	}
+	notes := []string{
+		fmt.Sprintf("scanned %d package(s), %d importing gnark", c.Packages, c.GnarkPackages),
+		fmt.Sprintf("%d hint call(s), %d in the quotient/remainder shape", len(r.Hints), shaped),
+	}
 	if c.ExamplesDowngraded > 0 {
 		notes = append(notes, fmt.Sprintf("%d downgraded as example code", c.ExamplesDowngraded))
 	}
