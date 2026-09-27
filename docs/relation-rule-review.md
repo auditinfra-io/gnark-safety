@@ -131,6 +131,7 @@ Euclidean division of 8-bit values unless the case says otherwise.
 | 7a | Comparator `r < d` without a range check of `r` | accept `q=4, r=p−3` (that is, −3) for 17 ÷ 5 (unsound) | **quiet: false negative** | high, high confidence, "no range check of r" |
 | 7b | `0 <= r < d` enforced, but no range check of `q` | accept `r=0, q=17·5⁻¹ mod p` (unsound) | quiet | quiet (known limitation); `field_safety` now names `q` |
 | 8 | Signed-digit hint, `r` in `[−8, 8)`, enforced by `ToBinary(r+8, 4)` | accept honest witnesses including negative `r`; reject the Euclidean `q=1, r=9` for 25. Adding `r <= 15` rejects the honest `q=2, r=−7` | high, unqualified: false positive by intent | high, medium confidence, "r is used in api.Add" |
+| 9 | Divisor `big62*4 + 5` from package-level `int` arithmetic, which Go wraps to 5; bound `r <= 100` (added after review) | accept `q=2, r=7` for 17 ÷ 5 (unsound) | **quiet: false negative** (took `d` as 2^64+5) | high, medium confidence, "could not relate to d" |
 
 ## Corrections made
 
@@ -148,6 +149,15 @@ Euclidean division of 8-bit values unless the case says otherwise.
 - A negative constant bound no longer counts: gnark encodes `-1` as `p − 1`.
 - The comparator's `AssertIsLessEq(r, api.Sub(d, 1))` is recognized
   (case 3a).
+- A compile-time value counts only if the circuit sees the same number
+  (case 9, found while addressing review). Arithmetic on Go variables must
+  not overflow its type, and a constant must be below the field modulus:
+  the one given with `--field`, or 2^240 without it. A divisor at or above
+  the modulus is reduced by it, so its integer value proves nothing. No
+  circuit can reach that last case today (gnark accepts constants only as
+  64-bit integers, `*big.Int`, or strings, and the evaluator reads no
+  string), so it is guarded by corpus fixtures and a unit test rather than
+  by an executable circuit.
 - Findings no longer say the bound "is not constrained". They say no bound
   was recognized. When `r` reaches code the rule does not read, they add
   "Not confirmed:" with the first such use, list up to three in the

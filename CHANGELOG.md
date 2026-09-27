@@ -22,7 +22,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     nonzero `d`, and is otherwise reported at medium confidence.
 
   Negative constant bounds, which gnark encodes near the field modulus, no
-  longer count. The comparator's `AssertIsLessEq(r, api.Sub(d, 1))`, the
+  longer count. Nor does a compile-time value the circuit does not see:
+  package-level `int` arithmetic that overflows (a divisor of
+  `big62*4 + 5` is 5 at run time, not 2^64 + 5, and the rule accepted
+  `r <= 100` for it), or a constant at or above the field modulus, which
+  the field reduces. Without `--field`, constants must be below 2^240. The comparator's `AssertIsLessEq(r, api.Sub(d, 1))`, the
   same constraint as `AssertIsLess(r, d)`, is now recognized instead of
   reported. Five fixtures that pinned the unsound shapes as safe now include
   the missing check, and the unsound shapes are kept as reported cases.

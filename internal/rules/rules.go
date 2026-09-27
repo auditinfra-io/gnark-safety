@@ -86,8 +86,10 @@ var specs = []Spec{
 			"nonzero `d`, because when `d = 0`, `d - 1` is the largest field element. Indexed outputs may use literals, named " +
 			"constants, constant expressions, or local aliases. Comparisons with the wrong operand order or a different bound do " +
 			"not count. When `d` is known at compile time (a constant, `math.Pow(2, k)`, or an unexported package-level " +
-			"`*big.Int` built from a constant that nothing in the package changes), a bound is also accepted when its value " +
-			"proves `r < d`: a non-negative constant bound such as `AssertIsLessOrEqual(r, lanes-1)`, a range check of `r` " +
+			"`*big.Int` built from a constant that nothing in the package changes) and the circuit sees that same number, a " +
+			"bound is also accepted when its value proves `r < d`. The circuit sees the same number only if Go computes it " +
+			"without overflow in its type and it is below the field modulus, which the rule checks against `--field` or, " +
+			"without it, by requiring constants below 2^240; a larger constant wraps around the field. Such bounds are: a non-negative constant bound such as `AssertIsLessOrEqual(r, lanes-1)`, a range check of `r` " +
 			"(`api.ToBinary` or a range checker's `Check`), or range-checked limbs that `r` is rebuilt from, `r = hi*2^b + lo`, " +
 			"including the check that forces `lo` to zero when `hi` is all ones (how emulated KoalaBear, BabyBear, and " +
 			"Goldilocks code proves `r < p`). A range check counts when it runs unconditionally or in every branch of an " +
@@ -121,8 +123,9 @@ var specs = []Spec{
 			"rule reports the hint anyway, so such a finding can be a false positive. Only `AssertIsDifferent(d, 0)` in the " +
 			"function or in the helper that bounds `r` counts as proof that `d != 0`. Any arithmetic argument for canonicality " +
 			"other than those in the description is not recognized and fails the same way. A range check in a switch, or " +
-			"deferred to a later batch (a commit-based range checker's collected checks), is not seen. Value-based evidence, " +
-			"and the range check of `r` that a comparator needs (at most 240 bits), assume a pairing-friendly scalar field such " +
+			"deferred to a later batch (a commit-based range checker's collected checks), is not seen. Without `--field`, " +
+			"value-based evidence (constants below 2^240) and the range check of `r` that a comparator needs (at most 240 bits) " +
+			"assume a pairing-friendly scalar field such " +
 			"as BN254 or BLS12-381; on a small field such as BabyBear they are not sufficient. Limb reconstructions wider than 240 " +
 			"bits are ignored. An `if err == nil` block " +
 			"counts as unconditional on the assumption that callers propagate the error. Algebraically neutral wrappers such as " +

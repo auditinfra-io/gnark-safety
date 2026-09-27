@@ -482,7 +482,7 @@ func inspectFile(ctx context.Context, r *report.Report, p *packages.Package, fil
 				}
 			}
 			if h.OutputCount != nil && *h.OutputCount == 2 {
-				r.Findings = append(r.Findings, relationFindings(p, fset, dir, fn, call, h, helpers)...)
+				r.Findings = append(r.Findings, relationFindings(p, fset, dir, fn, call, h, helpers, opts.FieldModulus)...)
 			}
 			return true
 		})
@@ -501,7 +501,7 @@ func unusedOutputs(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info
 	if outputCount <= 0 || outputCount > defaultMaxHints {
 		return nil
 	}
-	relation := analyzeRelation(body, hintCall, info, nil)
+	relation := analyzeRelation(body, hintCall, info, nil, nil)
 	if relation.outputs == nil {
 		return nil
 	}
@@ -621,7 +621,7 @@ func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.I
 	if outputCount != 2 {
 		return unknownInvariants(outputCount, "unsupported output count")
 	}
-	relation := analyzeRelation(body, hintCall, info, helpers)
+	relation := analyzeRelation(body, hintCall, info, helpers, opts.FieldModulus)
 	if relation.outputs == nil || relation.divisor == nil {
 		return unknownInvariants(outputCount, "recognized quotient/remainder reconstruction not found")
 	}
@@ -706,15 +706,17 @@ type relationAnalysis struct {
 	aliases        map[types.Object]int
 	divisor        ast.Expr
 	reconstruction *ast.CallExpr
-	hasBound       bool
-	boundEvidence  string
+	// field is the configured compilation field's modulus, or nil.
+	field         *big.Int
+	hasBound      bool
+	boundEvidence string
 	// boundGap explains a bound on r that was recognized but does not prove
 	// r < d, because a precondition it depends on was not recognized.
 	boundGap string
 }
 
-func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, helpers map[*types.Func]*ast.FuncDecl) relationAnalysis {
-	result := relationAnalysis{aliases: map[types.Object]int{}}
+func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, field *big.Int) relationAnalysis {
+	result := relationAnalysis{aliases: map[types.Object]int{}, field: field}
 	var outputs types.Object
 	ast.Inspect(body, func(n ast.Node) bool {
 		as, ok := n.(*ast.AssignStmt)
@@ -772,7 +774,7 @@ func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.In
 	if result.divisor == nil {
 		return result
 	}
-	bound := boundWithin(body, body, info, helpers, outputs, aliases, result.divisor)
+	bound := boundWithin(body, body, info, helpers, outputs, aliases, result.divisor, field)
 	result.hasBound, result.boundEvidence, result.boundGap = bound.found, bound.evidence, bound.gap
 	return result
 }
@@ -797,11 +799,15 @@ type boundCheck struct {
 // "Unconditionally" is relative to scope, so callers can ask about the body
 // of a branch; body is the whole function, whose unconditional range checks
 // of r and d != 0 assertions also count as preconditions.
-func boundWithin(scope, body *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, outputs types.Object, aliases map[types.Object]int, divisor ast.Expr) boundCheck {
+//
+// Value-based evidence uses only constants the circuit sees unchanged
+// (fieldConstant): field is the configured modulus, or nil for the
+// pairing-friendly-field assumption, which the evidence then states.
+func boundWithin(scope, body *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, outputs types.Object, aliases map[types.Object]int, divisor ast.Expr, field *big.Int) boundCheck {
 	var result boundCheck
 	ev := newEvaluator(info, helpers)
-	d := ev.value(divisor)
-	if d != nil && d.Sign() <= 0 {
+	d := fieldConstant(ev, divisor, field)
+	if d != nil && d.Sign() == 0 {
 		d = nil
 	}
 	isRemainder := func(e ast.Expr) bool { return outputIndex(info, e, outputs, aliases) == 1 }
@@ -812,7 +818,7 @@ func boundWithin(scope, body *ast.BlockStmt, info *types.Info, helpers map[*type
 		if !ok || result.found || len(call.Args) != 2 || !isRemainder(call.Args[0]) || conditionallyExecuted(scope, call) {
 			return !result.found
 		}
-		evidence, comparator, needsNonzero := remainderComparison(info, ev, call, divisor, d)
+		evidence, comparator, needsNonzero := remainderComparison(info, ev, call, divisor, d, field)
 		switch {
 		case evidence == "":
 		case comparator && !ranged:
@@ -832,12 +838,12 @@ func boundWithin(scope, body *ast.BlockStmt, info *types.Info, helpers map[*type
 	}
 	if !result.found && d != nil {
 		if maximum, how := remainderMaximum(scope, ev, helpers, outputs, aliases); maximum != nil && maximum.Cmp(d) < 0 {
-			result = boundCheck{found: true, evidence: fmt.Sprintf("%s: r <= %s, and d = %s", how, maximum, d)}
+			result = boundCheck{found: true, evidence: fmt.Sprintf("%s: r <= %s, and d = %s%s", how, maximum, d, fieldAssumption(field))}
 		}
 	}
 	if !result.found {
 		for _, guarded := range successGuards(scope, info, helpers) {
-			if inner := boundWithin(guarded, body, info, helpers, outputs, aliases, divisor); inner.found {
+			if inner := boundWithin(guarded, body, info, helpers, outputs, aliases, divisor, field); inner.found {
 				result = inner
 				result.evidence += "; inside an if err == nil block whose other path returns the error"
 				break
@@ -856,7 +862,7 @@ func boundWithin(scope, body *ast.BlockStmt, info *types.Info, helpers map[*type
 // the full-field comparison, which proves it only when d != 0. A bounded
 // comparator's AssertIsLess(a, b) is AssertIsLessEq(a, b-1), so both forms
 // are the same constraint.
-func remainderComparison(info *types.Info, ev *evaluator, call *ast.CallExpr, divisor ast.Expr, d *big.Int) (evidence string, comparator, needsNonzero bool) {
+func remainderComparison(info *types.Info, ev *evaluator, call *ast.CallExpr, divisor ast.Expr, d, field *big.Int) (evidence string, comparator, needsNonzero bool) {
 	less, lessEq := isComparatorCall(info, call, "AssertIsLess"), isComparatorCall(info, call, "AssertIsLessEq")
 	fullField := isFrontendCall(info, call, "AssertIsLessOrEqual")
 	bound := call.Args[1]
@@ -868,17 +874,27 @@ func remainderComparison(info *types.Info, ev *evaluator, call *ast.CallExpr, di
 	case fullField && oneLessThan(info, bound, divisor):
 		return "equivalent constraint: r <= d-1", false, true
 	}
-	// A constant bound below a constant divisor. Negative constants are
-	// field elements near p, so they bound nothing.
-	value := ev.value(bound)
+	// A constant bound below a constant divisor, both as the circuit sees
+	// them. Negative constants are field elements near p, so they bound
+	// nothing.
+	value := fieldConstant(ev, bound, field)
 	switch {
 	case value == nil || d == nil:
 	case less && value.Sign() > 0 && value.Cmp(d) <= 0:
-		return fmt.Sprintf("constraint: r < %s, and d = %s", value, d), true, false
-	case (lessEq || fullField) && value.Sign() >= 0 && value.Cmp(d) < 0:
-		return fmt.Sprintf("constraint: r <= %s, and d = %s", value, d), lessEq, false
+		return fmt.Sprintf("constraint: r < %s, and d = %s%s", value, d, fieldAssumption(field)), true, false
+	case (lessEq || fullField) && value.Cmp(d) < 0:
+		return fmt.Sprintf("constraint: r <= %s, and d = %s%s", value, d, fieldAssumption(field)), lessEq, false
 	}
 	return "", false, false
+}
+
+// fieldAssumption qualifies value-based evidence obtained without a
+// configured field.
+func fieldAssumption(field *big.Int) string {
+	if field != nil {
+		return ""
+	}
+	return " (constants below 2^240, assuming a field modulus above that, as in BN254 and BLS12-381; --field checks it)"
 }
 
 // remainderRanged reports whether one of scopes unconditionally

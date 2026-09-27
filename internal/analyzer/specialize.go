@@ -6,6 +6,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"math/big"
 
 	"github.com/auditinfra-io/gnark-safety/pkg/report"
 	"golang.org/x/tools/go/packages"
@@ -46,9 +47,9 @@ type guardSite struct {
 // function is a direct package-local call with a constant guard argument,
 // the finding moves to each call that disables the bound, and calls that
 // enable it are quiet. Otherwise the finding stays at the hint.
-func relationFindings(p *packages.Package, fset *token.FileSet, dir string, fn *ast.FuncDecl, hintCall *ast.CallExpr, h report.Hint, helpers map[*types.Func]*ast.FuncDecl) []report.Finding {
+func relationFindings(p *packages.Package, fset *token.FileSet, dir string, fn *ast.FuncDecl, hintCall *ast.CallExpr, h report.Hint, helpers map[*types.Func]*ast.FuncDecl, field *big.Int) []report.Finding {
 	info := p.TypesInfo
-	relation := analyzeRelation(fn.Body, hintCall, info, helpers)
+	relation := analyzeRelation(fn.Body, hintCall, info, helpers, field)
 	if relation.divisor == nil || relation.hasBound {
 		return nil
 	}
@@ -156,10 +157,10 @@ func findGuard(fn *ast.FuncDecl, relation relationAnalysis, info *types.Info, he
 		if !ok || (sig.Variadic() && index == sig.Params().Len()-1) || !isBool(param.Type()) || mutated(fn.Body, param, info) {
 			return true
 		}
-		if boundWithin(stmt.Body, fn.Body, info, helpers, relation.outputs, relation.aliases, relation.divisor).found {
+		if boundWithin(stmt.Body, fn.Body, info, helpers, relation.outputs, relation.aliases, relation.divisor, relation.field).found {
 			guard = &boundGuard{param: param, index: index, enforcedWhen: !negated, stmt: stmt}
 		} else if elseBlock, ok := stmt.Else.(*ast.BlockStmt); ok {
-			if boundWithin(elseBlock, fn.Body, info, helpers, relation.outputs, relation.aliases, relation.divisor).found {
+			if boundWithin(elseBlock, fn.Body, info, helpers, relation.outputs, relation.aliases, relation.divisor, relation.field).found {
 				guard = &boundGuard{param: param, index: index, enforcedWhen: negated, stmt: stmt}
 			}
 		}

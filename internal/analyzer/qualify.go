@@ -21,8 +21,8 @@ const maxQualifiers = 3
 // reads.
 func remainderQualifiers(fset *token.FileSet, body *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, relation relationAnalysis, skip ast.Node) []string {
 	ev := newEvaluator(info, helpers)
-	d := ev.value(relation.divisor)
-	if d != nil && d.Sign() <= 0 {
+	d := fieldConstant(ev, relation.divisor, relation.field)
+	if d != nil && d.Sign() == 0 {
 		d = nil
 	}
 	guarded := successGuards(body, info, helpers)
@@ -71,10 +71,10 @@ func remainderQualifiers(fset *token.FileSet, body *ast.BlockStmt, info *types.I
 				return constrainedBy
 			case mayNotRun(call):
 				return fmt.Sprintf("a comparison of r at line %d may not run", line(call))
-			case len(call.Args) == 2 && d != nil && ev.value(call.Args[1]) != nil:
+			case len(call.Args) == 2 && d != nil && fieldConstant(ev, call.Args[1], relation.field) != nil:
 				return "" // compared with a known value: the rule evaluated it
 			}
-			if evidence, _, _ := remainderComparison(info, ev, call, relation.divisor, d); evidence != "" {
+			if evidence, _, _ := remainderComparison(info, ev, call, relation.divisor, d, relation.field); evidence != "" {
 				return "" // a bound whose missing precondition the finding names
 			}
 			return fmt.Sprintf("r is compared at line %d with a bound this rule could not relate to d", line(call))

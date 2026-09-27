@@ -357,6 +357,29 @@ func (c *chSignedDigitEuclidean) Define(api frontend.API) error {
 	return nil
 }
 
+var chBig62 = 1 << 62
+
+// chWrappedDivisor is 5 at run time: Go computes chBig62*4 in int64, which
+// wraps to 0. An evaluator that ignores the wraparound sees 2^64 + 5.
+var chWrappedDivisor = chBig62*4 + 5
+
+// chWrappedBound bounds r <= 100, which would prove r < d only if d were the
+// 2^64 + 5 that exact integer arithmetic gives.
+type chWrappedBound struct{ N frontend.Variable }
+
+func (c *chWrappedBound) Define(api frontend.API) error {
+	out, err := api.Compiler().NewHint(chDivHint, 2, c.N, chWrappedDivisor)
+	if err != nil {
+		return err
+	}
+	q, r := out[0], out[1]
+	api.ToBinary(c.N, 8)
+	api.ToBinary(q, 8)
+	api.AssertIsLessOrEqual(r, 100)
+	api.AssertIsEqual(c.N, api.Add(api.Mul(q, chWrappedDivisor), r))
+	return nil
+}
+
 func TestRelationChallengeConstraints(t *testing.T) {
 	q2, r7 := big.NewInt(2), big.NewInt(7) // 17 = 2*5 + 7: reconstructs, but 7 >= 5
 
@@ -415,6 +438,14 @@ func TestRelationChallengeConstraints(t *testing.T) {
 		requireRejects(t, &chSignedDigit{}, &chSignedDigit{N: 25}, chSignedDigitHint, big.NewInt(1), big.NewInt(9))
 		requireRejects(t, &chSignedDigitEuclidean{}, &chSignedDigitEuclidean{N: 25}, chSignedDigitHint, big.NewInt(2), fieldValue(-7))
 	})
+	t.Run("9 wrapped constant divisor: d is 5 at run time, so r <= 100 accepts 2 remainder 7", func(t *testing.T) {
+		// Only comparisons read the divisor here: passing it to other code
+		// would make the analyzer stop trusting its value altogether.
+		if chWrappedDivisor != 5 {
+			t.Fatal("the divisor does not wrap to 5 at run time")
+		}
+		requireAccepts(t, &chWrappedBound{}, &chWrappedBound{N: 17}, chDivHint, q2, r7)
+	})
 }
 
 // wantFinding is the rule's expected verdict on one function.
@@ -458,6 +489,8 @@ func TestRelationChallengeScanner(t *testing.T) {
 		// The quotient's range is reported through field_safety below.
 		"(*chQuotientUnranged).Define": {},
 		"(*chSignedDigit).Define":      {"medium", "whose result this rule does not follow"},
+		// The divisor's value is not trusted, so r <= 100 is not evidence.
+		"(*chWrappedBound).Define": {"medium", "could not relate to d"},
 	} {
 		f, reported := got[function]
 		switch {

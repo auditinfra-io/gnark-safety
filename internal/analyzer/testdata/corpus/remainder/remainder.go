@@ -173,3 +173,38 @@ func (c *chip) check(v frontend.Variable, bits int) {
 		c.checker.Check(v, bits)
 	}
 }
+
+// powerDivisor divides by 2^254, at or above BN254's modulus, where it wraps
+// to 2^254 - p, so an 8-bit r proves nothing about r < d. (gnark rejects a
+// float64 constant; the shape stands for any divisor the field reduces.)
+// Reported.
+func powerDivisor(api frontend.API, x frontend.Variable) frontend.Variable {
+	out, _ := api.Compiler().NewHint(divModHint, 2, x, math.Pow(2, 254)) // want GNARK_HINT_RELATION_INCOMPLETE:high
+	api.ToBinary(out[1], 8)
+	api.AssertIsEqual(x, api.Add(api.Mul(out[0], math.Pow(2, 254)), out[1]))
+	return out[0]
+}
+
+// largeDivisor divides by 2^250: below the BN254 and BLS12-381 moduli, but
+// above the 2^240 a scan trusts without --field. Reported unless the field
+// is configured.
+func largeDivisor(api frontend.API, x frontend.Variable) frontend.Variable {
+	out, _ := api.Compiler().NewHint(divModHint, 2, x, math.Pow(2, 250)) // want GNARK_HINT_RELATION_INCOMPLETE:high
+	api.ToBinary(out[1], 8)
+	api.AssertIsEqual(x, api.Add(api.Mul(out[0], math.Pow(2, 250)), out[1]))
+	return out[0]
+}
+
+var big62 = 1 << 62
+
+// wrappedDivisor is 5 at run time: Go computes big62*4 in int64, which
+// wraps to 0.
+var wrappedDivisor = big62*4 + 5
+
+// wrappedBound bounds r <= 100, which is not below d = 5: reported.
+func wrappedBound(api frontend.API, x frontend.Variable) frontend.Variable {
+	out, _ := api.Compiler().NewHint(divModHint, 2, x, wrappedDivisor) // want GNARK_HINT_RELATION_INCOMPLETE:high
+	api.AssertIsLessOrEqual(out[1], 100)
+	api.AssertIsEqual(x, api.Add(api.Mul(out[0], wrappedDivisor), out[1]))
+	return out[0]
+}
