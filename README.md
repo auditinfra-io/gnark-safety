@@ -12,7 +12,9 @@ never constrained, a dishonest prover can supply a different value that still
 passes. `gnark-safety` loads your packages with full Go type information,
 reports hint outputs whose constraints look incomplete, and checks ten other
 patterns listed under [Rules](#rules). It is the gnark counterpart of
-[o1js-scan](https://github.com/auditinfra-io/o1js-scan).
+[o1js-scan](https://github.com/auditinfra-io/o1js-scan) (o1js / Noir); see
+also [vk-guard](https://github.com/auditinfra-io/vk-guard) (verification-key
+regression).
 
 ## Status
 
