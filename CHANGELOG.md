@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-27
+
+The same code as 0.1.0. The v0.1.0 tag was cut before this file had a
+0.1.0 section, so the release workflow stopped at its preflight check and
+published no binaries or evidence. 0.1.1 is the first release with them.
+
+## [0.1.0] - 2026-09-27
+
+The first tagged release.
+
 ### Fixed
 
 - **`GNARK_HINT_RELATION_INCOMPLETE` accepted bounds that do not bound the

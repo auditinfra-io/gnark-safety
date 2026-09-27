@@ -16,7 +16,7 @@ patterns listed under [Rules](#rules). It is the gnark counterpart of
 
 ## Status
 
-- **Experimental.** The project is pre-1.0 and no release has been tagged.
+- **Experimental.** The project is pre-1.0; its first release is v0.1.0.
   Rules, messages, and the report schema may change. Nothing here has been
   independently audited.
 - **AI-assisted.** Much of the code, tests, and documentation was written
@@ -53,14 +53,14 @@ go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@latest
 gnark-safety --version
 ```
 
-No release has been tagged, so `@latest` installs the newest commit on the
-default branch, and `--version` prints a pseudo-version such as
-`v0.0.0-20260927122302-f6cf9fd8d1db` whose last part names that commit. To
-use a particular checkout instead, run `go build -o gnark-safety
-./cmd/gnark-safety` in it; `--version` then names the checked-out commit,
-with `+dirty` if the tree has uncommitted changes. (`go run` reports only
-`devel`.) The release workflow is set up to publish prebuilt archives for
-Linux, macOS, and Windows once a release is tagged; see
+`@latest` installs the newest tagged release, and `--version` prints its
+tag. To use a particular checkout instead, run `go build -o gnark-safety
+./cmd/gnark-safety` in it; `--version` then prints a pseudo-version such as
+`v0.0.0-20260927122302-f6cf9fd8d1db` whose last part names the commit, with
+`+dirty` if the tree has uncommitted changes. (`go run` reports only
+`devel`.) Releases from v0.1.1 on also publish prebuilt archives for Linux,
+macOS, and Windows on the
+[releases page](https://github.com/auditinfra-io/gnark-safety/releases); see
 [`docs/releases.md`](docs/releases.md). CI can use the
 [GitHub Action](#github-action) instead.
 
@@ -443,7 +443,7 @@ regenerate the rule tables. A test fails until you do.
   breadth, and public calibration.
 - The release workflow is set up to attach an SPDX SBOM, SARIF, source
   hashes, toolchain metadata, and retained test output to each tagged
-  release. No release has been tagged yet.
+  release, from v0.1.1 on.
 
 ## License
 
