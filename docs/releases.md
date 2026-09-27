@@ -3,7 +3,8 @@
 Tagged releases publish prebuilt `gnark-safety` archives for Linux, macOS, and
 Windows on amd64 and arm64, and `gnark-safety-release-evidence.tar.gz`. Both
 are generated from the tagged source by
-`.github/workflows/release-evidence.yml`.
+`.github/workflows/release-evidence.yml`. No release has been tagged yet, so
+none of these exist so far.
 
 Each archive (`gnark-safety_X.Y.Z_<os>_<arch>.tar.gz`, or `.zip` on Windows)
 contains the binary, `LICENSE`, `README.md`, and `CHANGELOG.md`.

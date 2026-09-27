@@ -12,9 +12,10 @@ go run ./internal/canary/check -snapshot canary/gnark-std-v0.16.3.json -report /
 The script scans `github.com/consensys/gnark/std/...` in a throwaway module
 that requires only gnark, with paths relative to the gnark module root. The
 check fails if the scan has a finding the snapshot does not classify, or the
-snapshot lists one the scan no longer produces. CI runs both pinned versions
-on every change (the `canary` job), and a weekly workflow scans gnark's
-`master` branch against the latest snapshot, ignoring line numbers.
+snapshot lists one the scan no longer produces. The CI workflow is set up to
+run both pinned versions on every change (the `canary` job), and a weekly
+workflow to scan gnark's `master` branch against the latest snapshot,
+ignoring line numbers.
 
 ## Classifications
 
@@ -36,6 +37,11 @@ permanent.
 |---|---:|---:|---:|---:|---|
 | v0.15.0 | 68 | 207 | 2 | 0 | 2 intended |
 | v0.16.3 | 70 | 223 | 2 | 0 | 2 intended |
+
+`std/` has no hint in the quotient/remainder shape that
+`GNARK_HINT_RELATION_INCOMPLETE` checks, so the canary exercises that rule
+not at all; its evidence is the synthetic corpus and the challenge cases in
+[`docs/relation-rule-review.md`](../docs/relation-rule-review.md).
 
 Both releases produce the same two findings: `GNARK_BITS_OMIT_MODULUS_CHECK` in
 `MarshalG1` for BLS12-377 and Grumpkin, which skip the modulus check unless the
