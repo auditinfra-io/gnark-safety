@@ -104,5 +104,72 @@ present, or the reconstruction shape was not recognized at all".
 
 ## Challenge cases
 
-The next commit adds executable challenge cases for each assumption above,
-the case table, and the corrections they led to.
+Each case is an executable test in
+[`internal/witness/relation_challenge_test.go`](../internal/witness/relation_challenge_test.go).
+`TestRelationChallengeConstraints` compiles each circuit for BN254, solves
+it with an honest hint and with adversarial advice substituted through
+`solver.OverrideHint`, and checks whether the witness is accepted or
+rejected. A rejection only counts when the substituted hint ran to
+completion and the error is an unsatisfied constraint, so a compilation,
+hint, or setup failure cannot pass for one. `TestRelationChallengeScanner`
+checks what the rule reports on the same code.
+
+"Constraints" is what solving established. The intended property is
+Euclidean division of 8-bit values unless the case says otherwise.
+
+| # | Case | Constraints | Rule at `f6cf9fd` | Rule now |
+|---|---|---|---|---|
+| 1 | `examples/divmod`: no `r < d` | accept `q=2, r=7` for 17 ÷ 5 (unsound); the corrected circuit rejects it | high, at the caller that passes `false` | unchanged |
+| 2 | Valid correction: range checks and a comparator's `r < d` | reject `q=2, r=7`, `r = −3`, and `d = 0`; accept honest witnesses | quiet | quiet |
+| 3a | Equivalent: comparator `AssertIsLessEq(r, d−1)` | same as case 2 (it is the same constraint) | **high: false positive** | quiet |
+| 3b | Equivalent: `api.AssertIsLessOrEqual(r, d−1)` with `d ≠ 0` | same as case 2 | quiet | quiet |
+| 4a | Bound in a helper one call away | reject `q=2, r=7` | quiet | quiet |
+| 4b | Bound two helper calls away | reject `q=2, r=7` (sound) | high, unqualified: false positive | high, medium confidence, "r is passed to checkRemainder" |
+| 4c | Bound applied by the caller of the helper that holds the hint | reject `q=2, r=7` (sound) | high, unqualified: false positive | high, medium confidence, "r is returned to the caller" |
+| 5 | Bound under `if c.Strict`, a compile-time setting | accept `q=2, r=7` when compiled without `Strict`; reject with it | high, unqualified | high, medium confidence, "a comparison of r ... may not run" |
+| 6 | `api.AssertIsLessOrEqual(r, d−1)` without `d ≠ 0` | accept `d = 0` with `q` = 0, 9, or 255 (unsound) | **quiet: false negative** | high, medium confidence, names `d = 0` |
+| 7a | Comparator `r < d` without a range check of `r` | accept `q=4, r=p−3` (that is, −3) for 17 ÷ 5 (unsound) | **quiet: false negative** | high, high confidence, "no range check of r" |
+| 7b | `0 <= r < d` enforced, but no range check of `q` | accept `r=0, q=17·5⁻¹ mod p` (unsound) | quiet | quiet (known limitation); `field_safety` now names `q` |
+| 8 | Signed-digit hint, `r` in `[−8, 8)`, enforced by `ToBinary(r+8, 4)` | accept honest witnesses including negative `r`; reject the Euclidean `q=1, r=9` for 25. Adding `r <= 15` rejects the honest `q=2, r=−7` | high, unqualified: false positive by intent | high, medium confidence, "r is used in api.Add" |
+
+## Corrections made
+
+- A bounded comparator's bound on `r` now counts only with a recognized
+  range check of `r` (case 7a). The fixtures `safe` in
+  `testdata/relation`, `testdata/deprecated`, and `testdata/testonly`, and
+  the bound helpers in `testdata/specialize`, were labelled safe but had no
+  range check. Solving that shared shape accepted `r = −3`. They now include
+  the range check, and the old shape is kept as the reported case
+  `comparatorWithoutRangeCheck`.
+- `api.AssertIsLessOrEqual(r, api.Sub(d, 1))` now counts only with
+  `AssertIsDifferent(d, 0)` or a known nonzero `d` (case 6). The
+  `lessOrEqualSafe` fixtures gained the assertion, and the old shape is
+  kept as `lessOrEqualZeroDivisor`.
+- A negative constant bound no longer counts: gnark encodes `-1` as `p − 1`.
+- The comparator's `AssertIsLessEq(r, api.Sub(d, 1))` is recognized
+  (case 3a).
+- Findings no longer say the bound "is not constrained". They say no bound
+  was recognized. When `r` reaches code the rule does not read, they add
+  "Not confirmed:" with the first such use, list up to three in the
+  evidence, and use medium confidence (cases 4b, 4c, 5, 8). The rule's
+  registered confidence is now medium.
+- The rule summary no longer claims that `r < d` alone makes the quotient
+  and remainder unique (case 7b). The `canonicality` invariant says the same
+  thing, and `field_safety` names the values that have no recognized range
+  check.
+
+## What is still not covered
+
+- **Case 7b stays quiet.** Reporting a quotient without a range check would
+  be a new check with its own false-positive profile. The repository has no
+  corpus of real code for this rule to measure it on (gnark's `std/` has no
+  reconstruction the rule recognizes). It is left to the `field_safety`
+  invariant and documented in the rule's limitations.
+- **Callers and deeper helpers are still not analyzed.** Cases 4b and 4c
+  remain findings. They are now marked as unconfirmed rather than removed.
+- **Intent is still assumed.** The rule cannot know that a hint is not
+  Euclidean division. Case 8 is flagged because `r` feeds a computation the
+  rule does not follow, not because the rule understands signed digits.
+- **Some writings are not recognized.** Equivalent forms beyond those listed
+  (for example `api.Cmp(r, d) == -1`, or a bound through a local copy of
+  `d`) are still false positives.

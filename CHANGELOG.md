@@ -8,6 +8,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`GNARK_HINT_RELATION_INCOMPLETE` accepted bounds that do not bound the
+  remainder.** Challenge circuits, solved with adversarial witnesses, showed
+  two shapes the rule treated as safe that accept noncanonical witnesses
+  (see [`docs/relation-rule-review.md`](docs/relation-rule-review.md)):
+  - a bounded comparator's `AssertIsLess(r, d)` without a range check of
+    `r`. The comparator compares signed values, so `r = p - 3` (-3) passed
+    for 17 ÷ 5 with `q = 4`. It now counts only with a range check of `r`,
+    and is otherwise reported with that explanation;
+  - `api.AssertIsLessOrEqual(r, api.Sub(d, 1))` without `d != 0`. With
+    `d = 0`, `d - 1` is the largest field element, so every `r` and every
+    `q` passed. It now counts only with `AssertIsDifferent(d, 0)` or a known
+    nonzero `d`, and is otherwise reported at medium confidence.
+
+  Negative constant bounds, which gnark encodes near the field modulus, no
+  longer count. The comparator's `AssertIsLessEq(r, api.Sub(d, 1))`, the
+  same constraint as `AssertIsLess(r, d)`, is now recognized instead of
+  reported. Five fixtures that pinned the unsound shapes as safe now include
+  the missing check, and the unsound shapes are kept as reported cases.
+- **`GNARK_HINT_RELATION_INCOMPLETE` stated every finding as certain.** The
+  message said the bound "is not constrained" when the rule had only failed
+  to recognize one, at high confidence even when the remainder was returned
+  to a caller, passed to a helper deeper than it looks, compared in a
+  region that may not run, or used in a computation it does not follow.
+  Such findings now say "Not confirmed:" and why, list up to three such
+  uses in the evidence, and have medium confidence. The rule's registered
+  confidence is medium. Its summary no longer claims that `r < d` alone
+  makes the quotient and remainder unique; without a range check of `q`,
+  `q*d + r` can exceed the field modulus. The rule still does not report
+  that case, and the `field_safety` invariant now names the values with no
+  recognized range check.
 - **Precision on application code.** A first scan of 11 public gnark
   application repositories (12 modules, 486 packages) reported 6 high and 10
   medium findings, none of them bugs. Reading each one led to these fixes,

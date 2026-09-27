@@ -88,7 +88,10 @@ func TestRelationShapeAndCoverage(t *testing.T) {
 		got[f.Function] = true
 		rules[f.Function] = f.RuleID
 	}
-	for _, name := range []string{"wrongBound", "invertedBound", "elseBound", "loopBound", "directIndex", "helperConditional", "successfulEarlyReturn"} {
+	// comparatorWithoutRangeCheck and lessOrEqualZeroDivisor accept
+	// noncanonical witnesses (r = -3, and d = 0 with any q): see
+	// internal/witness/relation_challenge_test.go.
+	for _, name := range []string{"wrongBound", "invertedBound", "elseBound", "loopBound", "directIndex", "helperConditional", "successfulEarlyReturn", "comparatorWithoutRangeCheck", "lessOrEqualZeroDivisor"} {
 		if !got[name] {
 			t.Errorf("missing finding for %s", name)
 		}
@@ -98,8 +101,28 @@ func TestRelationShapeAndCoverage(t *testing.T) {
 			t.Errorf("unexpected finding for %s", name)
 		}
 	}
-	if len(r.Findings) != 8 {
-		t.Fatalf("got %d findings, want 8: %#v", len(r.Findings), r.Findings)
+	if len(r.Findings) != 10 {
+		t.Fatalf("got %d findings, want 10: %#v", len(r.Findings), r.Findings)
+	}
+	for _, f := range r.Findings {
+		switch f.Function {
+		case "comparatorWithoutRangeCheck":
+			if f.Confidence != "high" || !strings.Contains(f.Message, "no range check of r") {
+				t.Errorf("comparatorWithoutRangeCheck: %s %q", f.Confidence, f.Message)
+			}
+		case "lessOrEqualZeroDivisor":
+			if f.Confidence != "medium" || !strings.Contains(f.Message, "d = 0") {
+				t.Errorf("lessOrEqualZeroDivisor: %s %q", f.Confidence, f.Message)
+			}
+		case "elseBound", "loopBound", "successfulEarlyReturn":
+			if f.Confidence != "medium" || !strings.Contains(f.Message, "may not run") {
+				t.Errorf("%s: a bound that may not run should qualify the finding: %s %q", f.Function, f.Confidence, f.Message)
+			}
+		case "directIndex":
+			if f.Confidence != "high" || f.Message != relationMessage {
+				t.Errorf("directIndex: nothing else uses r, so the finding is unqualified: %s %q", f.Confidence, f.Message)
+			}
+		}
 	}
 	if rules["unusedRemainder"] != unusedOutputRule {
 		t.Errorf("missing unused-output finding: %#v", r.Findings)
@@ -113,7 +136,7 @@ func TestRelationShapeAndCoverage(t *testing.T) {
 			status = report.InvariantUnknown
 		}
 		assertInvariant(t, hint.Invariants, 1, "canonicality", status, map[report.InvariantStatus]string{
-			report.InvariantMissing:   "missing unconditional constraint",
+			report.InvariantMissing:   "no unconditional constraint r < d was recognized",
 			report.InvariantSatisfied: "constraint",
 			report.InvariantUnknown:   "reconstruction not found",
 		}[status])
@@ -124,6 +147,12 @@ func TestRelationShapeAndCoverage(t *testing.T) {
 		}
 		if hint.Function == "lessOrEqualSafe" {
 			assertInvariant(t, hint.Invariants, 1, "canonicality", report.InvariantSatisfied, "r <= d-1")
+		}
+		if hint.Function == "comparatorWithoutRangeCheck" {
+			assertInvariant(t, hint.Invariants, 1, "canonicality", report.InvariantMissing, "compares signed values")
+		}
+		if hint.Function == "lessOrEqualZeroDivisor" {
+			assertInvariant(t, hint.Invariants, 1, "canonicality", report.InvariantMissing, "rules out d = 0")
 		}
 		if hint.Function == "helperLessOrEqualSafe" {
 			assertInvariant(t, hint.Invariants, 1, "canonicality", report.InvariantSatisfied, "helper assertCanonicalLessOrEqual")
@@ -398,7 +427,7 @@ func TestCallSiteSpecialization(t *testing.T) {
 	}
 	// Unresolvable guards keep the finding at the hint.
 	for _, function := range []string{"escaping", "dynamic", "reassigned", "Uncalled", "Exported", "(divider).constrain"} {
-		if got[function] != relationMessage {
+		if !strings.HasPrefix(got[function], relationMessage) {
 			t.Errorf("%s: want a hint-site finding, got %q", function, got[function])
 		}
 	}

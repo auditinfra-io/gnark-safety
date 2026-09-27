@@ -100,7 +100,23 @@ func directIndex(api frontend.API, n, d frontend.Variable) error {
 	return nil
 }
 
+// safe range-checks r, which the bounded comparator needs: it compares
+// signed values.
 func safe(api frontend.API, n, d frontend.Variable) error {
+	out, err := api.Compiler().NewHint(hint, 2, n, d)
+	if err != nil {
+		return err
+	}
+	q, r := out[0], out[1]
+	api.ToBinary(r, 8)
+	api.AssertIsEqual(n, api.Add(api.Mul(q, d), r))
+	cmp.NewBoundedComparator(api, big.NewInt(255), false).AssertIsLess(r, d)
+	return nil
+}
+
+// comparatorWithoutRangeCheck asserts r < d with a bounded comparator but
+// never range-checks r, so r = p-3 (-3) satisfies it.
+func comparatorWithoutRangeCheck(api frontend.API, n, d frontend.Variable) error {
 	out, err := api.Compiler().NewHint(hint, 2, n, d)
 	if err != nil {
 		return err
@@ -164,7 +180,21 @@ func successfulEarlyReturn(api frontend.API, n, d frontend.Variable, skip bool) 
 	return nil
 }
 
+// lessOrEqualSafe asserts d != 0, which r <= d-1 needs: when d = 0, d-1 is
+// the largest field element.
 func lessOrEqualSafe(api frontend.API, n, d frontend.Variable) error {
+	out, err := api.Compiler().NewHint(hint, 2, n, d)
+	if err != nil {
+		return err
+	}
+	api.AssertIsDifferent(0, d)
+	api.AssertIsEqual(n, api.Add(api.Mul(out[quotientIndex], d), out[remainderIndex]))
+	api.AssertIsLessOrEqual(out[remainderIndex], api.Sub(d, 1))
+	return nil
+}
+
+// lessOrEqualZeroDivisor accepts d = 0 with every r and q.
+func lessOrEqualZeroDivisor(api frontend.API, n, d frontend.Variable) error {
 	out, err := api.Compiler().NewHint(hint, 2, n, d)
 	if err != nil {
 		return err
@@ -180,6 +210,7 @@ func helperLessOrEqualSafe(api frontend.API, n, d frontend.Variable) error {
 		return err
 	}
 	q, r := out[quotientIndex], out[remainderIndex]
+	api.AssertIsDifferent(d, 0)
 	api.AssertIsEqual(n, api.Add(api.Mul(q, d), r))
 	assertCanonicalLessOrEqual(api, r, d)
 	return nil

@@ -59,6 +59,7 @@ func safe(api frontend.API, n, d frontend.Variable) error {
 		return err
 	}
 	q, r := qr[0], qr[1]
+	api.ToBinary(r, 8)
 	api.AssertIsEqual(n, api.Add(api.Mul(q, d), r))
 	cmp.NewBoundedComparator(api, big.NewInt(255), false).AssertIsLess(r, d)
 	return nil

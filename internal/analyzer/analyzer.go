@@ -653,6 +653,17 @@ func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.I
 		}
 	} else if qBounded && rBounded && dBounded {
 		fieldEvidence = fmt.Sprintf("bounded reconstruction maximum omitted: bit width exceeds analysis limit %d; compilation field is selected outside the analyzed function", maximumAnalyzedBitWidth)
+	} else {
+		var unranged []string
+		for _, v := range []struct {
+			name    string
+			bounded bool
+		}{{"q", qBounded}, {"d", dBounded}, {"r", rBounded}} {
+			if !v.bounded {
+				unranged = append(unranged, v.name)
+			}
+		}
+		fieldEvidence = "no range check of " + strings.Join(unranged, ", ") + " was recognized, so q*d + r may exceed the field modulus: the reconstruction can then hold modulo the field but not over the integers, and r < d alone does not make q and r unique; compilation field is selected outside the analyzed function"
 	}
 
 	result := make([]report.Invariant, 0, 10)
@@ -671,13 +682,16 @@ func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.I
 			result = append(result, report.Invariant{OutputIndex: output, Kind: "range", Status: report.InvariantUnknown, Evidence: []string{"unconditional constant-width ToBinary not found"}})
 		}
 		canonicalStatus := report.InvariantMissing
-		canonicalEvidence := "missing unconditional constraint: r < d"
+		canonicalEvidence := []string{"no unconditional constraint r < d was recognized"}
+		if relation.boundGap != "" {
+			canonicalEvidence = append(canonicalEvidence, relation.boundGap)
+		}
 		if relation.hasBound {
 			canonicalStatus = report.InvariantSatisfied
-			canonicalEvidence = relation.boundEvidence
+			canonicalEvidence = []string{relation.boundEvidence, "q and r are unique only if q*d + r also stays below the field modulus; see field_safety"}
 		}
 		result = append(result,
-			report.Invariant{OutputIndex: output, Kind: "canonicality", Status: canonicalStatus, Evidence: []string{canonicalEvidence}},
+			report.Invariant{OutputIndex: output, Kind: "canonicality", Status: canonicalStatus, Evidence: canonicalEvidence},
 			report.Invariant{OutputIndex: output, Kind: "field_safety", Status: fieldStatus, Evidence: []string{fieldEvidence}},
 		)
 	}
@@ -685,11 +699,15 @@ func assessInvariants(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.I
 }
 
 type relationAnalysis struct {
-	outputs       types.Object
-	aliases       map[types.Object]int
-	divisor       ast.Expr
-	hasBound      bool
-	boundEvidence string
+	outputs        types.Object
+	aliases        map[types.Object]int
+	divisor        ast.Expr
+	reconstruction *ast.CallExpr
+	hasBound       bool
+	boundEvidence  string
+	// boundGap explains a bound on r that was recognized but does not prove
+	// r < d, because a precondition it depends on was not recognized.
+	boundGap string
 }
 
 func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.Info, helpers map[*types.Func]*ast.FuncDecl) relationAnalysis {
@@ -736,71 +754,165 @@ func analyzeRelation(body *ast.BlockStmt, hintCall *ast.CallExpr, info *types.In
 		return true
 	})
 	result.aliases = aliases
-	var divisor ast.Expr
 	ast.Inspect(body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok || !isFrontendCall(info, call, "AssertIsEqual") || len(call.Args) != 2 {
 			return true
 		}
 		if d, ok := reconstructionDivisor(info, call.Args[0], outputs, aliases); ok && plainRelationSide(info, call.Args[1], outputs, aliases) {
-			divisor = d
+			result.divisor, result.reconstruction = d, call
 		} else if d, ok := reconstructionDivisor(info, call.Args[1], outputs, aliases); ok && plainRelationSide(info, call.Args[0], outputs, aliases) {
-			divisor = d
+			result.divisor, result.reconstruction = d, call
 		}
 		return true
 	})
-	if divisor == nil {
+	if result.divisor == nil {
 		return result
 	}
-	result.divisor = divisor
-	result.hasBound, result.boundEvidence = boundWithin(body, info, helpers, outputs, aliases, divisor)
+	bound := boundWithin(body, body, info, helpers, outputs, aliases, result.divisor)
+	result.hasBound, result.boundEvidence, result.boundGap = bound.found, bound.evidence, bound.gap
 	return result
 }
 
-// boundWithin reports whether scope unconditionally constrains r < d, either
-// directly or through one direct local helper call. "Unconditionally" is
-// relative to scope, so callers can ask about the body of a branch.
-func boundWithin(scope *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, outputs types.Object, aliases map[types.Object]int, divisor ast.Expr) (bool, string) {
-	found, evidence := false, ""
+// Preconditions a recognized bound depends on, stated when they are not
+// recognized. gnark's BoundedComparator compares signed values, and
+// api.AssertIsLessOrEqual compares values in [0, p), where 0-1 is p-1.
+const (
+	comparatorGap  = "a bounded comparator asserts r < d, but no range check of r was recognized; the comparator compares signed values, so without one it also accepts a field element that encodes a negative r"
+	zeroDivisorGap = "r <= d-1 is asserted, but nothing recognized rules out d = 0; then d-1 is the largest field element, the bound admits every r, and q is unconstrained"
+)
+
+// boundCheck is what boundWithin concluded about the canonical bound.
+type boundCheck struct {
+	found    bool
+	evidence string
+	gap      string
+}
+
+// boundWithin reports whether scope unconditionally constrains 0 <= r < d,
+// either directly or through one direct local helper call.
+// "Unconditionally" is relative to scope, so callers can ask about the body
+// of a branch; body is the whole function, whose unconditional range checks
+// of r and d != 0 assertions also count as preconditions.
+func boundWithin(scope, body *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, outputs types.Object, aliases map[types.Object]int, divisor ast.Expr) boundCheck {
+	var result boundCheck
 	ev := newEvaluator(info, helpers)
 	d := ev.value(divisor)
+	if d != nil && d.Sign() <= 0 {
+		d = nil
+	}
+	isRemainder := func(e ast.Expr) bool { return outputIndex(info, e, outputs, aliases) == 1 }
+	ranged := remainderRanged(ev, helpers, isRemainder, scope, body)
+	nonzero := d != nil || divisorNonzero(info, divisor, scope, body)
 	ast.Inspect(scope, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || len(call.Args) != 2 || conditionallyExecuted(scope, call) {
-			return true
+		if !ok || result.found || len(call.Args) != 2 || !isRemainder(call.Args[0]) || conditionallyExecuted(scope, call) {
+			return !result.found
 		}
-		if outputIndex(info, call.Args[0], outputs, aliases) != 1 {
-			return true
+		evidence, comparator, needsNonzero := remainderComparison(info, ev, call, divisor, d)
+		switch {
+		case evidence == "":
+		case comparator && !ranged:
+			result.gap = comparatorGap
+		case needsNonzero && !nonzero:
+			result.gap = zeroDivisorGap
+		default:
+			result.found, result.evidence = true, "unconditional "+evidence
 		}
-		bound := ev.value(call.Args[1])
-		if isComparatorCall(info, call, "AssertIsLess") && sameValue(info, call.Args[1], divisor) {
-			found, evidence = true, "unconditional constraint: r < d"
-		} else if isFrontendCall(info, call, "AssertIsLessOrEqual") && oneLessThan(info, call.Args[1], divisor) {
-			found, evidence = true, "unconditional equivalent constraint: r <= d-1"
-		} else if isComparatorCall(info, call, "AssertIsLess") && bound != nil && d != nil && bound.Cmp(d) <= 0 {
-			found, evidence = true, fmt.Sprintf("unconditional constraint: r < %s, and d = %s", bound, d)
-		} else if isFrontendCall(info, call, "AssertIsLessOrEqual") && bound != nil && d != nil && bound.Cmp(d) < 0 {
-			found, evidence = true, fmt.Sprintf("unconditional constraint: r <= %s, and d = %s", bound, d)
-		}
-		return true
+		return !result.found
 	})
-	if !found {
-		found, evidence = helperProvidesBound(scope, info, helpers, outputs, aliases, divisor)
-	}
-	if !found && d != nil && d.Sign() > 0 {
-		if maximum, how := remainderMaximum(scope, ev, helpers, outputs, aliases); maximum != nil && maximum.Cmp(d) < 0 {
-			found, evidence = true, fmt.Sprintf("%s: r <= %s, and d = %s", how, maximum, d)
+	if !result.found {
+		helper := helperProvidesBound(scope, info, helpers, outputs, aliases, divisor, ranged, nonzero)
+		if helper.found || result.gap == "" {
+			result = helper
 		}
 	}
-	if !found {
+	if !result.found && d != nil {
+		if maximum, how := remainderMaximum(scope, ev, helpers, outputs, aliases); maximum != nil && maximum.Cmp(d) < 0 {
+			result = boundCheck{found: true, evidence: fmt.Sprintf("%s: r <= %s, and d = %s", how, maximum, d)}
+		}
+	}
+	if !result.found {
 		for _, guarded := range successGuards(scope, info, helpers) {
-			if found, evidence = boundWithin(guarded, info, helpers, outputs, aliases, divisor); found {
-				evidence += "; inside an if err == nil block whose other path returns the error"
+			if inner := boundWithin(guarded, body, info, helpers, outputs, aliases, divisor); inner.found {
+				result = inner
+				result.evidence += "; inside an if err == nil block whose other path returns the error"
 				break
+			} else if result.gap == "" {
+				result.gap = inner.gap
 			}
 		}
 	}
-	return found, evidence
+	return result
+}
+
+// remainderComparison classifies call, whose first argument is r, as a
+// bound that proves r < d, and returns "" when it is not one. comparator
+// reports that the bound comes from a bounded comparator, which proves it
+// only for a range-checked r; needsNonzero reports that it is r <= d-1 with
+// the full-field comparison, which proves it only when d != 0. A bounded
+// comparator's AssertIsLess(a, b) is AssertIsLessEq(a, b-1), so both forms
+// are the same constraint.
+func remainderComparison(info *types.Info, ev *evaluator, call *ast.CallExpr, divisor ast.Expr, d *big.Int) (evidence string, comparator, needsNonzero bool) {
+	less, lessEq := isComparatorCall(info, call, "AssertIsLess"), isComparatorCall(info, call, "AssertIsLessEq")
+	fullField := isFrontendCall(info, call, "AssertIsLessOrEqual")
+	bound := call.Args[1]
+	switch {
+	case less && sameValue(info, bound, divisor):
+		return "constraint: r < d", true, false
+	case lessEq && oneLessThan(info, bound, divisor):
+		return "equivalent constraint: r <= d-1", true, false
+	case fullField && oneLessThan(info, bound, divisor):
+		return "equivalent constraint: r <= d-1", false, true
+	}
+	// A constant bound below a constant divisor. Negative constants are
+	// field elements near p, so they bound nothing.
+	value := ev.value(bound)
+	switch {
+	case value == nil || d == nil:
+	case less && value.Sign() > 0 && value.Cmp(d) <= 0:
+		return fmt.Sprintf("constraint: r < %s, and d = %s", value, d), true, false
+	case (lessEq || fullField) && value.Sign() >= 0 && value.Cmp(d) < 0:
+		return fmt.Sprintf("constraint: r <= %s, and d = %s", value, d), lessEq, false
+	}
+	return "", false, false
+}
+
+// remainderRanged reports whether one of scopes unconditionally
+// range-checks r to a width that keeps it a small non-negative integer.
+func remainderRanged(ev *evaluator, helpers map[*types.Func]*ast.FuncDecl, isRemainder func(ast.Expr) bool, scopes ...*ast.BlockStmt) bool {
+	for _, scope := range scopes {
+		if bits, ok := rangeBits(scope, ev, helpers, isRemainder); ok && bits <= maximumReconstructionBits {
+			return true
+		}
+	}
+	return false
+}
+
+// divisorNonzero reports whether one of scopes unconditionally asserts
+// d != 0 with api.AssertIsDifferent.
+func divisorNonzero(info *types.Info, divisor ast.Expr, scopes ...*ast.BlockStmt) bool {
+	for _, scope := range scopes {
+		if assertsNonzero(scope, info, func(e ast.Expr) bool { return sameValue(info, e, divisor) }) {
+			return true
+		}
+	}
+	return false
+}
+
+func assertsNonzero(scope *ast.BlockStmt, info *types.Info, isDivisor func(ast.Expr) bool) bool {
+	found := false
+	ast.Inspect(scope, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if found || !ok || !isFrontendCall(info, call, "AssertIsDifferent") || len(call.Args) != 2 || conditionallyExecuted(scope, call) {
+			return !found
+		}
+		for i := 0; i < 2; i++ {
+			found = found || (isDivisor(call.Args[i]) && isIntegerConstant(info, call.Args[1-i], 0))
+		}
+		return !found
+	})
+	return found
 }
 
 func unconditionalOutputBitBound(body *ast.BlockStmt, outputs types.Object, aliases map[types.Object]int, index int, info *types.Info, helpers map[*types.Func]*ast.FuncDecl) (int, bool) {
@@ -836,60 +948,76 @@ func findBitBound(body *ast.BlockStmt, info *types.Info, helpers map[*types.Func
 	return bits, found
 }
 
-func helperProvidesBound(body *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, outputs types.Object, aliases map[types.Object]int, divisor ast.Expr) (bool, string) {
-	found := false
-	evidence := ""
+// helperProvidesBound looks for the bound in the body of a local helper that
+// body calls unconditionally with r and d as arguments. ranged and nonzero
+// report the preconditions the caller already establishes; a helper may also
+// assert d != 0 itself.
+func helperProvidesBound(body *ast.BlockStmt, info *types.Info, helpers map[*types.Func]*ast.FuncDecl, outputs types.Object, aliases map[types.Object]int, divisor ast.Expr, ranged, nonzero bool) boundCheck {
+	var result boundCheck
 	ast.Inspect(body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || found || conditionallyExecuted(body, call) {
-			return !found
+		if !ok || result.found || conditionallyExecuted(body, call) {
+			return !result.found
 		}
 		decl := localHelper(info, call, helpers)
 		if decl == nil {
 			return true
 		}
 		params := parameterIndexes(decl, info)
+		// argument is the caller's expression for a helper parameter.
+		argument := func(e ast.Expr) ast.Expr {
+			if index, ok := params[objectOf(info, e)]; ok && index < len(call.Args) {
+				return call.Args[index]
+			}
+			return nil
+		}
+		isDivisor := func(e ast.Expr) bool {
+			a := argument(e)
+			return a != nil && sameValue(info, a, divisor)
+		}
+		helperNonzero := nonzero || assertsNonzero(decl.Body, info, isDivisor)
 		ast.Inspect(decl.Body, func(n ast.Node) bool {
 			bound, ok := n.(*ast.CallExpr)
-			if !ok || len(bound.Args) != 2 || conditionallyExecuted(decl.Body, bound) {
+			if !ok || result.found || len(bound.Args) != 2 || conditionallyExecuted(decl.Body, bound) {
+				return !result.found
+			}
+			if a := argument(bound.Args[0]); a == nil || outputIndex(info, a, outputs, aliases) != 1 {
 				return true
 			}
-			left, leftOK := params[objectOf(info, bound.Args[0])]
-			if !leftOK || left >= len(call.Args) || outputIndex(info, call.Args[left], outputs, aliases) != 1 {
+			evidence, comparator := "", true
+			switch {
+			case isComparatorCall(info, bound, "AssertIsLess") && isDivisor(bound.Args[1]):
+				evidence = "r < d"
+			case isComparatorCall(info, bound, "AssertIsLessEq") && oneLessThanMatching(info, bound.Args[1], isDivisor):
+				evidence = "r <= d-1"
+			case isFrontendCall(info, bound, "AssertIsLessOrEqual") && oneLessThanMatching(info, bound.Args[1], isDivisor):
+				evidence, comparator = "r <= d-1", false
+			default:
 				return true
 			}
-			right, rightOK := params[objectOf(info, bound.Args[1])]
-			comparisonEvidence := "unconditional constraint in helper " + decl.Name.Name + ": r < d"
-			valid := isComparatorCall(info, bound, "AssertIsLess") && rightOK && right < len(call.Args) && sameValue(info, call.Args[right], divisor)
-			if isFrontendCall(info, bound, "AssertIsLessOrEqual") {
-				if parameter, ok := oneLessThanParameter(info, bound.Args[1], params); ok && parameter < len(call.Args) && sameValue(info, call.Args[parameter], divisor) {
-					valid = true
-					comparisonEvidence = "unconditional equivalent constraint in helper " + decl.Name.Name + ": r <= d-1"
-				}
+			switch {
+			case comparator && !ranged:
+				result.gap = comparatorGap
+			case !comparator && !helperNonzero:
+				result.gap = zeroDivisorGap
+			default:
+				result = boundCheck{found: true, evidence: "unconditional constraint in helper " + decl.Name.Name + ": " + evidence}
 			}
-			if valid {
-				found = true
-				evidence = comparisonEvidence
-			}
-			return !found
+			return !result.found
 		})
-		return !found
+		return !result.found
 	})
-	return found, evidence
+	return result
 }
 
 func oneLessThan(info *types.Info, expression, value ast.Expr) bool {
-	args, ok := apiCallArgs(info, expression, "Sub")
-	return ok && len(args) == 2 && sameValue(info, args[0], value) && isIntegerConstant(info, args[1], 1)
+	return oneLessThanMatching(info, expression, func(e ast.Expr) bool { return sameValue(info, e, value) })
 }
 
-func oneLessThanParameter(info *types.Info, expression ast.Expr, parameters map[types.Object]int) (int, bool) {
+// oneLessThanMatching recognizes api.Sub(x, 1) for an x that matches.
+func oneLessThanMatching(info *types.Info, expression ast.Expr, matches func(ast.Expr) bool) bool {
 	args, ok := apiCallArgs(info, expression, "Sub")
-	if !ok || len(args) != 2 || !isIntegerConstant(info, args[1], 1) {
-		return 0, false
-	}
-	index, ok := parameters[objectOf(info, args[0])]
-	return index, ok
+	return ok && len(args) == 2 && matches(args[0]) && isIntegerConstant(info, args[1], 1)
 }
 
 func isIntegerConstant(info *types.Info, expression ast.Expr, want int64) bool {

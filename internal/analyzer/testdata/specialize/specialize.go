@@ -13,6 +13,7 @@ import (
 func hint(_ *big.Int, _ []*big.Int, _ []*big.Int) error { return nil }
 
 func bound(api frontend.API, r, d frontend.Variable) {
+	api.ToBinary(r, 8)
 	cmp.NewBoundedComparator(api, big.NewInt(255), false).AssertIsLess(r, d)
 }
 
@@ -20,6 +21,7 @@ func bound(api frontend.API, r, d frontend.Variable) {
 func guarded(api frontend.API, n, d frontend.Variable, enforce bool) {
 	out, _ := api.Compiler().NewHint(hint, 2, n, d)
 	q, r := out[0], out[1]
+	api.ToBinary(r, 8)
 	api.AssertIsEqual(n, api.Add(api.Mul(q, d), r))
 	if enforce {
 		cmp.NewBoundedComparator(api, big.NewInt(255), false).AssertIsLess(r, d)
