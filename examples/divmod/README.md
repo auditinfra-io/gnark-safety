@@ -40,29 +40,31 @@ constraints, so every semantic property of hint outputs must be constrained.
 ## Reproduce
 
 Prerequisites are Git and a Go installation capable of Go's toolchain
-auto-selection. The module pins gnark v0.16.3, whose `go.mod` requires Go
-1.25.7, and explicitly requires gnark-crypto v0.21.0. `go.sum` records
+auto-selection (the default, `GOTOOLCHAIN=auto`). This repository's `go.mod`
+requires Go 1.26.0 and names `toolchain go1.27.1`, so the commands below run
+with Go 1.27.1 unless your `go` is newer. The module pins gnark v0.16.3 (whose
+own `go.mod` requires Go 1.25.7) and gnark-crypto v0.21.0. `go.sum` records
 module-content checksums; it does not select dependency versions.
 
 From the repository root:
 
 ```bash
-GOTOOLCHAIN=go1.25.7 go mod download
-GOTOOLCHAIN=go1.25.7 go test -count=1 -v ./examples/divmod
+go mod download
+go test -count=1 -v ./examples/divmod
 ```
 
 Regenerate the machine-readable environment, source hashes, and retained test
 output for the whole repository with:
 
 ```bash
-GOTOOLCHAIN=go1.25.7 go run ./cmd/reproduce
+go run ./cmd/reproduce
 ```
 
 To run just the solver matrix or real-proof checks:
 
 ```bash
-GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestRequiredHintSafetyMatrix ./examples/divmod
-GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestGroth16 ./examples/divmod
+go test -count=1 -v -run TestRequiredHintSafetyMatrix ./examples/divmod
+go test -count=1 -v -run TestGroth16 ./examples/divmod
 ```
 
 The differential suite exhaustively checks the hint against the ordinary-Go
@@ -71,8 +73,8 @@ against R1CS and sparse R1CS on BN254 and BLS12-381. The proof matrix generates
 and verifies corrected-circuit proofs with Groth16 and PLONK on both curves:
 
 ```bash
-GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run 'TestHintMatchesSpecificationExhaustively|TestCorrectedCircuitMatchesSpecificationMatrix' ./examples/divmod
-GOTOOLCHAIN=go1.25.7 go test -count=1 -v -run TestCorrectedProofBackendCurveMatrix ./examples/divmod
+go test -count=1 -v -run 'TestHintMatchesSpecificationExhaustively|TestCorrectedCircuitMatchesSpecificationMatrix' ./examples/divmod
+go test -count=1 -v -run TestCorrectedProofBackendCurveMatrix ./examples/divmod
 ```
 
 PLONK setup in the proof matrix uses gnark's explicitly test-only `unsafekzg`

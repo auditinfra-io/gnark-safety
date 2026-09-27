@@ -8,6 +8,50 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`GNARK_HINT_RELATION_INCOMPLETE` accepted bounds that do not bound the
+  remainder.** Challenge circuits, solved with adversarial witnesses, showed
+  two shapes the rule treated as safe that accept noncanonical witnesses
+  (see [`docs/relation-rule-review.md`](docs/relation-rule-review.md)):
+  - a bounded comparator's `AssertIsLess(r, d)` without a range check of
+    `r`. The comparator compares signed values, so `r = p - 3` (-3) passed
+    for 17 ÷ 5 with `q = 4`. It now counts only with a range check of `r`,
+    and is otherwise reported with that explanation;
+  - `api.AssertIsLessOrEqual(r, api.Sub(d, 1))` without `d != 0`. With
+    `d = 0`, `d - 1` is the largest field element, so every `r` and every
+    `q` passed. It now counts only with `AssertIsDifferent(d, 0)` or a known
+    nonzero `d`, and is otherwise reported at medium confidence.
+
+  Negative constant bounds, which gnark encodes near the field modulus, no
+  longer count. Nor does a compile-time value the circuit does not see:
+  package-level `int` arithmetic that overflows (a divisor of
+  `big62*4 + 5` is 5 at run time, not 2^64 + 5, and the rule accepted
+  `r <= 100` for it), or a constant at or above the field modulus, which
+  the field reduces. Without `--field`, constants must be below 2^240. The comparator's `AssertIsLessEq(r, api.Sub(d, 1))`, the
+  same constraint as `AssertIsLess(r, d)`, is now recognized instead of
+  reported. Five fixtures that pinned the unsound shapes as safe now include
+  the missing check, and the unsound shapes are kept as reported cases.
+- **`GNARK_HINT_RELATION_INCOMPLETE` stated every finding as certain.** The
+  message said the bound "is not constrained" when the rule had only failed
+  to recognize one, at high confidence even when the remainder was returned
+  to a caller, passed to a helper deeper than it looks, compared in a
+  region that may not run, or used in a computation it does not follow.
+  Such findings now say "Not confirmed:" and why, list up to three such
+  uses in the evidence, and have medium confidence. The rule's registered
+  confidence is medium. Its summary no longer claims that `r < d` alone
+  makes the quotient and remainder unique; without a range check of `q`,
+  `q*d + r` can exceed the field modulus. The rule still does not report
+  that case, and the `field_safety` invariant now names the values with no
+  recognized range check.
+- **Reports did not say what a result means.** A scan with no findings
+  printed only "No findings.", and a partial scan said so only on stderr, so
+  a report saved with `--output` looked complete and clean. The text report
+  now says that no findings is not evidence of soundness, that a finding is
+  a lead rather than a confirmed vulnerability, and, for a partial scan,
+  which packages were not analyzed. The JSON report's `limitations` say the
+  same. The stderr summary also counts hint calls and how many are in the
+  quotient/remainder shape that `GNARK_HINT_RELATION_INCOMPLETE` checks, so
+  a quiet scan of code the rule cannot read is visible. Exit codes are
+  unchanged.
 - **Precision on application code.** A first scan of 11 public gnark
   application repositories (12 modules, 486 packages) reported 6 high and 10
   medium findings, none of them bugs. Reading each one led to these fixes,
@@ -47,13 +91,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and 1.25.13. They are reachable from `gnark-safety-vet` through
   `unitchecker`; `gnark-safety` and the other commands do not reach them.
   `govulncheck` in CI would have failed on them. `go.mod` now names `toolchain go1.27.1`, which CI's
-  analysis, fuzz, and canary jobs and the release workflow install; the
-  minimum Go version for `go install` stays 1.25.7, and the test matrix
-  still runs on it. CI's staticcheck moves from v0.6.1, which cannot read Go
+  analysis, fuzz, and canary jobs and the release workflow install. (The
+  minimum is now 1.26.0; see the next entry.) CI's staticcheck moves from v0.6.1, which cannot read Go
   1.27 export data, to v0.8.1. govulncheck moves from v1.1.4 to v1.8.0: the
   old release builds on x/tools v0.29, which predates Go 1.26, and on Go 1.27
   it crashed intermittently while building SSA. v1.8.0 reports the same
   advisories.
+- **The documented minimum Go version was wrong.** Updating
+  `golang.org/x/tools` to v0.50.0 raised `go.mod`'s `go` line to 1.26.0
+  (x/tools, x/mod, x/sync, and x/sys all require it), but the README, the
+  release notes, and the example's instructions still said 1.25.7, and the
+  README's test command, `GOTOOLCHAIN=go1.25.7 go test ./...`, failed with
+  `go.mod requires go >= 1.26.0`. The CI matrix's "1.25.7" leg would have
+  failed the same way at its first `go` command, because `actions/setup-go`
+  exports `GOTOOLCHAIN=local`. The leg now names 1.26.0, and the documentation
+  states 1.26.0. The README also said the Action's build "fetches the pinned
+  toolchain version (1.27.1) automatically"; under setup-go's
+  `GOTOOLCHAIN=local` it builds with exactly the `go-version` input.
 - **A `gnark-safety` binary failed with unexplained type errors when the
   `go` command on `PATH` was newer than the Go it was built with** (after a
   Go upgrade, say), even on code written for older Go: the analyzer

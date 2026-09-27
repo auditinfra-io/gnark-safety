@@ -3,7 +3,8 @@
 Tagged releases publish prebuilt `gnark-safety` archives for Linux, macOS, and
 Windows on amd64 and arm64, and `gnark-safety-release-evidence.tar.gz`. Both
 are generated from the tagged source by
-`.github/workflows/release-evidence.yml`.
+`.github/workflows/release-evidence.yml`. No release has been tagged yet, so
+none of these exist so far.
 
 Each archive (`gnark-safety_X.Y.Z_<os>_<arch>.tar.gz`, or `.zip` on Windows)
 contains the binary, `LICENSE`, `README.md`, and `CHANGELOG.md`.
@@ -16,8 +17,8 @@ contains the binary, `LICENSE`, `README.md`, and `CHANGELOG.md`.
 `gnark-safety --version` reports the tag.
 
 The toolchain is the `toolchain` line in `go.mod` (Go 1.27.1), which the
-release workflow installs; the `go` line (1.25.7) stays the minimum for
-`go install`. Building with the newest stable Go matters for prebuilt
+release workflow installs; the `go` line (1.26.0, required by
+`golang.org/x/tools` v0.50.0) is the minimum for `go install`. Building with the newest stable Go matters for prebuilt
 binaries: the analyzer type-checks the standard library of the `go` command
 on the user's `PATH`, and a type checker older than that release cannot load
 it. A binary built with Go 1.27 scans code for Go 1.27 and earlier; with a

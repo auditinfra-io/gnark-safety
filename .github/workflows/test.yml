@@ -11,7 +11,9 @@ jobs:
   test:
     strategy:
       matrix:
-        go: ["1.25.7", "stable"]
+        # 1.26.0 is go.mod's minimum. setup-go exports GOTOOLCHAIN=local, so
+        # each leg runs exactly the Go it names.
+        go: ["1.26.0", "stable"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

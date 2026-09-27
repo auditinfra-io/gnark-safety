@@ -13,7 +13,7 @@ and calibration against real ecosystem code are public and tested. gnark-safety
 is currently an **educational fixture plus a two-rule research analyzer**. Its
 engineering foundations are stronger than o1js-scan's in several places: type
 resolution, per-output invariant evidence, executable adversarial witnesses,
-differential and proof-backend matrices, and signed-release evidence. What it
+differential and proof-backend matrices, and checksummed release evidence. What it
 lacks is the product layer, rule breadth, and calibration discipline.
 
 The plan keeps gnark-safety's architecture and adopts o1js-scan's operating

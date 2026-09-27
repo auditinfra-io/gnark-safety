@@ -6,12 +6,22 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"math/big"
 
 	"github.com/auditinfra-io/gnark-safety/pkg/report"
 	"golang.org/x/tools/go/packages"
 )
 
-const relationMessage = "Hint outputs participate in reconstruction, but the canonical remainder bound r < d is not constrained."
+// relationMessage is the finding's message when no bound on r was
+// recognized. It says what was not recognized, not that no bound exists.
+const relationMessage = "The hint outputs are reconstructed as n = q*d + r, but no unconditional bound r < d was recognized, so a prover may be able to choose another quotient and remainder that satisfy the same equation."
+
+// gapMessages replace relationMessage when a bound on r was recognized but a
+// precondition it depends on was not.
+var gapMessages = map[string]string{
+	comparatorGap:  "The hint outputs are reconstructed as n = q*d + r and a bounded comparator asserts r < d, but no range check of r was recognized. The comparator compares signed values, so without one it also accepts a field element that encodes a negative r.",
+	zeroDivisorGap: "The hint outputs are reconstructed as n = q*d + r and r <= d-1 is asserted, but nothing recognized rules out d = 0. Then d-1 is the largest field element, the bound admits every r, and q is unconstrained.",
+}
 
 // boundGuard describes an r < d bound that executes only for one value of a
 // bool parameter of the function containing the hint, as in
@@ -21,6 +31,7 @@ type boundGuard struct {
 	param        *types.Var
 	index        int
 	enforcedWhen bool
+	stmt         *ast.IfStmt
 }
 
 // guardSite is one package-local call of the guarded function whose guard
@@ -36,24 +47,51 @@ type guardSite struct {
 // function is a direct package-local call with a constant guard argument,
 // the finding moves to each call that disables the bound, and calls that
 // enable it are quiet. Otherwise the finding stays at the hint.
-func relationFindings(p *packages.Package, fset *token.FileSet, dir string, fn *ast.FuncDecl, hintCall *ast.CallExpr, h report.Hint, helpers map[*types.Func]*ast.FuncDecl) []report.Finding {
+func relationFindings(p *packages.Package, fset *token.FileSet, dir string, fn *ast.FuncDecl, hintCall *ast.CallExpr, h report.Hint, helpers map[*types.Func]*ast.FuncDecl, field *big.Int) []report.Finding {
 	info := p.TypesInfo
-	relation := analyzeRelation(fn.Body, hintCall, info, helpers)
+	relation := analyzeRelation(fn.Body, hintCall, info, helpers, field)
 	if relation.divisor == nil || relation.hasBound {
 		return nil
 	}
-	evidence := []string{"hint output: " + h.Hint, "constraint: n = q*d + r", "missing constraint: r < d"}
+	message := relationMessage
+	evidence := []string{"hint output: " + h.Hint, "constraint: n = q*d + r", "no recognized constraint: r < d"}
+	if relation.boundGap != "" {
+		message = gapMessages[relation.boundGap]
+		evidence = append(evidence, relation.boundGap)
+	}
 	guard := findGuard(fn, relation, info, helpers)
 	if guard != nil {
 		if sites, ok := resolveGuardSites(p, fn, guard); ok {
-			return siteFindings(fset, dir, fn, h, guard, sites)
+			return siteFindings(fset, dir, fn, h, guard, sites, remainderQualifiers(fset, fn.Body, info, helpers, relation, guard.stmt))
 		}
 		evidence = append(evidence, fmt.Sprintf("r < d is enforced only when parameter %s is %t, and not every call of %s passes a constant", guard.param.Name(), guard.enforcedWhen, fn.Name.Name))
 	}
-	return []report.Finding{{RuleID: relationRule, Severity: report.SeverityHigh, Confidence: "high", File: h.File, Line: h.Line, Column: h.Column, Function: h.Function, Message: relationMessage, Evidence: evidence, Limitations: []string{}}}
+	qualifiers := remainderQualifiers(fset, fn.Body, info, helpers, relation, nil)
+	finding := report.Finding{RuleID: relationRule, Severity: report.SeverityHigh, File: h.File, Line: h.Line, Column: h.Column, Function: h.Function, Message: message, Evidence: evidence, Limitations: []string{}}
+	qualify(&finding, qualifiers)
+	if relation.boundGap == zeroDivisorGap {
+		// d may be kept nonzero where this function cannot see it.
+		finding.Confidence = "medium"
+		finding.Limitations = append(finding.Limitations, "d may be kept nonzero outside this function, by its callers or by the verifier's check of a public input.")
+	}
+	return []report.Finding{finding}
 }
 
-func siteFindings(fset *token.FileSet, dir string, fn *ast.FuncDecl, h report.Hint, guard *boundGuard, sites []guardSite) []report.Finding {
+// qualify sets a finding's confidence and, when the rule may be wrong about
+// it, says why in the message and records every reason in the evidence.
+func qualify(f *report.Finding, qualifiers []string) {
+	f.Confidence = "high"
+	if len(qualifiers) == 0 {
+		return
+	}
+	f.Confidence = "medium"
+	f.Message += " Not confirmed: " + qualifiers[0] + "."
+	for _, q := range qualifiers {
+		f.Evidence = append(f.Evidence, "not analyzed: "+q)
+	}
+}
+
+func siteFindings(fset *token.FileSet, dir string, fn *ast.FuncDecl, h report.Hint, guard *boundGuard, sites []guardSite, qualifiers []string) []report.Finding {
 	var findings []report.Finding
 	name := guard.param.Name()
 	for _, site := range sites {
@@ -61,8 +99,8 @@ func siteFindings(fset *token.FileSet, dir string, fn *ast.FuncDecl, h report.Hi
 			continue
 		}
 		pos := fset.Position(site.call.Lparen)
-		findings = append(findings, report.Finding{
-			RuleID: relationRule, Severity: report.SeverityHigh, Confidence: "high",
+		finding := report.Finding{
+			RuleID: relationRule, Severity: report.SeverityHigh,
 			File: relative(dir, pos.Filename), Line: pos.Line, Column: pos.Column, Function: functionName(site.caller),
 			Message: fmt.Sprintf("This call passes %s=%t to %s, which then skips the canonical remainder bound r < d on its hint outputs.", name, site.value, fn.Name.Name),
 			Evidence: []string{
@@ -73,7 +111,9 @@ func siteFindings(fset *token.FileSet, dir string, fn *ast.FuncDecl, h report.Hi
 				fmt.Sprintf("argument at this call: %s=%t", name, site.value),
 			},
 			Limitations: []string{},
-		})
+		}
+		qualify(&finding, qualifiers)
+		findings = append(findings, finding)
 	}
 	return findings
 }
@@ -117,11 +157,11 @@ func findGuard(fn *ast.FuncDecl, relation relationAnalysis, info *types.Info, he
 		if !ok || (sig.Variadic() && index == sig.Params().Len()-1) || !isBool(param.Type()) || mutated(fn.Body, param, info) {
 			return true
 		}
-		if found, _ := boundWithin(stmt.Body, info, helpers, relation.outputs, relation.aliases, relation.divisor); found {
-			guard = &boundGuard{param: param, index: index, enforcedWhen: !negated}
+		if boundWithin(stmt.Body, fn.Body, info, helpers, relation.outputs, relation.aliases, relation.divisor, relation.field).found {
+			guard = &boundGuard{param: param, index: index, enforcedWhen: !negated, stmt: stmt}
 		} else if elseBlock, ok := stmt.Else.(*ast.BlockStmt); ok {
-			if found, _ := boundWithin(elseBlock, info, helpers, relation.outputs, relation.aliases, relation.divisor); found {
-				guard = &boundGuard{param: param, index: index, enforcedWhen: negated}
+			if boundWithin(elseBlock, fn.Body, info, helpers, relation.outputs, relation.aliases, relation.divisor, relation.field).found {
+				guard = &boundGuard{param: param, index: index, enforcedWhen: negated, stmt: stmt}
 			}
 		}
 		return true

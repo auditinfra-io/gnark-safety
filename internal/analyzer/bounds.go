@@ -69,18 +69,25 @@ func (ev *evaluator) value(e ast.Expr) *big.Int {
 		if a == nil || b == nil {
 			return nil
 		}
+		var result *big.Int
 		switch x.Op {
 		case token.ADD:
-			return new(big.Int).Add(a, b)
+			result = new(big.Int).Add(a, b)
 		case token.SUB:
-			return new(big.Int).Sub(a, b)
+			result = new(big.Int).Sub(a, b)
 		case token.MUL:
-			return new(big.Int).Mul(a, b)
+			result = new(big.Int).Mul(a, b)
 		case token.SHL:
 			if b.Sign() >= 0 && b.Cmp(big.NewInt(1023)) <= 0 {
-				return new(big.Int).Lsh(a, uint(b.Int64()))
+				result = new(big.Int).Lsh(a, uint(b.Int64()))
 			}
 		}
+		// Arithmetic on variables runs in the expression's Go type, which
+		// wraps or rounds; only an exact result is the program's value.
+		if result == nil || !exact(result, ev.info.TypeOf(x)) {
+			return nil
+		}
+		return result
 	case *ast.Ident:
 		if v, ok := ev.info.Uses[x].(*types.Var); ok {
 			return ev.packageValue(v)
@@ -126,6 +133,43 @@ func fitsConversion(v *big.Int, t types.Type) bool {
 		return v.BitLen() < int(bits)
 	}
 	return false
+}
+
+// exact reports whether Go computes v without loss in type t: an integer
+// type must hold it rather than wrap around, and a float must represent it
+// without rounding.
+func exact(v *big.Int, t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	if basic, ok := t.Underlying().(*types.Basic); ok && basic.Info()&types.IsFloat != 0 {
+		precision := uint(53)
+		if basic.Kind() == types.Float32 {
+			precision = 24
+		}
+		return new(big.Float).SetPrec(precision).SetInt(v).Acc() == big.Exact
+	}
+	return fitsConversion(v, t)
+}
+
+// fieldConstant returns the value of e when it is fixed at compile time and
+// the circuit sees that same number: non-negative and below the field
+// modulus. With no field configured, it must be below 2^240, which every
+// pairing-friendly field gnark compiles to exceeds. A larger constant wraps
+// around the field, so its integer value says nothing about the circuit's.
+func fieldConstant(ev *evaluator, e ast.Expr, field *big.Int) *big.Int {
+	v := ev.value(e)
+	if v == nil || v.Sign() < 0 {
+		return nil
+	}
+	limit := field
+	if limit == nil {
+		limit = new(big.Int).Lsh(big.NewInt(1), maximumReconstructionBits)
+	}
+	if v.Cmp(limit) >= 0 {
+		return nil
+	}
+	return v
 }
 
 func isBigIntMethod(fn *types.Func, names ...string) bool {

@@ -1,82 +1,169 @@
 # gnark-safety
 
-A static analyzer for **soundness bugs in [gnark](https://github.com/Consensys/gnark)
-circuits**: prover-controlled values that the circuit never binds to the
-meaning the developer intended.
+`gnark-safety` reads the Go source of [gnark](https://github.com/Consensys/gnark)
+circuits and reports a small set of specific patterns that often mean a
+circuit accepts values it should reject. It is a static analyzer: it never
+runs your circuit, and it knows only the patterns its rules describe.
 
-gnark hints compute witness values outside the circuit. The proof then
-establishes only the constraints the circuit encodes, so every property of a
-hint output that matters (its range, its relation to the inputs, its
-uniqueness) has to be constrained explicitly. `gnark-safety` loads your Go
-packages with full type information and reports hint outputs whose
-constraints are missing or incomplete. It is the gnark counterpart of
-[o1js-scan](https://github.com/auditinfra-io/o1js-scan), which covers o1js and
-Noir.
+Its main target is gnark *hints*. A hint computes a value outside the circuit,
+such as a quotient and remainder, and a proof establishes only the constraints
+the circuit states about that value. If a property the developer relied on is
+never constrained, a dishonest prover can supply a different value that still
+passes. `gnark-safety` loads your packages with full Go type information,
+reports hint outputs whose constraints look incomplete, and checks ten other
+patterns listed under [Rules](#rules). It is the gnark counterpart of
+[o1js-scan](https://github.com/auditinfra-io/o1js-scan).
+
+## Status
+
+- **Experimental.** The project is pre-1.0 and no release has been tagged.
+  Rules, messages, and the report schema may change. Nothing here has been
+  independently audited.
+- **AI-assisted.** Much of the code, tests, and documentation was written
+  with AI assistance (Anthropic's Claude, through Claude Code); those commits
+  carry `Co-Authored-By` trailers. Review the tool's findings, and its
+  documentation's claims, as you would those of any unaudited tool.
+- **Narrow.** Each rule matches specific source shapes. A clean scan is not
+  an audit, and a finding is a lead to review, not a confirmed
+  vulnerability. See [What a result does not tell you](#what-a-result-does-not-tell-you).
 
 ## Install
 
+Requirements:
+
+- **Go 1.26.0 or newer** to build. That is the `go` line in `go.mod`, which
+  `golang.org/x/tools` v0.50.0 and its `golang.org/x/*` dependencies require.
+  `go.mod` also names `toolchain go1.27.1`, because three published Go
+  standard-library vulnerabilities reachable through `gnark-safety-vet` are
+  fixed only in later releases (see [`CHANGELOG.md`](CHANGELOG.md)). Under
+  Go's default `GOTOOLCHAIN=auto`, an older `go` command downloads and builds
+  with Go 1.27.1. Under `GOTOOLCHAIN=local`, common in CI, Go 1.26.0 through
+  1.27.0 builds without that fix and anything older fails with
+  `go.mod requires go >= 1.26.0`, so pin Go 1.27.1 or newer there.
+- **Packages that build.** The analyzer type-checks the packages you scan,
+  so their module dependencies must be downloadable or already in the module
+  cache.
+- **A binary at least as new as your `go` command.** The analyzer
+  type-checks the standard library of the `go` command on your `PATH`, so it
+  must be built with that Go release or a newer one. `go install` ensures
+  this, and a mismatched binary says how to rebuild.
+
 ```bash
 go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@latest
+gnark-safety --version
 ```
 
-Go 1.25.7 or newer is required to build. `go.mod` also pins `toolchain
-go1.27.1`: three published Go standard-library vulnerabilities reachable
-through `gnark-safety-vet` are present in Go 1.25.7 and fixed only in later
-releases (see [`CHANGELOG.md`](CHANGELOG.md)), so with Go's default
-toolchain management (`GOTOOLCHAIN=auto`) `go install` fetches and builds
-with 1.27.1 automatically, even when your local Go already satisfies the
-1.25.7 floor. With `GOTOOLCHAIN=local` (common in CI), that automatic fetch
-does not happen: an older local Go builds as-is if it is at least 1.25.7 —
-without the fix — or install fails outright with `go.mod requires go >=
-1.25.7` if it is older still; pin Go 1.27.1 or newer directly in a
-`GOTOOLCHAIN=local` environment to get the same fix. The analyzer
-type-checks the packages you scan, so they must build, and their module
-dependencies must be downloadable or already in the module cache. It must
-also be built with a Go release at least as new as the `go` command on your
-`PATH`, because it type-checks that release's standard library: `go install`
-guarantees this, and a prebuilt binary reports the mismatch and how to fix
-it.
-
-Tagged releases also publish reproducible prebuilt archives for Linux, macOS,
-and Windows (amd64 and arm64), with a checksum list in the release evidence;
-see [`docs/releases.md`](docs/releases.md). CI can use the
+No release has been tagged, so `@latest` installs the newest commit on the
+default branch, and `--version` prints a pseudo-version such as
+`v0.0.0-20260927122302-f6cf9fd8d1db` whose last part names that commit. To
+use a particular checkout instead, run `go build -o gnark-safety
+./cmd/gnark-safety` in it; `--version` then names the checked-out commit,
+with `+dirty` if the tree has uncommitted changes. (`go run` reports only
+`devel`.) The release workflow is set up to publish prebuilt archives for
+Linux, macOS, and Windows once a release is tagged; see
+[`docs/releases.md`](docs/releases.md). CI can use the
 [GitHub Action](#github-action) instead.
 
-## Example
+## Scan your circuits
 
-[`examples/divmod`](examples/divmod) contains two circuits that share one
-quotient/remainder helper. `VulnerableCircuit` omits the `r < d` bound, and
-`CorrectedCircuit` enforces it. The scanner reports the call that disables the
-bound and stays quiet about the corrected one:
+From the directory that holds your `go.mod`:
+
+```bash
+gnark-safety scan ./...
+```
+
+Arguments are Go package patterns. Findings go to stdout and a one-line
+summary to stderr. The exit code is `0` when the scan passed, `1` when a
+finding reached `--fail-on` (default `high`), and `2` when the scan could not
+give a complete answer: a usage error, no scanned package imports gnark, or
+a requested package failed to load. [Usage](#usage) has the details and the
+flags.
+
+The summary states what was analyzed, including how many hint calls were
+found and how many are in the quotient/remainder shape that the first rule
+checks. If that second number is 0, the first rule had nothing to check in
+your code, whatever else the scan reports.
+
+## A synthetic finding, and how to read it
+
+[`examples/divmod`](examples/divmod) is a small circuit that is incomplete on
+purpose. Scanned from this repository's root:
 
 ```console
 $ gnark-safety scan --include-examples ./examples/divmod
 examples/divmod/circuits.go:44:26: high [GNARK_HINT_RELATION_INCOMPLETE] This call passes enforceCanonicalRemainder=false to constrainDivision, which then skips the canonical remainder bound r < d on its hint outputs.
 
-1 finding(s).
-gnark-safety: 1 finding(s) [1 high] in 1 file(s); scanned 1 package(s), 1 importing gnark; _test.go files excluded — fails (--fail-on high)
+1 finding(s). Each is a lead for review, not a confirmed vulnerability; `gnark-safety explain <rule>` says what a rule checks and where it stops.
+gnark-safety: 1 finding(s) [1 high] in 1 file(s); scanned 1 package(s), 1 importing gnark; 1 hint call(s), 1 in the quotient/remainder shape; _test.go files excluded — fails (--fail-on high)
 $ echo $?
 1
 ```
 
-Without the bound, a prover can supply `q=2, r=7` for `n=17, d=5`. That
-witness still satisfies `n = q*d + r`, and a Groth16 proof built from it
-verifies. The example's tests demonstrate this with gnark's
-`solver.OverrideHint`.
+(`--include-examples` keeps the finding at its original severity; by default
+findings under `examples/` are lowered to `low`, as shown under
+[Usage](#usage).)
 
-`--include-examples` is needed here only because the demo lives under
-`examples/`. By default the scanner downgrades example code to low so that a
-repository's own samples cannot fail its build:
+How to read it:
 
-```console
-$ gnark-safety scan ./examples/divmod
-examples/divmod/circuits.go:44:26: low [GNARK_HINT_RELATION_INCOMPLETE] This call passes enforceCanonicalRemainder=false to constrainDivision, which then skips the canonical remainder bound r < d on its hint outputs.
+- **Where.** Line 44 is the call in `(*VulnerableCircuit).Define` that
+  passes `false` to the shared helper `constrainDivision`. The helper asks a
+  hint for a quotient `q` and a remainder `r`, checks `n = q*d + r` and 8-bit
+  ranges, and checks `r < d` only when its last argument is `true`. The rule
+  reports the caller that turns the check off, not the helper.
+- **What.** `high` is the severity, which decides the exit code, and
+  `GNARK_HINT_RELATION_INCOMPLETE` is the rule. `gnark-safety explain
+  GNARK_HINT_RELATION_INCOMPLETE` describes it and where it stops. With
+  `--format json`, the finding also has a confidence (`high` here, because
+  the remainder reaches no code the rule does not read) and its evidence.
+- **Why it matters.** Without `r < d`, both `q=3, r=2` and `q=2, r=7`
+  satisfy `17 = q*5 + r`. For this example that is shown, not just
+  predicted: the example's tests have gnark's solver accept `q=2, r=7`, and
+  a Groth16 proof built from it verifies.
+- **What to check in your own code.** Whether the hint is really meant as
+  division with a remainder in `[0, d)`; whether `r` is bounded somewhere the
+  rule does not look, such as a caller or a helper two calls deep; and,
+  separately, whether `q`, `d`, and `n` are range-checked so that `q*d + r`
+  cannot wrap around the field, which this rule does not check.
+  [`docs/understanding-the-first-detector.md`](docs/understanding-the-first-detector.md)
+  explains all of this without assuming a computer-science background.
+- **Fixing or accepting it.** `CorrectedCircuit` in the same file is the
+  fix: it range-checks `r` and asserts `r < d` with a bounded comparator. If
+  you have reviewed a finding and it is not a problem, suppress it with a
+  reason; see [Suppressing a reviewed finding](#suppressing-a-reviewed-finding).
 
-1 finding(s).
-gnark-safety: 1 finding(s) [1 low] in 1 file(s); scanned 1 package(s), 1 importing gnark; 1 downgraded as example code; _test.go files excluded — passes (--fail-on high)
-$ echo $?
-0
-```
+## What a result does not tell you
+
+- **A clean run is not an audit.** No findings means that no pattern these
+  rules recognize matched, not that the circuit is sound. Most soundness bugs
+  match no rule here.
+- **A finding is a lead, not a verdict.** The analyzer matches source
+  shapes; it does not run the circuit or know what a hint is meant to
+  compute. When a finding depends on code it does not read, its message says
+  "Not confirmed:" and why, and its confidence is `medium`. Each rule's
+  "Where it stops" entry in [`docs/rules.md`](docs/rules.md) lists what the
+  rule misses and where it can be wrong.
+- **Analysis is type-aware but shallow.** Hint calls are resolved by type
+  (`Compiler.NewHint` and the deprecated `API.NewHint`, including import
+  aliases and embedded APIs). Bounds are followed through one level of
+  package-local helpers, and bounds guarded by a bool parameter are resolved
+  at constant call sites. Deeper call graphs, callers, reflection, generated
+  code, and dynamically selected hints are listed in each report's
+  `limitations` rather than guessed.
+- **Code that does not load is not analyzed.** The scan then exits 2 and
+  names the packages it skipped, in the report and on stderr, unless you
+  pass `--allow-partial`.
+
+For a protocol holding real value, treat this as a first pass and budget for
+a full circuit review.
+
+## Reporting a security issue
+
+Do not open a public issue for a suspected vulnerability, in this tool or in
+gnark. Use **Report a vulnerability** under this repository's **Security**
+tab to open a private advisory. [`SECURITY.md`](SECURITY.md) lists what to
+include and what is in scope. A suspected vulnerability in gnark itself
+belongs with gnark's maintainers, under
+[gnark's security policy](https://github.com/Consensys/gnark/blob/cfc7b2f907cc4212ec152077e022c6d0b4805759/SECURITY.md).
 
 ## Usage
 
@@ -123,10 +210,24 @@ directories (`test/`, `tests/`, `testutil/`, `testutils/`, `testing/`,
 `_test.go` files, are downgraded the same way unless `--include-test-support`
 is passed.
 
+Without `--include-examples`, the demo's finding is downgraded to low, so a
+repository's own samples cannot fail its build:
+
+```console
+$ gnark-safety scan ./examples/divmod
+examples/divmod/circuits.go:44:26: low [GNARK_HINT_RELATION_INCOMPLETE] This call passes enforceCanonicalRemainder=false to constrainDivision, which then skips the canonical remainder bound r < d on its hint outputs.
+
+1 finding(s). Each is a lead for review, not a confirmed vulnerability; `gnark-safety explain <rule>` says what a rule checks and where it stops.
+gnark-safety: 1 finding(s) [1 low] in 1 file(s); scanned 1 package(s), 1 importing gnark; 1 hint call(s), 1 in the quotient/remainder shape; 1 downgraded as example code; _test.go files excluded — passes (--fail-on high)
+$ echo $?
+0
+```
+
 **Output.** The JSON report records:
 
 - the tool version and scan coverage;
-- stable findings with evidence;
+- stable findings with a severity, a confidence (`medium` when the rule could
+  not read everything its verdict depends on), evidence, and limitations;
 - a per-hint inventory with independent participation, range, relation,
   canonicality, and field-safety assessments.
 
@@ -185,7 +286,7 @@ jobs:
 | `allow-partial` | `false` | Pass even when some requested packages failed to load and were not analyzed. |
 | `field` | `unknown` | Scalar field for bound checks: `unknown`, `bn254`, or `bls12-381`. |
 | `version` | empty | Release to `go install`, such as `v0.2.0`. Empty builds the analyzer from the action at the ref in `uses:`. |
-| `go-version` | `stable` | Go version for `actions/setup-go`. The analyzer is built and run with it, so it must be at least your module's `go` version (1.25.7); with the default `GOTOOLCHAIN=auto` the build then fetches the pinned `toolchain` version (1.27.1) automatically. Empty uses the Go already on `PATH`. |
+| `go-version` | `stable` | Go version for `actions/setup-go`. The analyzer is built and run with it, so it must be at least your module's `go` version and this module's (1.26.0). `setup-go` exports `GOTOOLCHAIN=local`, so no other toolchain is downloaded. Empty uses the Go already on `PATH`. |
 
 The action's outputs are `sarif-file` and `exit-code`. An upload runs whenever
 the scan completed, including when it failed the gate, so the findings that
@@ -251,7 +352,7 @@ Full descriptions are in [`docs/rules.md`](docs/rules.md).
 <!-- BEGIN GENERATED RULE TABLE -->
 | Rule | Severity | Class | What it means |
 |---|---|---|---|
-| [`GNARK_HINT_RELATION_INCOMPLETE`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_hint_relation_incomplete) | high | unbound witness | A two-output hint is reconstructed as `n = q*d + r`, but no unconditional `r < d` bound makes the quotient and remainder unique, so the prover can supply a noncanonical pair that still satisfies the circuit. |
+| [`GNARK_HINT_RELATION_INCOMPLETE`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_hint_relation_incomplete) | high | unbound witness | A two-output hint is reconstructed as `n = q*d + r`, but no unconditional bound `0 <= r < d` was recognized, so a prover may be able to supply another quotient and remainder that satisfy the same equation. |
 | [`GNARK_HINT_OUTPUT_UNUSED`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_hint_output_unused) | medium | unbound witness | A hint output is extracted from the returned slice but never referenced again. An unused prover-computed value often means a forgotten constraint, but it can also be intentional padding, so the rule asks for review. |
 | [`GNARK_TAG_VISIBILITY_AS_NAME`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_tag_visibility_as_name) | high / info | unbound witness | A struct tag such as `gnark:"public"` names the witness element `public` instead of setting its visibility, so the field stays secret: a value the verifier meant to fix becomes one the prover chooses. |
 | [`GNARK_GO_EQUALITY_ON_VARIABLE`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_go_equality_on_variable) | high | non-load-bearing predicate | Go `==`, `!=`, or `switch` on a `frontend.Variable` compares the value the variable holds while the circuit is being compiled, a constraint expression rather than the witness, so the branch it guards is not a constraint. |
@@ -270,41 +371,49 @@ entry in [`docs/rules.md`](docs/rules.md#gnark_hint_relation_incomplete) for
 exactly which shapes it does and does not cover, including which gaps stay
 quiet and which can instead produce a false positive.
 
-Every rule is checked in four ways:
+## How the rules are tested
 
-- **Corpus.** Its true positives and false-positive guards are pinned line by
-  line in an annotated corpus (`internal/analyzer/testdata/corpus`).
-- **Metamorphic suite.** It must give the same verdicts after
+- **Annotated corpus.** Each rule's true positives and false-positive guards
+  are pinned line by line, in both directions, in
+  `internal/analyzer/testdata/corpus`. The cases are synthetic: shapes
+  written to exercise the rules, some modeled on application code.
+- **Metamorphic suite.** Each rule must give the same verdicts after
   spelling-only rewrites: import aliases, parentheses, swapped operands.
-- **Canary.** It runs against gnark's own `std/` library, where every finding
-  is read and classified ([`canary/`](canary/README.md)). On gnark v0.15.0 and
-  v0.16.3 the result is two medium findings, both intended, and no high ones.
-- **Executable witness (high rules).** Each high rule has a test
-  (`internal/witness`) in which the reported circuit accepts a semantically
-  invalid witness and the corrected circuit rejects it.
+- **Canary.** The rules run against gnark's own `std/` library at v0.15.0
+  and v0.16.3, and every finding is read and classified
+  ([`canary/`](canary/README.md)): two medium findings, both intended, and no
+  high ones. `std/` contains no hint in the quotient/remainder shape, so the
+  canary says nothing about `GNARK_HINT_RELATION_INCOMPLETE`.
+- **Executable witnesses.** For each high rule, a test (in `internal/witness`,
+  and in `examples/divmod` for the first rule) builds a small synthetic
+  circuit that the rule reports, shows by solving it that it accepts a
+  witness violating its intended property, and shows that a corrected
+  circuit rejects that witness. This shows that the pattern can be a real
+  bug. It does not show that every finding of the rule is exploitable.
+- **Challenge cases.** The first rule's assumptions are tested against
+  circuits whose correct outcome was worked out from their constraints,
+  including cases where it is wrong; see
+  [`docs/relation-rule-review.md`](docs/relation-rule-review.md).
+- **Retained evidence.** [`evidence/`](evidence/README.md) keeps the verbose
+  output of one full test run, bound to SHA-256 hashes of the sources it ran
+  on. It records that run on the machine that produced it; it is not an
+  independent reproduction, and it no longer describes the code once those
+  hashes stop matching.
+- **CI.** `.github/workflows/test.yml` is set up to check formatting, run
+  `go vet`, the full suite on Go 1.26.0 and the current stable Go,
+  staticcheck, govulncheck, a fuzz target, the Action, and the canary. Check
+  the workflow run for the commit you use rather than assuming it passed.
+
+None of this measures precision or recall on real application code. The
+calibration against public gnark applications described in
+[`CHANGELOG.md`](CHANGELOG.md) kept its per-finding results out of the
+repository, so it cannot be reproduced from here.
 
 [`docs/o1js-scan-parity-plan.md`](docs/o1js-scan-parity-plan.md) lays out the
 next rules: hint outputs that reach no constraint, `DivUnchecked` by a
 possibly-zero divisor, inverses guarded by `Select`, validation that exists
 only in hint code, unverified recursive proofs, unpinned verifying keys, and
 unbound Merkle roots.
-
-## Where this tool stops
-
-- **A clean run is not an audit.** It means no shape these rules recognize
-  matched, not that the circuit is sound.
-- **A finding is a lead, not a verdict.** Every rule documents what it does
-  not match; see "Where it stops" in [`docs/rules.md`](docs/rules.md).
-- **Analysis is type-aware but shallow.** Hint calls are resolved by type
-  (`Compiler.NewHint` and the deprecated `API.NewHint`, including import
-  aliases and embedded APIs). Bounds are followed through one level of
-  package-local helpers, and bounds guarded by a bool parameter are resolved
-  at constant call sites. Deeper call graphs, reflection, generated code, and
-  dynamically selected hints are reported in each report's `limitations`
-  rather than guessed.
-
-For a protocol holding real value, treat this as a first pass and budget for a
-full circuit review.
 
 ## Repository layout
 
@@ -316,10 +425,12 @@ full circuit review.
 | `action.yml`, `.pre-commit-hooks.yaml`, `scripts/` | The GitHub Action, the pre-commit hook, and the release scripts. `internal/contract` tests all of them. |
 | `pkg/report` | The public, versioned report schema. |
 | [`examples/divmod`](examples/divmod) | The educational vulnerable/corrected pair, with solver, differential, adversarial-hint, and Groth16/PLONK proof tests. |
-| `cmd/reproduce`, `cmd/release-evidence`, [`evidence/`](evidence/README.md) | Reproducible evidence and signed-release bundles; see [`docs/releases.md`](docs/releases.md). |
+| `cmd/reproduce`, `cmd/release-evidence`, [`evidence/`](evidence/README.md) | Retained test evidence, and the release-evidence bundle, which is checksummed but not signed; see [`docs/releases.md`](docs/releases.md). |
 | `cmd/gnark-hint-scan` | Deprecated; use `gnark-safety inventory`. |
 
-Run the full suite with `GOTOOLCHAIN=go1.25.7 go test -count=1 ./...`.
+Run the full suite with `go test -count=1 ./...` (Go 1.27.1 under the
+default `GOTOOLCHAIN=auto`), or with `GOTOOLCHAIN=go1.26.0` to test the
+minimum.
 After changing a rule's metadata, run `go generate ./internal/rules` to
 regenerate the rule tables. A test fails until you do.
 
@@ -330,10 +441,9 @@ regenerate the rule tables. A test fails until you do.
 - [`docs/o1js-scan-parity-plan.md`](docs/o1js-scan-parity-plan.md) is the
   roadmap toward parity with o1js-scan in packaging, CI integration, rule
   breadth, and public calibration.
-- Report a suspected vulnerability privately as described in
-  [`SECURITY.md`](SECURITY.md).
-- Tagged releases publish an SPDX SBOM, SARIF, source hashes, toolchain
-  metadata, and retained test output.
+- The release workflow is set up to attach an SPDX SBOM, SARIF, source
+  hashes, toolchain metadata, and retained test output to each tagged
+  release. No release has been tagged yet.
 
 ## License
 
