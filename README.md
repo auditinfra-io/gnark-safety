@@ -16,6 +16,8 @@ patterns listed under [Rules](#rules). It is the gnark counterpart of
 also [vk-guard](https://github.com/auditinfra-io/vk-guard) (verification-key
 regression).
 
+See it run: [`docs/walkthrough.md`](docs/walkthrough.md).
+
 ## Status
 
 - **Experimental.** The project is pre-1.0; its first release is v0.1.0.
