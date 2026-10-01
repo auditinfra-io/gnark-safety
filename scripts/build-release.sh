@@ -12,7 +12,7 @@ set -euo pipefail
 
 version="${1:?usage: build-release.sh vX.Y.Z OUTPUT_DIR}"
 out="${2:?usage: build-release.sh vX.Y.Z OUTPUT_DIR}"
-if ! [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+if ! [[ "$version" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)))*)?(\+([0-9A-Za-z-]+)(\.[0-9A-Za-z-]+)*)?$ ]]; then
   echo "build-release: version must look like vX.Y.Z, got '$version'" >&2
   exit 2
 fi

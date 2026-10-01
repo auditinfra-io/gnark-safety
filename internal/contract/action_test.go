@@ -168,6 +168,20 @@ func TestActionInstallScript(t *testing.T) {
 			t.Errorf("VERSION=%q was accepted: %v\n%s", version, err, out)
 		}
 	}
+
+	// A release may use both SemVer's prerelease and build suffixes. Use a
+	// fake go command so this checks the action's validation without fetching.
+	fakeBin := t.TempDir()
+	fakeGo := filepath.Join(fakeBin, "go")
+	fakeGoSource := "#!/usr/bin/env bash\nset -euo pipefail\nmkdir -p \"$GOBIN\"\nprintf '#!/usr/bin/env bash\\nexit 0\\n' > \"$GOBIN/gnark-safety\"\nchmod +x \"$GOBIN/gnark-safety\"\n"
+	if err := os.WriteFile(fakeGo, []byte(fakeGoSource), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("bash", filepath.Join(repoRoot, "scripts/action-install.sh"))
+	cmd.Env = append(os.Environ(), "PATH="+fakeBin+":"+os.Getenv("PATH"), "RUNNER_TEMP="+t.TempDir(), "VERSION=v1.2.3-rc.1+build.7")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("valid SemVer release rejected: %v\n%s", err, out)
+	}
 }
 
 type scanResult struct {
