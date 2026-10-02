@@ -12,8 +12,8 @@ set -euo pipefail
 tag="${1:?usage: release-preflight.sh vX.Y.Z [CHANGELOG]}"
 changelog="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/CHANGELOG.md}"
 
-if ! [[ "$tag" =~ ^v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)))*)?(\+([0-9A-Za-z-]+)(\.[0-9A-Za-z-]+)*)?)$ ]]; then
-  echo "release-preflight: tag must look like vX.Y.Z, got '$tag'" >&2
+if ! [[ "$tag" =~ ^v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)))*)?)$ ]]; then
+  echo "release-preflight: tag must look like vX.Y.Z or vX.Y.Z-pre, without +build metadata (Go drops it, so go install could not name the release), got '$tag'" >&2
   exit 1
 fi
 version="${BASH_REMATCH[1]}"
