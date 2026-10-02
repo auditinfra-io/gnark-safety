@@ -21,15 +21,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Release and Action version checks accept only valid SemVer.**
   `scripts/release-preflight.sh`, `scripts/build-release.sh`, and the
   Action's `version` input accepted anything shaped like `vX.Y.Z`, including
-  leading zeros and malformed pre-release identifiers; those now fail. The
-  Action also rejects build metadata (`+…`), which Go drops when resolving a
-  module version. The changelog check now requires the section heading to be
+  leading zeros and malformed pre-release identifiers; those now fail. All
+  three also reject build metadata (`+…`): Go resolves `vX.Y.Z+meta` as
+  `vX.Y.Z`, so a release tagged with it could not be installed by its own
+  name. The changelog check now requires the section heading to be
   exactly `## [X.Y.Z]` or `## [X.Y.Z] - date`.
 
 ### Added
 
 - [`docs/walkthrough.md`](docs/walkthrough.md): one scan of
   `examples/divmod` end to end, with real output, linked from the README.
+  A test reruns its `scan` and `explain` commands and fails when the pasted
+  output or exit codes no longer match the tool.
 
 ## [0.1.1] - 2026-09-27
 
