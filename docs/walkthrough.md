@@ -84,6 +84,10 @@ and scanning `./examples/divmod` with that binary exited 2, ending with:
 
 > gnark-safety was built with go1.26.8, but the go command is go1.27.1: a type checker older than the go command cannot load its standard library. Rebuild gnark-safety with go1.27 or newer, for example with go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@<version>.
 
+That was v0.1.1. Since v0.1.2 the README's install line pins the toolchain
+(`GOTOOLCHAIN="$(go env GOVERSION)"`, run from the module you will scan), and
+the message names the same fix.
+
 Scan the example, keeping the finding at its original severity:
 
 ```console

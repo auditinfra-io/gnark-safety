@@ -507,6 +507,9 @@ func TestToolchainSkewHint(t *testing.T) {
 		if tc.hint && !strings.Contains(hint, "Rebuild gnark-safety with "+goversionLang(tc.goCommand)) {
 			t.Errorf("hint %q does not name the required release", hint)
 		}
+		if tc.hint && !strings.Contains(hint, "GOTOOLCHAIN="+tc.goCommand+" go install ") {
+			t.Errorf("hint %q does not pin the rebuild to the go command's toolchain", hint)
+		}
 	}
 }
 
