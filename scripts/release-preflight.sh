@@ -12,7 +12,7 @@ set -euo pipefail
 tag="${1:?usage: release-preflight.sh vX.Y.Z [CHANGELOG]}"
 changelog="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/CHANGELOG.md}"
 
-if ! [[ "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?)$ ]]; then
+if ! [[ "$tag" =~ ^v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)))*)?(\+([0-9A-Za-z-]+)(\.[0-9A-Za-z-]+)*)?)$ ]]; then
   echo "release-preflight: tag must look like vX.Y.Z, got '$tag'" >&2
   exit 1
 fi
@@ -21,7 +21,7 @@ version="${BASH_REMATCH[1]}"
 # Print the body of the version's section: lines after its heading up to the
 # next "## " heading, ignoring blank lines.
 body="$(awk -v heading="## [$version]" '
-  index($0, heading) == 1 { inside = 1; next }
+  $0 == heading || index($0, heading " - ") == 1 { inside = 1; next }
   inside && /^## / { exit }
   inside && NF { print }
 ' "$changelog")"

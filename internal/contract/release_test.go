@@ -24,14 +24,14 @@ func runScript(t *testing.T, env []string, script string, args ...string) (strin
 
 func TestReleasePreflight(t *testing.T) {
 	changelog := filepath.Join(t.TempDir(), "CHANGELOG.md")
-	content := "# Changelog\n\n## [Unreleased]\n\n- pending\n\n## [1.2.3] - 2026-09-24\n\n### Added\n\n- a feature\n\n## [1.2.2] - 2026-09-01\n\n## [1.0.0] - 2026-01-01\n\n- first\n"
+	content := "# Changelog\n\n## [Unreleased]\n\n- pending\n\n## [1.2.3-rc.1+build.7] - 2026-09-24\n\n### Added\n\n- a feature\n\n## [1.2.2] - 2026-09-01\n\n## [1.0.0] - 2026-01-01\n\n- first\n"
 	if err := os.WriteFile(changelog, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := runScript(t, nil, "release-preflight.sh", "v1.2.3", changelog); err != nil {
+	if out, err := runScript(t, nil, "release-preflight.sh", "v1.2.3-rc.1+build.7", changelog); err != nil {
 		t.Fatalf("described release rejected: %v\n%s", err, out)
 	}
-	for _, tag := range []string{"v1.2.4", "1.2.3", "v1.2", "v1.2.2", "main"} {
+	for _, tag := range []string{"v1.2.4", "v1.2.3", "v1.2.3.4", "v01.2.3", "v1.2.3-01", "1.2.3", "v1.2", "v1.2.2", "main"} {
 		if out, err := runScript(t, nil, "release-preflight.sh", tag, changelog); err == nil {
 			t.Errorf("tag %q passed preflight:\n%s", tag, out)
 		}
@@ -45,7 +45,7 @@ func TestBuildRelease(t *testing.T) {
 	env := []string{"PLATFORMS=" + host + " windows/amd64", "SOURCE_DATE_EPOCH=1700000000"}
 	first, second := t.TempDir(), t.TempDir()
 	for _, dir := range []string{first, second} {
-		if out, err := runScript(t, env, "build-release.sh", "v0.0.0-contract", dir); err != nil {
+		if out, err := runScript(t, env, "build-release.sh", "v0.0.0-rc.1+build.7", dir); err != nil {
 			t.Fatalf("build failed: %v\n%s", err, out)
 		}
 	}
@@ -63,15 +63,15 @@ func TestBuildRelease(t *testing.T) {
 		t.Fatalf("want 2 checksummed archives, got:\n%s", sums(first))
 	}
 
-	name := "gnark-safety_0.0.0-contract_" + runtime.GOOS + "_" + runtime.GOARCH
+	name := "gnark-safety_0.0.0-rc.1+build.7_" + runtime.GOOS + "_" + runtime.GOARCH
 	if runtime.GOOS != "windows" {
 		bin := extractTarGz(t, filepath.Join(first, name+".tar.gz"), name+"/gnark-safety")
 		out, err := exec.Command(bin, "--version").CombinedOutput()
-		if err != nil || strings.TrimSpace(string(out)) != "gnark-safety v0.0.0-contract" {
+		if err != nil || strings.TrimSpace(string(out)) != "gnark-safety v0.0.0-rc.1+build.7" {
 			t.Fatalf("released binary reports %q, %v", out, err)
 		}
 	}
-	archive, err := zip.OpenReader(filepath.Join(first, "gnark-safety_0.0.0-contract_windows_amd64.zip"))
+	archive, err := zip.OpenReader(filepath.Join(first, "gnark-safety_0.0.0-rc.1+build.7_windows_amd64.zip"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestBuildRelease(t *testing.T) {
 	for _, file := range archive.File {
 		entries = append(entries, file.Name)
 	}
-	if strings.Join(entries, ",") != "gnark-safety_0.0.0-contract_windows_amd64/CHANGELOG.md,gnark-safety_0.0.0-contract_windows_amd64/LICENSE,gnark-safety_0.0.0-contract_windows_amd64/README.md,gnark-safety_0.0.0-contract_windows_amd64/gnark-safety.exe" {
+	if strings.Join(entries, ",") != "gnark-safety_0.0.0-rc.1+build.7_windows_amd64/CHANGELOG.md,gnark-safety_0.0.0-rc.1+build.7_windows_amd64/LICENSE,gnark-safety_0.0.0-rc.1+build.7_windows_amd64/README.md,gnark-safety_0.0.0-rc.1+build.7_windows_amd64/gnark-safety.exe" {
 		t.Fatalf("unexpected zip entries: %v", entries)
 	}
 
