@@ -49,11 +49,15 @@ Requirements:
   cache.
 - **A binary at least as new as your `go` command.** The analyzer
   type-checks the standard library of the `go` command on your `PATH`, so it
-  must be built with that Go release or a newer one. `go install` ensures
-  this, and a mismatched binary says how to rebuild.
+  must be built with that Go release or a newer one. `go install pkg@version`
+  does not ensure this on its own: it picks its toolchain from
+  gnark-safety's `go.mod` and your local Go, not from the module you will
+  scan. Run the install below from the directory that holds your `go.mod`;
+  `go env GOVERSION` there names the toolchain your module selects. A
+  mismatched binary says how to rebuild.
 
 ```bash
-go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@latest
+GOTOOLCHAIN="$(go env GOVERSION)" go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@latest
 gnark-safety --version
 ```
 

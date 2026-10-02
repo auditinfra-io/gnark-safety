@@ -167,7 +167,7 @@ func toolchainSkewHint(built, goCommand string) string {
 	if goversion.Compare(goversion.Lang(goCommand), goversion.Lang(built)) <= 0 {
 		return ""
 	}
-	return fmt.Sprintf("gnark-safety was built with %s, but the go command is %s: a type checker older than the go command cannot load its standard library. Rebuild gnark-safety with %s or newer, for example with go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@<version>.", built, goCommand, goversion.Lang(goCommand))
+	return fmt.Sprintf("gnark-safety was built with %s, but the go command is %s: a type checker older than the go command cannot load its standard library. Rebuild gnark-safety with %s or newer, for example with GOTOOLCHAIN=%s go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety@<version>; a plain go install of a version picks its toolchain from gnark-safety's go.mod, not from this module.", built, goCommand, goversion.Lang(goCommand), goCommand)
 }
 
 // ScanContext is Scan with cancellation and resource ceilings for callers that
