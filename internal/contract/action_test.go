@@ -161,7 +161,7 @@ func TestActionInstallScript(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(path)) != filepath.Dir(bin) {
 		t.Fatalf("install did not add the binary to GITHUB_PATH: %q, %v", path, err)
 	}
-	for _, version := range []string{"main; rm -rf /", "1.0.0", "v1.0.0 extra"} {
+	for _, version := range []string{"main; rm -rf /", "1.0.0", "v1.0.0 extra", "v1.2.3-rc.1+build.7"} {
 		cmd := exec.Command("bash", filepath.Join(repoRoot, "scripts/action-install.sh"))
 		cmd.Env = append(os.Environ(), "RUNNER_TEMP="+t.TempDir(), "VERSION="+version)
 		if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "version must be a release") {
@@ -169,8 +169,8 @@ func TestActionInstallScript(t *testing.T) {
 		}
 	}
 
-	// A release may use both SemVer's prerelease and build suffixes. Use a
-	// fake go command so this checks the action's validation without fetching.
+	// Prereleases are valid Go module versions. Use a fake go command so this
+	// checks the action's validation without fetching.
 	fakeBin := t.TempDir()
 	fakeGo := filepath.Join(fakeBin, "go")
 	fakeGoSource := "#!/usr/bin/env bash\nset -euo pipefail\nmkdir -p \"$GOBIN\"\nprintf '#!/usr/bin/env bash\\nexit 0\\n' > \"$GOBIN/gnark-safety\"\nchmod +x \"$GOBIN/gnark-safety\"\n"
@@ -178,7 +178,7 @@ func TestActionInstallScript(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := exec.Command("bash", filepath.Join(repoRoot, "scripts/action-install.sh"))
-	cmd.Env = append(os.Environ(), "PATH="+fakeBin+":"+os.Getenv("PATH"), "RUNNER_TEMP="+t.TempDir(), "VERSION=v1.2.3-rc.1+build.7")
+	cmd.Env = append(os.Environ(), "PATH="+fakeBin+":"+os.Getenv("PATH"), "RUNNER_TEMP="+t.TempDir(), "VERSION=v1.2.3-rc.1")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("valid SemVer release rejected: %v\n%s", err, out)
 	}

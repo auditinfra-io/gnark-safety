@@ -9,7 +9,9 @@ bin_dir="${RUNNER_TEMP:-$(mktemp -d)}/gnark-safety-bin"
 mkdir -p "$bin_dir"
 
 if [ -n "${VERSION:-}" ]; then
-  if ! [[ "$VERSION" =~ ^(v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)))*)?(\+([0-9A-Za-z-]+)(\.[0-9A-Za-z-]+)*)?)|latest)$ ]]; then
+  # Go canonicalizes module versions by dropping SemVer build metadata. Reject
+  # it here so an input always identifies exactly the release being installed.
+  if ! [[ "$VERSION" =~ ^(v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)))*)?)|latest)$ ]]; then
     echo "::error title=gnark-safety::version must be a release such as v0.2.0, or latest"
     exit 2
   fi
