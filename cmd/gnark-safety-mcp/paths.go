@@ -46,11 +46,16 @@ func within(root, path string) bool {
 }
 
 // checkPatterns accepts only package patterns relative to root ("." or
-// "./dir", optionally ending in "/..."), and refuses any whose directory, or
-// a symlink inside the directories they cover, or a local replace directive
-// of the module they belong to, resolves outside root. Import-path patterns
-// are refused: they would load code from the module cache or GOPATH rather
-// than from the directory the user pointed the server at.
+// "./dir", optionally ending in "/..."). It refuses any pattern whose
+// directory resolves outside root, and any whose module could make the go
+// command read source outside root: a go.mod above root, a local replace
+// directive pointing outside it, or a symlink anywhere in the module or in a
+// local replacement that points outside it. The whole module is checked, not
+// only the pattern's directories, because a requested package can import any
+// other package of its module, its vendor directory, or a replacement.
+// Import-path patterns are refused: they would load code from the module
+// cache or GOPATH rather than from the directory the user pointed the server
+// at.
 func checkPatterns(ctx context.Context, root string, patterns []string) error {
 	if len(patterns) == 0 {
 		return errors.New("at least one package pattern, such as ./..., is required")
@@ -71,13 +76,31 @@ func checkPatterns(ctx context.Context, root string, patterns []string) error {
 		if !within(root, dir) {
 			return fmt.Errorf("pattern %q resolves to %s, %w", pattern, dir, errOutsideRoot)
 		}
-		if err := checkSymlinks(ctx, root, dir, recursive); err != nil {
+		if err := checkSymlinks(ctx, root, dir, recursive, false); err != nil {
 			return fmt.Errorf("pattern %q: %w", pattern, err)
 		}
-		if gomod := findGoMod(dir); gomod != "" && !checkedModules[gomod] {
-			checkedModules[gomod] = true
-			if err := checkReplaces(root, gomod); err != nil {
-				return err
+		gomod := findGoMod(dir)
+		if gomod == "" || checkedModules[gomod] {
+			continue
+		}
+		checkedModules[gomod] = true
+		moduleDir := filepath.Dir(gomod)
+		if !within(root, moduleDir) {
+			return fmt.Errorf("pattern %q belongs to the module at %s, whose other packages the scan can load, %w; start the server with --root at or above that directory", pattern, moduleDir, errOutsideRoot)
+		}
+		if err := checkSymlinks(ctx, root, moduleDir, true, true); err != nil {
+			return fmt.Errorf("module %s: %w", moduleDir, err)
+		}
+		replacements, err := checkReplaces(root, gomod)
+		if err != nil {
+			return err
+		}
+		for _, target := range replacements {
+			if info, err := os.Stat(target); err != nil || !info.IsDir() {
+				continue // the go command reports a missing replacement itself
+			}
+			if err := checkSymlinks(ctx, root, target, true, true); err != nil {
+				return fmt.Errorf("replacement %s: %w", target, err)
 			}
 		}
 	}
@@ -106,9 +129,11 @@ func splitPattern(pattern string) (base string, recursive bool, err error) {
 }
 
 // checkSymlinks refuses a symlink in dir (and, when recursive, below it)
-// whose target is outside root. Directories the go command never descends
-// into for ./... (names starting with . or _, and testdata) are skipped.
-func checkSymlinks(ctx context.Context, root, dir string, recursive bool) error {
+// whose target is outside root. A pattern walk skips the directories the go
+// command never matches for ./... (names starting with . or _, and testdata);
+// a whole-module walk skips only names starting with ., which no import path
+// can contain.
+func checkSymlinks(ctx context.Context, root, dir string, recursive, wholeModule bool) error {
 	check := func(path string) error {
 		target, err := filepath.EvalSymlinks(path)
 		if err != nil {
@@ -142,7 +167,7 @@ func checkSymlinks(ctx context.Context, root, dir string, recursive bool) error 
 			return err
 		}
 		name := entry.Name()
-		if entry.IsDir() && path != dir && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "testdata") {
+		if entry.IsDir() && path != dir && (strings.HasPrefix(name, ".") || (!wholeModule && (strings.HasPrefix(name, "_") || name == "testdata"))) {
 			return filepath.SkipDir
 		}
 		if entry.Type()&fs.ModeSymlink != 0 {
@@ -168,16 +193,18 @@ func findGoMod(dir string) string {
 }
 
 // checkReplaces refuses a module whose local replace directives point
-// outside root: the go command would load that code as part of the scan.
-func checkReplaces(root, gomod string) error {
+// outside root, since the go command would load that code as part of the
+// scan, and returns the local replacement directories, which are inside it.
+func checkReplaces(root, gomod string) ([]string, error) {
 	data, err := os.ReadFile(gomod)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	file, err := modfile.Parse(gomod, data, nil)
 	if err != nil {
-		return fmt.Errorf("parse %s: %w", gomod, err)
+		return nil, fmt.Errorf("parse %s: %w", gomod, err)
 	}
+	var targets []string
 	for _, replace := range file.Replace {
 		if replace.New.Version != "" {
 			continue // a module version, fetched and verified like any other
@@ -189,9 +216,11 @@ func checkReplaces(root, gomod string) error {
 		if real, err := filepath.EvalSymlinks(target); err == nil {
 			target = real
 		}
-		if !within(root, filepath.Clean(target)) {
-			return fmt.Errorf("%s replaces %s with %s, %w", gomod, replace.Old.Path, replace.New.Path, errOutsideRoot)
+		target = filepath.Clean(target)
+		if !within(root, target) {
+			return nil, fmt.Errorf("%s replaces %s with %s, %w", gomod, replace.Old.Path, replace.New.Path, errOutsideRoot)
 		}
+		targets = append(targets, target)
 	}
-	return nil
+	return targets, nil
 }

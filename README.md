@@ -391,9 +391,11 @@ carries the caveat from [What a result does not tell you](#what-a-result-does-no
   `GONOSUMDB`, `GOSUMDB`) are taken from your configuration at startup. The
   `go` on the server's `PATH` must therefore satisfy your module's `go` line;
   set `PATH` in the client configuration if it does not.
-- **Below `--root` only.** Patterns must be relative and start with `./`.
-  A pattern, a symlink in the scanned directories, or a local `replace` in
-  `go.mod` that resolves outside `--root` is refused (`path_outside_root`).
+- **Below `--root` only.** Patterns must be relative and start with `./`,
+  and `--root` must contain the module's `go.mod`. A pattern, a local
+  `replace` in `go.mod`, or a symlink anywhere in the module or in a local
+  replacement that resolves outside `--root` is refused
+  (`path_outside_root`).
 - **Read-only, bounded.** The tools write, modify, and execute nothing in
   your source tree; like any build, the `go` command fills the module and
   build caches. `--timeout`

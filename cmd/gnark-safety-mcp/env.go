@@ -23,7 +23,8 @@ var passThrough = []string{
 }
 
 // carried lists the Go settings resolved once, at startup, from the user's
-// own configuration (environment and go env file) in a neutral directory:
+// own configuration (the server's environment, then the go env file) in a
+// neutral directory:
 // where the caches live and how modules are fetched and verified.
 var carried = []string{"GOPATH", "GOMODCACHE", "GOCACHE", "GOPROXY", "GOPRIVATE", "GONOPROXY", "GONOSUMDB", "GOSUMDB"}
 
@@ -55,6 +56,13 @@ func loadEnv(ctx context.Context) ([]string, error) {
 	probe := map[string]string{}
 	for name, value := range base {
 		probe[name] = value
+	}
+	// Settings the user gave the server itself, in the client configuration,
+	// take precedence over the go env file, as they would for any go command.
+	for _, name := range carried {
+		if value, ok := os.LookupEnv(name); ok {
+			probe[name] = value
+		}
 	}
 	// The probe reads the user's go env file, so GOENV stays unset here, but
 	// it never selects a toolchain or honors GOFLAGS.

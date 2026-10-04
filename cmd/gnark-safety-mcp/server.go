@@ -293,16 +293,19 @@ func (s *server) load(ctx context.Context, patterns []string, opts analyzer.Opti
 	errorResult := func(res *mcp.CallToolResult, out any, _ error) (report.Report, *mcp.CallToolResult, any, bool) {
 		return report.Report{}, res, out, true
 	}
-	if err := checkPatterns(ctx, s.cfg.root, patterns); err != nil {
-		if errors.Is(err, errOutsideRoot) {
-			return errorResult(fail("path_outside_root", err.Error()))
-		}
-		return errorResult(fail("invalid_arguments", err.Error()))
-	}
 	s.scanning.Lock()
 	defer s.scanning.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, s.cfg.timeout)
 	defer cancel()
+	if err := checkPatterns(ctx, s.cfg.root, patterns); err != nil {
+		switch {
+		case errors.Is(err, errOutsideRoot):
+			return errorResult(fail("path_outside_root", err.Error()))
+		case ctx.Err() != nil:
+			return errorResult(fail("timeout", fmt.Sprintf("checking the paths did not finish within the server's %s timeout: %v", s.cfg.timeout, err)))
+		}
+		return errorResult(fail("invalid_arguments", err.Error()))
+	}
 	opts.Env, opts.SkipUnloadable, opts.PathBase = s.cfg.env, true, s.cfg.root
 	r, err := analyzer.ScanContext(ctx, s.cfg.root, patterns, opts)
 	switch {

@@ -287,6 +287,19 @@ func TestEnvironmentIsFixed(t *testing.T) {
 	if envValue(env, "GOMODCACHE") == "" {
 		t.Error("GOMODCACHE was not carried from the user's settings")
 	}
+	// Module-fetch settings the user gave the server itself are kept.
+	t.Setenv("GOPROXY", "https://proxy.example.com")
+	t.Setenv("GOPRIVATE", "example.com/private")
+	env, err = loadEnv(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := envValue(env, "GOPROXY"); got != "https://proxy.example.com" {
+		t.Errorf("GOPROXY = %q, want the server environment's", got)
+	}
+	if got := envValue(env, "GOPRIVATE"); got != "example.com/private" {
+		t.Errorf("GOPRIVATE = %q, want the server environment's", got)
+	}
 }
 
 func TestDowngradeFlagsAreNotArguments(t *testing.T) {
@@ -352,8 +365,35 @@ func TestPathsStayBelowRoot(t *testing.T) {
 	if err := os.Remove(filepath.Join(root, "a", "linked.go")); err != nil {
 		t.Fatal(err)
 	}
+	// A symlink in another package of the module: ./a can import it.
+	write("lib/lib.go", "package lib\n")
+	if err := os.Symlink(filepath.Join(outside, "x.go"), filepath.Join(root, "lib", "linked.go")); err != nil {
+		t.Fatal(err)
+	}
+	requireError(t, call(t, session, "scan", map[string]any{"patterns": []string{"./a"}}), "path_outside_root")
+	if err := os.Remove(filepath.Join(root, "lib", "linked.go")); err != nil {
+		t.Fatal(err)
+	}
+	// A symlink in a local replacement inside root.
+	write("dep/go.mod", "module example.com/dep\n\ngo 1.21\n")
+	write("dep/dep.go", "package dep\n")
+	if err := os.Symlink(filepath.Join(outside, "x.go"), filepath.Join(root, "dep", "linked.go")); err != nil {
+		t.Fatal(err)
+	}
+	write("go.mod", "module example.com/m\n\ngo 1.21\n\nreplace example.com/dep => ./dep\n")
+	requireError(t, call(t, session, "scan", map[string]any{"patterns": []string{"./a"}}), "path_outside_root")
+	if err := os.Remove(filepath.Join(root, "dep", "linked.go")); err != nil {
+		t.Fatal(err)
+	}
+	// With the links gone the same module passes the path checks.
+	requireError(t, call(t, session, "scan", map[string]any{"patterns": []string{"./a"}}), "no_gnark_packages")
+	// A replacement outside root.
 	write("go.mod", "module example.com/m\n\ngo 1.21\n\nreplace example.com/dep => "+outside+"\n")
 	requireError(t, call(t, session, "scan", map[string]any{"patterns": []string{"./a"}}), "path_outside_root")
+	// A root below the module's go.mod: other packages of the module are
+	// outside it.
+	write("go.mod", "module example.com/m\n\ngo 1.21\n")
+	requireError(t, call(t, connect(t, filepath.Join(root, "a")), "scan", map[string]any{"patterns": []string{"."}}), "path_outside_root")
 }
 
 func TestOutputLimitTruncationIsReported(t *testing.T) {
