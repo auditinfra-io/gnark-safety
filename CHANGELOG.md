@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`gnark-safety-mcp`**, a local MCP server (stdio only, built on the
+  official Go SDK v1.8.0) that offers `scan`, `inventory`, `list_rules`, and
+  `explain_rule` to AI coding assistants. A separate binary; the CLI and
+  `gnark-safety-vet` do not link it. It keeps the CLI's fail-closed contract
+  (`no_gnark_packages` and `packages_failed_to_load` are errors, and the
+  `--allow-empty`/`--allow-partial` escapes are not offered), forces
+  `GOTOOLCHAIN=local` and an explicit loading environment, refuses paths
+  outside its `--root`, and reports truncation. `analyzer.Options` gains an
+  `Env` field for it; the CLI leaves it unset.
+
 ## [0.1.2] - 2026-10-02
 
 ### Fixed

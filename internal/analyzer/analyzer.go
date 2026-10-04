@@ -72,6 +72,9 @@ type Options struct {
 	// means the scan directory. Setting it to the repository root keeps
 	// SARIF locations valid when the scanned module is in a subdirectory.
 	PathBase string
+	// Env is the complete environment for the go command that loads the
+	// packages. Nil inherits this process's environment.
+	Env []string
 }
 
 // gnarkModulePath prefixes every package in gnark's module (and excludes
@@ -145,9 +148,10 @@ const defaultMaxHints = 10000
 
 // goCommandVersion returns the version of the go command that go/packages
 // runs in dir, after any toolchain switch, or "" if it cannot be determined.
-func goCommandVersion(ctx context.Context, dir string) string {
+func goCommandVersion(ctx context.Context, dir string, env []string) string {
 	cmd := exec.CommandContext(ctx, "go", "env", "GOVERSION")
 	cmd.Dir = dir
+	cmd.Env = env
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -182,7 +186,7 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 		return r, errors.New("max hints must be positive")
 	}
 	fset := token.NewFileSet()
-	pkgs, err := packages.Load(&packages.Config{Context: ctx, Dir: dir, Fset: fset, Tests: opts.IncludeTests, Mode: packages.NeedName | packages.NeedModule | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps}, patterns...)
+	pkgs, err := packages.Load(&packages.Config{Context: ctx, Dir: dir, Env: opts.Env, Fset: fset, Tests: opts.IncludeTests, Mode: packages.NeedName | packages.NeedModule | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps}, patterns...)
 	if err != nil {
 		return r, err
 	}
@@ -213,7 +217,7 @@ func ScanContext(ctx context.Context, dir string, patterns []string, opts Option
 		}
 	}
 	if len(loadErrs) > 0 {
-		hint := toolchainSkewHint(runtime.Version(), goCommandVersion(ctx, dir))
+		hint := toolchainSkewHint(runtime.Version(), goCommandVersion(ctx, dir, opts.Env))
 		if !opts.SkipUnloadable || analyzable == 0 {
 			sort.Strings(loadErrs)
 			msg := "package loading/type checking failed:\n" + strings.Join(loadErrs, "\n")

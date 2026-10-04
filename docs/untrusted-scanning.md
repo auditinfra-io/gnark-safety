@@ -19,6 +19,11 @@ Invalid or exceeded limits return exit code 2. Raising these values increases
 resource exposure; it does not improve analysis precision. Cancellation is
 cooperative—the operating system may take a short time to reap Go subprocesses.
 
+`gnark-safety-mcp` additionally forces `GOTOOLCHAIN=local`, empties
+`GOFLAGS`, and turns off the go env file, `go.work`, and cgo for every package
+load, and refuses paths outside its `--root`. That removes toolchain
+selection by the scanned module; it does not make the scan a sandbox.
+
 ## Recommended isolation
 
 For an untrusted checkout, use a disposable container or VM with:
