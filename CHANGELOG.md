@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-04
+
 ### Added
 
 - **`gnark-safety-mcp`**, a local MCP server (stdio only, built on the
@@ -17,6 +19,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `GOTOOLCHAIN=local` and an explicit loading environment, refuses paths
   outside its `--root`, and reports truncation. `analyzer.Options` gains an
   `Env` field for it; the CLI leaves it unset.
+  Install it with `go install` (see the README); the release archives still
+  contain only `gnark-safety`.
 
 ## [0.1.2] - 2026-10-02
 
