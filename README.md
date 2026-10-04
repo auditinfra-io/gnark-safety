@@ -336,6 +336,78 @@ as `file:line:col: severity [RULE] message`. It has no severity gate, SARIF,
 example downgrading, or coverage summary; use `gnark-safety scan` for those. A
 test keeps both reporting the same findings at the same positions.
 
+### AI coding assistants (MCP)
+
+`gnark-safety-mcp` serves the same analysis to AI coding assistants over the
+[Model Context Protocol](https://modelcontextprotocol.io), so an assistant
+can check a circuit while you write it. It is a separate binary, like
+`gnark-safety-vet`; the CLI does not include it. It speaks only stdio: your
+assistant's client starts it on your machine, and it uploads nothing. Like
+any build, loading packages may download their module dependencies through
+your configured `GOPROXY`.
+
+```bash
+GOTOOLCHAIN="$(go env GOVERSION)" go install github.com/auditinfra-io/gnark-safety/cmd/gnark-safety-mcp@latest
+```
+
+Register it with Claude Code from your module's directory (`--scope project`
+writes `.mcp.json` to share it with the repository; the default, `local`,
+keeps it to you):
+
+```bash
+claude mcp add --transport stdio gnark-safety -- gnark-safety-mcp --root "$(pwd)"
+```
+
+Clients that read an `mcpServers` file, such as `.mcp.json` for Claude Code
+or `.cursor/mcp.json` for Cursor, take the same command:
+
+```json
+{
+  "mcpServers": {
+    "gnark-safety": {
+      "command": "gnark-safety-mcp",
+      "args": ["--root", "/path/to/your/module"]
+    }
+  }
+}
+```
+
+It offers four tools: `scan` (the CLI's `scan`, with `fail_on`, `field`, and
+the three `include_*` options), `inventory`, `list_rules`, and
+`explain_rule`. A scan result states what was analyzed, the rules that ran,
+the field setting, and the report's limitations, and each tool description
+carries the caveat from [What a result does not tell you](#what-a-result-does-not-tell-you).
+
+- **Fail-closed.** A scan in which no package imports gnark is an error
+  (`no_gnark_packages`), and so is one in which a requested package fails to
+  load or type-check (`packages_failed_to_load`, naming each package). There
+  is no `--allow-empty` or `--allow-partial` here: an assistant cannot accept
+  a weaker scan and report it as clean. Use the CLI for that.
+- **Pinned loading environment.** Every `go` command the server runs uses
+  `GOTOOLCHAIN=local`, so a scanned module's `go` or `toolchain` line can
+  never select, download, or run another toolchain. `GOFLAGS`, the go env
+  file, `go.work`, and cgo are off; only the cache and module-fetch settings
+  (`GOPATH`, `GOMODCACHE`, `GOCACHE`, `GOPROXY`, `GOPRIVATE`, `GONOPROXY`,
+  `GONOSUMDB`, `GOSUMDB`) are taken from your configuration at startup. The
+  `go` on the server's `PATH` must therefore satisfy your module's `go` line;
+  set `PATH` in the client configuration if it does not.
+- **Below `--root` only.** Patterns must be relative and start with `./`,
+  and `--root` must contain the module's `go.mod`. A pattern, a local
+  `replace` in `go.mod`, or a symlink anywhere in the module or in a local
+  replacement that resolves outside `--root` is refused
+  (`path_outside_root`).
+- **Read-only, bounded.** The tools write, modify, and execute nothing in
+  your source tree; like any build, the `go` command fills the module and
+  build caches. `--timeout`
+  (2m), `--max-hints` (10000), and `--max-output-bytes` (16777216) have the
+  CLI's defaults and are set only on the command line. A result cut to fit
+  the output limit says so in `truncated`. Scans run one at a time.
+
+None of this makes it safe to scan a hostile repository on a developer
+machine: the Go toolchain still parses its code and fetches its
+dependencies. Follow [`docs/untrusted-scanning.md`](docs/untrusted-scanning.md)
+for code outside your trust boundary.
+
 ### Suppressing a reviewed finding
 
 Put a directive on the flagged line or on the line above it. A rule ID and a
@@ -429,6 +501,7 @@ unbound Merkle roots.
 |---|---|
 | `cmd/gnark-safety` | The CLI. |
 | `cmd/gnark-safety-vet`, `internal/vet` | The `go vet -vettool` binary and its `go/analysis` adapter. |
+| `cmd/gnark-safety-mcp` | The local MCP server for AI coding assistants (stdio only). |
 | `internal/analyzer`, `internal/rules`, `internal/output` | Analysis, the rule registry, and text/JSON/SARIF rendering. |
 | `action.yml`, `.pre-commit-hooks.yaml`, `scripts/` | The GitHub Action, the pre-commit hook, and the release scripts. `internal/contract` tests all of them. |
 | `pkg/report` | The public, versioned report schema. |
