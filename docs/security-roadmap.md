@@ -110,8 +110,9 @@ registration, and verifier integration mistakes.
 test output, generates SPDX 2.3 and SARIF artifacts, binds all tracked sources
 with SHA-256, records toolchain metadata, publishes artifact checksums, and
 attaches the bundle to the GitHub release. The release guide documents clean
-checkout reproduction, signed tags, checksum verification, the SBOM's license
-limitations, and upstream advisory monitoring.
+checkout reproduction, checksum verification, the SBOM's license limitations,
+and upstream advisory monitoring, and states that release tags are unsigned and
+what that leaves a consumer to check.
 
 - Treat `go.mod` and `go.sum` as one reviewed change and run `go mod verify`.
 - Keep GitHub Actions pinned by commit and let Dependabot propose reviewed
@@ -120,8 +121,9 @@ limitations, and upstream advisory monitoring.
   and toolchain metadata to tagged releases.
 - Monitor the upstream advisory page and `gnark-announce`; `govulncheck` cannot
   find an unpublished advisory or a semantic circuit error.
-- Sign release tags and document how generated evidence can be reproduced from
-  a clean checkout.
+- Document how generated evidence can be reproduced from a clean checkout.
+- **Not done:** sign release tags. Tags v0.1.0 through v0.2.0 are unsigned
+  lightweight tags.
 
 ### 6. Harden scanner operation on untrusted repositories
 
