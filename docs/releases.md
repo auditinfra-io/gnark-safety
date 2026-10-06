@@ -78,23 +78,38 @@ results must agree.
 
 ## Tagging and verification
 
-Maintainers should create signed annotated tags and push the tag only after CI
-passes:
+Release tags are plain (lightweight) git tags on the merged commit, and they
+are not signed. Every release so far, v0.1.0 through v0.2.0, was tagged this
+way. Tag only after CI passes on that commit:
 
 ```bash
-git tag -s vX.Y.Z -m "gnark-safety vX.Y.Z"
-git tag -v vX.Y.Z
+git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-To verify a downloaded archive, check it against the published list:
+There is therefore no tag signature to verify. What a consumer can check:
 
-```bash
-sha256sum --check --ignore-missing gnark-safety-binaries.sha256
-```
+- **The tag's commit.** `git ls-remote --tags https://github.com/auditinfra-io/gnark-safety`
+  shows the commit each tag names. A lightweight tag can be moved by anyone
+  with push access, so note the commit you reviewed or depend on, not only
+  the tag name. The Go checksum database (`sum.golang.org`) records each
+  version's content the first time it is fetched, and `go.sum` pins it in
+  modules that depend on gnark-safety, so a moved tag fails verification in
+  `go install` and `go get` rather than silently changing what they build.
+- **The archives.** Check a downloaded archive against the published list:
 
-Consumers must verify the tag with a maintainer key obtained through an
-independent trusted channel. A successful GitHub Actions run and matching
-checksums provide provenance evidence, not a substitute for signature or source
-review. Monitor gnark's published advisory page and `gnark-announce` before
-releasing; `govulncheck` cannot identify unpublished or semantic circuit flaws.
+  ```bash
+  sha256sum --check --ignore-missing gnark-safety-binaries.sha256
+  ```
+
+  The list is published in the same GitHub release as the archives, and
+  anyone who can edit the release can replace both, so a match shows the
+  download is intact, not who produced it. Rebuilding from the tagged source
+  with the same toolchain, as above, gives byte-identical archives and is the
+  independent check.
+
+Trust in a release therefore rests on the GitHub repository and its account,
+a successful GitHub Actions run, matching checksums, and your own review of
+the source; none of them is a maintainer signature. Monitor gnark's published
+advisory page and `gnark-announce` before releasing; `govulncheck` cannot
+identify unpublished or semantic circuit flaws.

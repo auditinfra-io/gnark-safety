@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `docs/releases.md` now describes the release tags as they are: unsigned
+  lightweight tags, v0.1.0 through v0.2.0. It no longer asks maintainers for
+  signed tags or consumers to verify a signature that does not exist, and
+  says what can be checked instead.
+
 ## [0.2.0] - 2026-10-04
 
 ### Added
