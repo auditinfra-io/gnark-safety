@@ -31,6 +31,7 @@ const (
 	ComparatorNondeterminism  = "GNARK_COMPARATOR_NONDETERMINISTIC"
 	IgnoreUnconstrainedInputs = "GNARK_IGNORE_UNCONSTRAINED_INPUTS"
 	UnsafeSetup               = "GNARK_UNSAFE_SETUP"
+	RecursionUnverified       = "GNARK_RECURSION_WITNESS_UNVERIFIED"
 )
 
 // Taxonomy classes follow o1js-scan's missing-constraint taxonomy, with
@@ -185,14 +186,21 @@ var specs = []Spec{
 		Class:      ClassNonLoadBearing,
 		Severities: []report.Severity{report.SeverityHigh},
 		Confidence: "high",
-		Summary:    "The result of a gnark predicate (`IsZero`, `Cmp`, a bounded comparator's `IsLess`/`IsLessEq`, a recursive verifier's `IsValidProof`, or a hash `Sum`) is discarded, so the check it computes constrains nothing.",
-		Description: "Predicates return a variable; they do not assert anything. A call used as a statement, or assigned only to " +
-			"`_`, computes a value the circuit never uses, so the line reads as a check that does not exist. Assert the result " +
+		Summary:    "The result of a gnark predicate (`frontend.API`'s `IsZero` or `Cmp`, a bounded comparator's `IsLess`/`IsLessEq`, a recursive verifier's `IsValidProof`, or a hash `Sum`) is discarded, so the check it computes constrains nothing.",
+		Description: "Predicates return a variable; they do not assert anything. A call used as a statement (also in " +
+			"parentheses, deferred, or run with `go`), or bound only to `_` by an assignment or a `var` declaration, computes a " +
+			"value the circuit never uses, so the line reads as a check that does not exist. A hasher's `Sum` called on the " +
+			"enclosing method's own receiver, directly or through its embedded fields, is not reported, since that is how a " +
+			"hasher such as gnark's `MiMC.State` flushes itself; inside a circuit's `Define`, and for every other predicate on " +
+			"the receiver, such as an embedded verifier's `IsValidProof`, it is. Assert the result " +
 			"(`api.AssertIsEqual(api.IsZero(x), 1)`), use the assertion form, or feed it into later constraints. Go already " +
-			"rejects unused local variables, so these are the forms that compile. Evidence: gnark v0.16.3 `frontend/api.go` " +
+			"rejects unused local variables, so a stored result is at least read. Evidence: gnark v0.16.3 `frontend/api.go` " +
 			"(`IsZero`, `Cmp`), `std/math/cmp/bounded.go`, `std/recursion/groth16/verifier.go` (`IsValidProof`), and " +
 			"`std/hash/hash.go`.",
-		Limitations: "A result stored and then never read, or discarded through a helper, is not matched.",
+		Limitations: "A result stored and then never read, wrapped in a conversion or a literal before it is dropped, or " +
+			"discarded through a helper, is not matched, and neither is a predicate called through a method value or a " +
+			"function variable. Predicates outside the list above, such as an emulated field's `IsZero` or the package-level " +
+			"functions of `std/math/cmp`, are not checked.",
 	},
 	{
 		ID:         VacuousAssert,
@@ -279,6 +287,62 @@ var specs = []Spec{
 			"`main` package, where it most likely produces deployable keys.",
 		Limitations: "Whether the resulting keys are actually deployed cannot be seen from source. Key generation in library " +
 			"packages is not reported.",
+	},
+	{
+		ID:         RecursionUnverified,
+		Title:      "Recursive proof witness used without verification",
+		Class:      ClassUnverifiedProof,
+		Severities: []report.Severity{report.SeverityHigh},
+		Confidence: "medium",
+		Summary:    "A circuit's `Define` uses the public inputs of a `std/recursion` witness, but no in-circuit verification takes that witness, so the prover can supply any values for them.",
+		Description: "gnark verifies a proof inside a circuit with a `Verifier` from `std/recursion/groth16` or `std/recursion/plonk`: " +
+			"`AssertProof(vk, proof, witness)` asserts that the proof holds for the witness, plonk's `AssertSameProofs` and " +
+			"`AssertDifferentProofs` assert several proofs at once, groth16's `IsValidProof` returns a variable that is 1 " +
+			"only for a valid proof, and plonk's `PrepareVerification` returns KZG openings to verify in a later batch. A " +
+			"`Witness` holds the inner proof's public inputs in its `Public` field. Those values mean what the inner circuit " +
+			"proved only once a proof over that witness is verified; otherwise they are free inputs. The rule looks at each " +
+			"`Define(frontend.API) error` method that no package code outside its own body refers to: the circuit entry point " +
+			"that gnark compiles, which no caller can verify for. It reports the first read of a witness's `Public` " +
+			"(directly, through an embedded witness, or through a type defined over `Witness`; not under `len` or `cap`, in a " +
+			"`range` that takes no values, or as an assignment target) when no verification in `Define` takes that witness, " +
+			"whether `Define` verifies nothing or verifies only other witnesses. A witness is matched by its field path from " +
+			"the receiver, so a `[]Witness` passed to a batch method covers each element, a literal of witnesses (also " +
+			"through a local holding it) covers each one it lists, a witness rebuilt as a literal from another witness's " +
+			"`Public` counts as that witness, and a local defined once from a field path, or a `range` variable over one, " +
+			"stands for that path when it is never reassigned (a `range` with `=` included) or addressed (calling a pointer " +
+			"method on it included). An `IsValidProof` call whose result is thrown away (as a statement, deferred, or bound " +
+			"to `_`) is not a verification; `GNARK_DISCARDED_PREDICATE` reports the call itself. gnark's compiler already " +
+			"rejects a circuit with an input that no constraint uses unless " +
+			"`frontend.IgnoreUnconstrainedInputs()` is set, which catches a proof that is left entirely unused; this rule " +
+			"names the cause at the read, and also covers circuits that touch the proof or witness without verifying it. " +
+			"Evidence: the gnark v0.16.3 package documentation of `std/recursion/groth16` and `std/recursion/plonk` " +
+			"(`Verifier`, `Witness`) and of `frontend.IgnoreUnconstrainedInputs`.",
+		Limitations: "Only reads made in an entry-point `Define` count: public inputs read in a helper are not seen. A `Define` that " +
+			"other package code refers to (typically another circuit calling it as a sub-circuit, but any reference outside " +
+			"its own body counts) is skipped, and its reads are not seen from a caller either; composition across packages, " +
+			"or only through an interface such as `frontend.Circuit`, is not recognized, so such a sub-circuit is analyzed as " +
+			"an entry point and can be a false positive. Verification is looked for in `Define` and, one level deep, in " +
+			"package-local functions and methods (generic ones included) that `Define` passes the witness, its public inputs " +
+			"(the slice, part of it, its elements, or a local holding them), or the receiver; a method value bound to a value " +
+			"holding the witness counts as handing it to that method wherever it appears, called or not. A helper that " +
+			"contains any verification silences the rule for the whole method, whichever witness it verifies, and a " +
+			"verification two or more calls away is missed and reported as absent. Public inputs handed to code in another " +
+			"package are not followed, so verification there is reported as absent. The rule stays quiet for the whole method " +
+			"when the witness itself reaches code it does not follow: another package (the standard library excepted, which " +
+			"cannot verify), a function value (a function literal included), or an interface value (assigned, converted, " +
+			"appended, sent on a channel, placed in a literal, or returned by a package-local helper), including a " +
+			"sub-circuit run through `frontend.Circuit`, whether or not that code verifies; and when a verification's witness " +
+			"argument is not a field path from the receiver, a literal of them, or a local standing for one (for example a " +
+			"call result, or a local copy that is later modified). A read through such a value is reported only when `Define` " +
+			"verifies nothing at all. Indexes and slice bounds are ignored, so verifying `c.Witnesses[0]` or " +
+			"`c.Witnesses[:1]` covers a read of `c.Witnesses[1]`. Matching ignores statement order: a witness whose `Public` " +
+			"elements `Define` overwrites, or a field it reassigns, still counts as verified wherever it is read. A " +
+			"verification counts wherever it appears in `Define`: under a Go condition, after an early return, in a loop, in " +
+			"a function literal, or in unreachable code, although it may not run while the circuit compiles. A kept " +
+			"`IsValidProof` result counts as enforced: whether it reaches an assertion, rather than a `Select` or a return " +
+			"value, is not followed. `PrepareVerification` counts as verification even if its openings are never " +
+			"batch-verified. Whether the verifying key is fixed and the intended one, and whether `SwitchVerificationKey` " +
+			"selects only trusted keys, is not checked.",
 	},
 }
 

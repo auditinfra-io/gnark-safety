@@ -6,6 +6,40 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`GNARK_RECURSION_WITNESS_UNVERIFIED`** (high). A circuit's entry-point
+  `Define` uses the public inputs of a `std/recursion` (groth16 or plonk)
+  `Witness`, directly, through an embedded witness, or through a type
+  defined over it, but no in-circuit verification takes that witness: no
+  `AssertProof`, `AssertSameProofs`, `AssertDifferentProofs`,
+  `PrepareVerification`, or kept `IsValidProof` result, in `Define` or in a
+  package-local helper it hands the witness to. Witnesses are matched by
+  field path, so verifying one proof does not cover another proof's
+  inputs, and an `IsValidProof` whose result is dropped (as a statement,
+  deferred, or bound to `_`) is not a verification. Synthetic fixtures pin
+  the reported and quiet cases, a mutation test removes only the
+  enforcement line from the verified fixture and requires the finding to
+  return, and an executable witness shows the unverified circuit accepting
+  a proof for 9 as a proof for 10 while the corrected one rejects it. An
+  adversarial review with synthetic circuits shaped the rule and its
+  "Where it stops" entry. gnark's own unconstrained-input check already
+  rejects a proof that is left entirely unused, unless it is disabled.
+
+### Fixed
+
+- **`GNARK_DISCARDED_PREDICATE` missed several ways of dropping a result.**
+  It now also reports a predicate whose result is dropped in parentheses,
+  deferred, run with `go`, bound to `_` by a `var` declaration, or bound to
+  `_` in an assignment of several values. The exemption for calls on the
+  enclosing method's own receiver now covers only a hasher's `Sum` (also
+  through an embedded field, as in `w.MiMC.Sum()`), which is how a hasher
+  such as gnark's `MiMC.State` flushes itself, and not inside a circuit's
+  `Define`; an embedded verifier's discarded `IsValidProof`, an embedded
+  API's discarded `IsZero`, or a circuit dropping an embedded hasher's
+  digest is now reported. "Where it stops" now names the forms the rule
+  does not see: method values, conversions, and predicates outside its list.
+
 ### Changed
 
 - `docs/releases.md` now describes the release tags as they are: unsigned
