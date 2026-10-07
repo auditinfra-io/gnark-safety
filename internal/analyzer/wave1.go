@@ -149,6 +149,7 @@ func (c *ruleContext) checkFunction(fn *ast.FuncDecl) {
 		}
 		return true
 	})
+	c.checkRecursionWitness(fn, function)
 }
 
 // guardedBranches returns the branches of the if statement whose condition
