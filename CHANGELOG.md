@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-07
+
+Adds one rule and widens another. Both report at high severity, so a CI gate
+that fails on high findings and passed on 0.2.0 can fail on 0.3.0 for code
+that has not changed. One finding 0.2.0 reported is gone (see Fixed). Each
+finding names what it matched, and the rule's "Where it stops" entry in
+`docs/rules.md` says what it does not see.
+
 ### Added
 
 - **`GNARK_RECURSION_WITNESS_UNVERIFIED`** (high). A circuit's entry-point
@@ -15,16 +23,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `AssertProof`, `AssertSameProofs`, `AssertDifferentProofs`,
   `PrepareVerification`, or kept `IsValidProof` result, in `Define` or in a
   package-local helper it hands the witness to. Witnesses are matched by
-  field path, so verifying one proof does not cover another proof's
-  inputs, and an `IsValidProof` whose result is dropped (as a statement,
-  deferred, or bound to `_`) is not a verification. Synthetic fixtures pin
+  field path, so verifying one witness field does not cover another field's
+  inputs; elements of one slice share a path, and a helper that verifies
+  anything silences the rule for that `Define`. An `IsValidProof` whose
+  result is dropped (as a statement, deferred, or bound to `_`) is not a
+  verification. gnark documents a compile-time error for inputs that no
+  constraint uses, but v0.16.3 does not raise it, so a circuit that never
+  touches its proof compiles with default options. Synthetic fixtures pin
   the reported and quiet cases, a mutation test removes only the
   enforcement line from the verified fixture and requires the finding to
-  return, and an executable witness shows the unverified circuit accepting
-  a proof for 9 as a proof for 10 while the corrected one rejects it. An
-  adversarial review with synthetic circuits shaped the rule and its
-  "Where it stops" entry. gnark's own unconstrained-input check already
-  rejects a proof that is left entirely unused, unless it is disabled.
+  return, and an executable witness shows the unverified circuit, compiled
+  with default options, accepting a proof for 9 as a proof for 10 while the
+  corrected one rejects it.
+
+### Changed
+
+- `docs/releases.md` now describes the release tags as they are: unsigned
+  lightweight tags, which is how every release from v0.1.0 on has been
+  tagged. It no longer asks maintainers for signed tags or consumers to
+  verify a signature that does not exist, and says what can be checked
+  instead.
 
 ### Fixed
 
@@ -39,13 +57,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   API's discarded `IsZero`, or a circuit dropping an embedded hasher's
   digest is now reported. "Where it stops" now names the forms the rule
   does not see: method values, conversions, and predicates outside its list.
-
-### Changed
-
-- `docs/releases.md` now describes the release tags as they are: unsigned
-  lightweight tags, v0.1.0 through v0.2.0. It no longer asks maintainers for
-  signed tags or consumers to verify a signature that does not exist, and
-  says what can be checked instead.
+  One finding goes away: 0.2.0 reported a hasher flushing itself through an
+  embedded field outside `Define` (`w.MiMC.Sum()`); 0.3.0 does not, so a
+  suppression of it now matches nothing and is reported as a diagnostic.
+  Remove it.
+- **`GNARK_IGNORE_UNCONSTRAINED_INPUTS` described a check gnark does not
+  perform.** Its summary, description and finding message said the option
+  disables gnark's compile-time error for inputs that no constraint uses.
+  gnark documents that error, but v0.16.3 does not raise it, with or without
+  the option, so a circuit with an unused input compiles with default
+  options and the option disables nothing today. The rule still reports the
+  option, at the same severity, because it records that the author expects
+  an input no constraint binds; its title is now "Unconstrained inputs
+  explicitly allowed", and its text says what the option does and does not
+  do.
 
 ## [0.2.0] - 2026-10-04
 

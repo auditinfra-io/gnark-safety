@@ -440,7 +440,7 @@ func (c *ruleContext) checkCall(call *ast.CallExpr, stack []ast.Node, fn *ast.Fu
 		}
 	case isPackageFunc(callee, gnarkapi.FrontendPath, "IgnoreUnconstrainedInputs"):
 		if !c.isTest {
-			c.add(rules.IgnoreUnconstrainedInputs, report.SeverityMedium, call.Pos(), function, "frontend.IgnoreUnconstrainedInputs() disables gnark's compile error for inputs that no constraint uses.", "option: frontend.IgnoreUnconstrainedInputs()")
+			c.add(rules.IgnoreUnconstrainedInputs, report.SeverityMedium, call.Pos(), function, "frontend.IgnoreUnconstrainedInputs() declares that some input may appear in no constraint; gnark documents an error for such inputs, but v0.16.3 does not raise it, with or without this option.", "option: frontend.IgnoreUnconstrainedInputs()")
 		}
 	case isPackageFunc(callee, groth16Path, "Setup"):
 		if !c.isTest && c.p.Name == "main" {

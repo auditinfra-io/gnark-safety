@@ -264,15 +264,21 @@ var specs = []Spec{
 	},
 	{
 		ID:         IgnoreUnconstrainedInputs,
-		Title:      "Unconstrained-input check disabled",
+		Title:      "Unconstrained inputs explicitly allowed",
 		Class:      ClassConfiguration,
 		Severities: []report.Severity{report.SeverityMedium},
 		Confidence: "high",
-		Summary:    "`frontend.IgnoreUnconstrainedInputs()` disables gnark's compile-time error for inputs that no constraint uses, a check gnark's documentation says should stay on in production.",
-		Description: "By default `frontend.Compile` fails when a public or secret input appears in no constraint, which catches " +
-			"inputs the circuit forgot to bind. The option turns that error off. Test code is excluded by default. Evidence: " +
-			"gnark v0.16.3 `frontend/compile.go`.",
-		Limitations: "Options assembled dynamically (`opts...`) are not resolved.",
+		Summary:    "`frontend.IgnoreUnconstrainedInputs()` declares that a circuit may have inputs no constraint uses; gnark documents a compile error for such inputs, but v0.16.3 does not raise it, so nothing in gnark catches them either way.",
+		Description: "gnark's documentation says `frontend.Compile` fails when a public or secret input appears in no " +
+			"constraint, that this option turns the error off, and that the option should not be used in production. As " +
+			"of v0.16.3 the error is not raised with or without the option: a circuit with an unused input compiles with " +
+			"default options, with the R1CS and PLONK builders alike. The option therefore disables nothing today. It is " +
+			"still reported because it records that the author expects an input that no constraint binds, and such an " +
+			"input is whatever the prover supplies; a gnark release that raises the documented error would also let this " +
+			"option silence it. Test code is excluded by default. Evidence: the gnark v0.16.3 documentation of " +
+			"`frontend.IgnoreUnconstrainedInputs`, and compiling a circuit with an unused input under default options.",
+		Limitations: "Options assembled dynamically (`opts...`) are not resolved. The rule reports the option, not the " +
+			"unused inputs themselves: an input that no constraint uses is not reported, with or without the option.",
 	},
 	{
 		ID:         UnsafeSetup,
@@ -311,12 +317,11 @@ var specs = []Spec{
 			"`Public` counts as that witness, and a local defined once from a field path, or a `range` variable over one, " +
 			"stands for that path when it is never reassigned (a `range` with `=` included) or addressed (calling a pointer " +
 			"method on it included). An `IsValidProof` call whose result is thrown away (as a statement, deferred, or bound " +
-			"to `_`) is not a verification; `GNARK_DISCARDED_PREDICATE` reports the call itself. gnark's compiler already " +
-			"rejects a circuit with an input that no constraint uses unless " +
-			"`frontend.IgnoreUnconstrainedInputs()` is set, which catches a proof that is left entirely unused; this rule " +
-			"names the cause at the read, and also covers circuits that touch the proof or witness without verifying it. " +
-			"Evidence: the gnark v0.16.3 package documentation of `std/recursion/groth16` and `std/recursion/plonk` " +
-			"(`Verifier`, `Witness`) and of `frontend.IgnoreUnconstrainedInputs`.",
+			"to `_`) is not a verification; `GNARK_DISCARDED_PREDICATE` reports the call itself. gnark documents a " +
+			"compile-time error for inputs that no constraint uses (`frontend.IgnoreUnconstrainedInputs`), but v0.16.3 does " +
+			"not raise it, so a circuit that never touches its proof compiles with default options; the executable witness " +
+			"for this rule compiles its unverified circuit that way. Evidence: the gnark v0.16.3 package documentation of " +
+			"`std/recursion/groth16` and `std/recursion/plonk` (`Verifier`, `Witness`).",
 		Limitations: "Only reads made in an entry-point `Define` count: public inputs read in a helper are not seen. A `Define` that " +
 			"other package code refers to (typically another circuit calling it as a sub-circuit, but any reference outside " +
 			"its own body counts) is skipped, and its reads are not seen from a caller either; composition across packages, " +
