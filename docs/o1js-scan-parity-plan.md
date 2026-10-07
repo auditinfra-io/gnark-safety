@@ -184,7 +184,7 @@ ported deliberately.
 | `GNARK_BITS_UNCONSTRAINED` | unbound witness | high / medium | `bits.WithUnconstrainedOutputs()` whose digits never reach a boolean or digit constraint; `bits.WithUnconstrainedInputs()` on digits with no boolean evidence | `std/math/bits/conversion.go:80-100` | `O1JS_UNCONSTRAINED_PROVABLE_WITNESS` |
 | `GNARK_BITS_OMIT_MODULUS_CHECK` | unbound witness | medium | `bits.OmitModulusCheck()`: full-width decompositions become non-unique (`a` versus `a+r`) | `std/math/bits/conversion.go:103-118` | `MissingRangeCheck` |
 | `GNARK_COMPARATOR_NONDETERMINISTIC` | unbound witness | medium; high without operand range evidence | `cmp.NewBoundedComparator(api, bound, true)`: past the bound, the constraint system "may have multiple solutions" | `std/math/cmp/bounded.go:42-71` | none |
-| `GNARK_IGNORE_UNCONSTRAINED_INPUTS` | configuration | medium | `frontend.IgnoreUnconstrainedInputs()` in non-test code disables gnark's own unconstrained-input compile error ("should not be used in production") | `frontend/compile.go:208-221` | `O1JS_WEAK_PERMISSIONS` |
+| `GNARK_IGNORE_UNCONSTRAINED_INPUTS` | configuration | medium | `frontend.IgnoreUnconstrainedInputs()` in non-test code opts out of gnark's documented unconstrained-input compile error ("should not be used in production"), which v0.16.3 does not raise | `frontend/compile.go:208-221` | `O1JS_WEAK_PERMISSIONS` |
 | `GNARK_UNSAFE_SETUP` | configuration | medium | A non-test import of `test/unsafekzg` (a test-only SRS). Single-party `groth16.Setup` in a `main` package is reported at low | `test/unsafekzg` | `O1JS_WEAK_PERMISSIONS` |
 
 ### Wave 2: intraprocedural dataflow (SSA)
@@ -212,6 +212,10 @@ Research only; no rule until a precise shape exists:
 - Emulated-field reduction assumptions (`Reduce` versus strict reduction).
 - Integer underflow through `api.Sub` without range evidence (a ZKSecurity
   std-audit theme).
+- Inputs that no constraint uses. This was listed as not applicable because
+  gnark would refuse to compile them; gnark documents that error, but v0.16.3
+  does not raise it, so such inputs compile silently.
+  `GNARK_IGNORE_UNCONSTRAINED_INPUTS` reports only the opt-out.
 
 Not applicable to gnark, recorded so nobody ports it by mistake:
 
@@ -219,9 +223,6 @@ Not applicable to gnark, recorded so nobody ports it by mistake:
   a slice with a `frontend.Variable`; selection goes through
   `selector`/`logderivlookup`, which constrain the index.
 - **Mina account rules** (preconditions, permissions, sender).
-- **Unused public inputs.** gnark already refuses to compile these unless
-  `IgnoreUnconstrainedInputs` is set, which `GNARK_IGNORE_UNCONSTRAINED_INPUTS`
-  covers.
 
 **Rule acceptance criteria**, stricter than o1js-scan's. Every rule ships with:
 

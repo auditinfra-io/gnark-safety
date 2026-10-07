@@ -23,7 +23,7 @@ evidence that a circuit is sound.
 | [`GNARK_BITS_UNCONSTRAINED`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_bits_unconstrained) | high / medium | unbound witness | A `bits` decomposition opts out of digit constraints (`WithUnconstrainedOutputs` or `WithUnconstrainedInputs`) and nothing in the function constrains the digits, so the prover can choose non-boolean digits that still sum to the value. |
 | [`GNARK_BITS_OMIT_MODULUS_CHECK`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_bits_omit_modulus_check) | medium | unbound witness | `bits.OmitModulusCheck()` skips the comparison against the field modulus, so a full-width decomposition of `a` can also be one of `a + r`: the bits are not unique. |
 | [`GNARK_COMPARATOR_NONDETERMINISTIC`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_comparator_nondeterministic) | medium | unbound witness | `cmp.NewBoundedComparator(api, bound, true)` allows nondeterministic behavior: when the operands differ by more than the bound, the constraint system can have several solutions, so comparison results are prover-selectable. |
-| [`GNARK_IGNORE_UNCONSTRAINED_INPUTS`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_ignore_unconstrained_inputs) | medium | configuration | `frontend.IgnoreUnconstrainedInputs()` disables gnark's compile-time error for inputs that no constraint uses, a check gnark's documentation says should stay on in production. |
+| [`GNARK_IGNORE_UNCONSTRAINED_INPUTS`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_ignore_unconstrained_inputs) | medium | configuration | `frontend.IgnoreUnconstrainedInputs()` declares that a circuit may have inputs no constraint uses; gnark documents a compile error for such inputs, but v0.16.3 does not raise it, so nothing in gnark catches them either way. |
 | [`GNARK_UNSAFE_SETUP`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_unsafe_setup) | medium / low | configuration | Production code imports gnark's test-only `unsafekzg` SRS (medium), or runs a single-party `groth16.Setup` in a `main` package (low), so whoever ran setup could forge proofs. |
 | [`GNARK_RECURSION_WITNESS_UNVERIFIED`](https://github.com/auditinfra-io/gnark-safety/blob/main/docs/rules.md#gnark_recursion_witness_unverified) | high | unverified proof edge | A circuit's `Define` uses the public inputs of a `std/recursion` witness, but no in-circuit verification takes that witness, so the prover can supply any values for them. |
 <!-- END GENERATED RULE TABLE -->
@@ -123,13 +123,13 @@ The third argument `allowNonDeterministicBehaviour` trades soundness outside the
 
 ### GNARK_IGNORE_UNCONSTRAINED_INPUTS
 
-**Unconstrained-input check disabled**: severity medium; confidence high; class configuration.
+**Unconstrained inputs explicitly allowed**: severity medium; confidence high; class configuration.
 
-`frontend.IgnoreUnconstrainedInputs()` disables gnark's compile-time error for inputs that no constraint uses, a check gnark's documentation says should stay on in production.
+`frontend.IgnoreUnconstrainedInputs()` declares that a circuit may have inputs no constraint uses; gnark documents a compile error for such inputs, but v0.16.3 does not raise it, so nothing in gnark catches them either way.
 
-By default `frontend.Compile` fails when a public or secret input appears in no constraint, which catches inputs the circuit forgot to bind. The option turns that error off. Test code is excluded by default. Evidence: gnark v0.16.3 `frontend/compile.go`.
+gnark's documentation says `frontend.Compile` fails when a public or secret input appears in no constraint, that this option turns the error off, and that the option should not be used in production. As of v0.16.3 the error is not raised with or without the option: a circuit with an unused input compiles with default options, with the R1CS and PLONK builders alike. The option therefore disables nothing today. It is still reported because it records that the author expects an input that no constraint binds, and such an input is whatever the prover supplies; a gnark release that raises the documented error would also let this option silence it. Test code is excluded by default. Evidence: the gnark v0.16.3 documentation of `frontend.IgnoreUnconstrainedInputs`, and compiling a circuit with an unused input under default options.
 
-*Where it stops:* Options assembled dynamically (`opts...`) are not resolved.
+*Where it stops:* Options assembled dynamically (`opts...`) are not resolved. The rule reports the option, not the unused inputs themselves: an input that no constraint uses is not reported, with or without the option.
 
 ### GNARK_UNSAFE_SETUP
 

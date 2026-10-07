@@ -61,6 +61,16 @@ finding names what it matched, and the rule's "Where it stops" entry in
   embedded field outside `Define` (`w.MiMC.Sum()`); 0.3.0 does not, so a
   suppression of it now matches nothing and is reported as a diagnostic.
   Remove it.
+- **`GNARK_IGNORE_UNCONSTRAINED_INPUTS` described a check gnark does not
+  perform.** Its summary, description and finding message said the option
+  disables gnark's compile-time error for inputs that no constraint uses.
+  gnark documents that error, but v0.16.3 does not raise it, with or without
+  the option, so a circuit with an unused input compiles with default
+  options and the option disables nothing today. The rule still reports the
+  option, at the same severity, because it records that the author expects
+  an input no constraint binds; its title is now "Unconstrained inputs
+  explicitly allowed", and its text says what the option does and does not
+  do.
 
 ## [0.2.0] - 2026-10-04
 
