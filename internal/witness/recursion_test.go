@@ -122,10 +122,10 @@ func testRecursionUnverified(t *testing.T) {
 
 	placeholderProof := stdgroth16.PlaceholderProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](inner)
 	placeholderWitness := stdgroth16.PlaceholderWitness[sw_bls12377.ScalarField](inner)
-	// gnark refuses to compile the vulnerable circuit by default, because
-	// its proof is unused; the option stands for any build where that check
-	// does not fire.
-	vulnerable := compileOuter(t, &recursionVulnerable{VerifyingKey: key, Proof: placeholderProof, Witness: placeholderWitness}, frontend.IgnoreUnconstrainedInputs())
+	// Default options: gnark documents an error for inputs that no
+	// constraint uses, but v0.16.3 does not raise it, so the vulnerable
+	// circuit compiles although its proof is never used.
+	vulnerable := compileOuter(t, &recursionVulnerable{VerifyingKey: key, Proof: placeholderProof, Witness: placeholderWitness})
 	fixed := compileOuter(t, &recursionFixed{VerifyingKey: key, Proof: placeholderProof, Witness: placeholderWitness})
 
 	if err := solveOuter(t, fixed, &recursionFixed{Proof: proofValue, Witness: honest, Square: emulated.ValueOf[sw_bls12377.ScalarField](9)}); err != nil {

@@ -79,8 +79,8 @@ results must agree.
 ## Tagging and verification
 
 Release tags are plain (lightweight) git tags on the merged commit, and they
-are not signed. Every release so far, v0.1.0 through v0.2.0, was tagged this
-way. Tag only after CI passes on that commit:
+are not signed. Every release from v0.1.0 on has been tagged this way. Tag
+only after CI passes on that commit:
 
 ```bash
 git tag vX.Y.Z

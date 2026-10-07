@@ -4,8 +4,8 @@ import "github.com/consensys/gnark/frontend"
 
 // ShapeCircuit reads only how many public inputs the witness has, a number
 // fixed when the circuit compiles, not any input value. It verifies
-// nothing, which gnark's own unconstrained-input check rejects at compile
-// time; this rule reports only consumed input values.
+// nothing, but this rule reports only consumed input values, and none of
+// the inner proof's inputs are consumed here.
 type ShapeCircuit struct {
 	Proof   proof
 	Witness witness

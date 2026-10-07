@@ -368,8 +368,9 @@ Not applicable to gnark, recorded so nobody ports it by mistake:
   - `GNARK_GO_EQUALITY_ON_VARIABLE` reports only comparisons that decide
     whether constraint-emitting calls run. The unrestricted form was a high
     false positive on gnark's `hash.go`.
-  - `GNARK_DISCARDED_PREDICATE` skips a method calling a predicate on its own
-    receiver, for the same reason on `MiMC.State`.
+  - `GNARK_DISCARDED_PREDICATE` skips a hasher's `Sum` on its own receiver
+    (also through embedded fields) outside a circuit's `Define`, for the same
+    reason on `MiMC.State`. Until 0.3.0 it skipped every predicate there.
 - **Exit criteria:** met. gnark `std/` at both releases yields two medium
   findings, both classified intended, and no high findings; every high rule
   has an executable witness. The canary also found 172 false positives in

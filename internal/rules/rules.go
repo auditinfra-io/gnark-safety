@@ -311,12 +311,11 @@ var specs = []Spec{
 			"`Public` counts as that witness, and a local defined once from a field path, or a `range` variable over one, " +
 			"stands for that path when it is never reassigned (a `range` with `=` included) or addressed (calling a pointer " +
 			"method on it included). An `IsValidProof` call whose result is thrown away (as a statement, deferred, or bound " +
-			"to `_`) is not a verification; `GNARK_DISCARDED_PREDICATE` reports the call itself. gnark's compiler already " +
-			"rejects a circuit with an input that no constraint uses unless " +
-			"`frontend.IgnoreUnconstrainedInputs()` is set, which catches a proof that is left entirely unused; this rule " +
-			"names the cause at the read, and also covers circuits that touch the proof or witness without verifying it. " +
-			"Evidence: the gnark v0.16.3 package documentation of `std/recursion/groth16` and `std/recursion/plonk` " +
-			"(`Verifier`, `Witness`) and of `frontend.IgnoreUnconstrainedInputs`.",
+			"to `_`) is not a verification; `GNARK_DISCARDED_PREDICATE` reports the call itself. gnark documents a " +
+			"compile-time error for inputs that no constraint uses (`frontend.IgnoreUnconstrainedInputs`), but v0.16.3 does " +
+			"not raise it, so a circuit that never touches its proof compiles with default options; the executable witness " +
+			"for this rule compiles its unverified circuit that way. Evidence: the gnark v0.16.3 package documentation of " +
+			"`std/recursion/groth16` and `std/recursion/plonk` (`Verifier`, `Witness`).",
 		Limitations: "Only reads made in an entry-point `Define` count: public inputs read in a helper are not seen. A `Define` that " +
 			"other package code refers to (typically another circuit calling it as a sub-circuit, but any reference outside " +
 			"its own body counts) is skipped, and its reads are not seen from a caller either; composition across packages, " +

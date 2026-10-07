@@ -122,8 +122,8 @@ what that leaves a consumer to check.
 - Monitor the upstream advisory page and `gnark-announce`; `govulncheck` cannot
   find an unpublished advisory or a semantic circuit error.
 - Document how generated evidence can be reproduced from a clean checkout.
-- **Not done:** sign release tags. Tags v0.1.0 through v0.2.0 are unsigned
-  lightweight tags.
+- **Not done:** sign release tags. Every release tag from v0.1.0 on is an
+  unsigned lightweight tag.
 
 ### 6. Harden scanner operation on untrusted repositories
 
