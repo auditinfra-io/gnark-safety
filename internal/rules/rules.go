@@ -186,14 +186,21 @@ var specs = []Spec{
 		Class:      ClassNonLoadBearing,
 		Severities: []report.Severity{report.SeverityHigh},
 		Confidence: "high",
-		Summary:    "The result of a gnark predicate (`IsZero`, `Cmp`, a bounded comparator's `IsLess`/`IsLessEq`, a recursive verifier's `IsValidProof`, or a hash `Sum`) is discarded, so the check it computes constrains nothing.",
-		Description: "Predicates return a variable; they do not assert anything. A call used as a statement, or assigned only to " +
-			"`_`, computes a value the circuit never uses, so the line reads as a check that does not exist. Assert the result " +
+		Summary:    "The result of a gnark predicate (`frontend.API`'s `IsZero` or `Cmp`, a bounded comparator's `IsLess`/`IsLessEq`, a recursive verifier's `IsValidProof`, or a hash `Sum`) is discarded, so the check it computes constrains nothing.",
+		Description: "Predicates return a variable; they do not assert anything. A call used as a statement (also in " +
+			"parentheses, deferred, or run with `go`), or bound only to `_` by an assignment or a `var` declaration, computes a " +
+			"value the circuit never uses, so the line reads as a check that does not exist. A hasher's `Sum` called on the " +
+			"enclosing method's own receiver, directly or through its embedded fields, is not reported, since that is how a " +
+			"hasher such as gnark's `MiMC.State` flushes itself; inside a circuit's `Define`, and for every other predicate on " +
+			"the receiver, such as an embedded verifier's `IsValidProof`, it is. Assert the result " +
 			"(`api.AssertIsEqual(api.IsZero(x), 1)`), use the assertion form, or feed it into later constraints. Go already " +
-			"rejects unused local variables, so these are the forms that compile. Evidence: gnark v0.16.3 `frontend/api.go` " +
+			"rejects unused local variables, so a stored result is at least read. Evidence: gnark v0.16.3 `frontend/api.go` " +
 			"(`IsZero`, `Cmp`), `std/math/cmp/bounded.go`, `std/recursion/groth16/verifier.go` (`IsValidProof`), and " +
 			"`std/hash/hash.go`.",
-		Limitations: "A result stored and then never read, or discarded through a helper, is not matched.",
+		Limitations: "A result stored and then never read, wrapped in a conversion or a literal before it is dropped, or " +
+			"discarded through a helper, is not matched, and neither is a predicate called through a method value or a " +
+			"function variable. Predicates outside the list above, such as an emulated field's `IsZero` or the package-level " +
+			"functions of `std/math/cmp`, are not checked.",
 	},
 	{
 		ID:         VacuousAssert,
@@ -304,8 +311,8 @@ var specs = []Spec{
 			"`Public` counts as that witness, and a local defined once from a field path, or a `range` variable over one, " +
 			"stands for that path when it is never reassigned (a `range` with `=` included) or addressed (calling a pointer " +
 			"method on it included). An `IsValidProof` call whose result is thrown away (as a statement, deferred, or bound " +
-			"to `_`) is not a verification; `GNARK_DISCARDED_PREDICATE` reports the plain statement and `_ =` forms of the " +
-			"call itself. gnark's compiler already rejects a circuit with an input that no constraint uses unless " +
+			"to `_`) is not a verification; `GNARK_DISCARDED_PREDICATE` reports the call itself. gnark's compiler already " +
+			"rejects a circuit with an input that no constraint uses unless " +
 			"`frontend.IgnoreUnconstrainedInputs()` is set, which catches a proof that is left entirely unused; this rule " +
 			"names the cause at the read, and also covers circuits that touch the proof or witness without verifying it. " +
 			"Evidence: the gnark v0.16.3 package documentation of `std/recursion/groth16` and `std/recursion/plonk` " +

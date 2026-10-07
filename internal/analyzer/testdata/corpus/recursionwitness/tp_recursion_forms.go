@@ -68,7 +68,7 @@ func (c *VarDiscardCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	var _, verr = verifier.IsValidProof(c.VerifyingKey, c.Proof, c.Witness)
+	var _, verr = verifier.IsValidProof(c.VerifyingKey, c.Proof, c.Witness) // want GNARK_DISCARDED_PREDICATE
 	if verr != nil {
 		return verr
 	}
@@ -94,7 +94,7 @@ func (c *DeferDiscardCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	defer verifier.IsValidProof(c.VerifyingKey, c.Proof, c.Witness)
+	defer verifier.IsValidProof(c.VerifyingKey, c.Proof, c.Witness) // want GNARK_DISCARDED_PREDICATE
 	f, err := emulated.NewField[sw_bn254.ScalarField](api)
 	if err != nil {
 		return err

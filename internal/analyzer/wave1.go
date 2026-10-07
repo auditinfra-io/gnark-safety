@@ -455,29 +455,25 @@ func (c *ruleContext) checkCall(call *ast.CallExpr, stack []ast.Node, fn *ast.Fu
 	c.checkVacuous(call, callee, function)
 }
 
-// checkDiscarded reports a predicate whose result is dropped.
+// checkDiscarded reports a predicate whose result is dropped: used as a
+// statement, deferred, run as a goroutine, or bound only to _. A hasher's
+// Sum on the enclosing method's own receiver is how the hasher flushes
+// itself, except in a circuit's Define, which is not a hasher; any other
+// predicate there, such as an embedded verifier's IsValidProof, is
+// reported like any other call.
 func (c *ruleContext) checkDiscarded(call *ast.CallExpr, callee *types.Func, stack []ast.Node, fn *ast.FuncDecl, function string) {
-	if !isPredicate(callee) || len(stack) < 2 || c.onOwnReceiver(call, fn) {
+	if !isPredicate(callee) || len(stack) < 2 || (callee.Name() == "Sum" && !isDefineMethod(c.info, fn) && c.onOwnReceiver(call, fn)) {
 		return
 	}
-	discarded := false
-	switch parent := stack[len(stack)-2].(type) {
-	case *ast.ExprStmt:
-		discarded = parent.X == call
-	case *ast.AssignStmt:
-		if len(parent.Rhs) == 1 && parent.Rhs[0] == call && len(parent.Lhs) > 0 {
-			id, ok := parent.Lhs[0].(*ast.Ident)
-			discarded = ok && id.Name == "_"
-		}
-	}
-	if discarded {
+	if resultDiscarded(stack) {
 		c.add(rules.DiscardedPredicate, report.SeverityHigh, call.Pos(), function, fmt.Sprintf("The result of %s is discarded, so the check it computes is not part of any constraint.", callee.Name()), "call: "+types.ExprString(call.Fun))
 	}
 }
 
 // onOwnReceiver reports whether call is a method call on the enclosing
-// method's receiver, as when a hasher flushes itself by calling its own Sum.
-// That is the type's internal plumbing, not a check its author forgot.
+// method's receiver, directly or through its embedded fields, as when a
+// hasher flushes itself by calling its own Sum. That is the type's
+// internal plumbing, not a check its author forgot.
 func (c *ruleContext) onOwnReceiver(call *ast.CallExpr, fn *ast.FuncDecl) bool {
 	if fn.Recv == nil || len(fn.Recv.List) == 0 || len(fn.Recv.List[0].Names) == 0 {
 		return false
@@ -487,7 +483,22 @@ func (c *ruleContext) onOwnReceiver(call *ast.CallExpr, fn *ast.FuncDecl) bool {
 	if !ok || receiver == nil {
 		return false
 	}
-	id, ok := unparen(sel.X).(*ast.Ident)
+	x := unparen(sel.X)
+	for {
+		field, ok := x.(*ast.SelectorExpr)
+		if !ok {
+			break
+		}
+		selection := c.info.Selections[field]
+		if selection == nil || selection.Kind() != types.FieldVal {
+			return false
+		}
+		if v, ok := selection.Obj().(*types.Var); !ok || !v.Embedded() {
+			return false
+		}
+		x = unparen(field.X)
+	}
+	id, ok := x.(*ast.Ident)
 	return ok && c.info.Uses[id] == receiver
 }
 

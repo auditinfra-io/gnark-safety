@@ -678,6 +678,9 @@ func isShapeRead(info *types.Info, stack []ast.Node) bool {
 }
 
 func isBlank(e ast.Expr) bool {
+	if e == nil {
+		return false
+	}
 	id, ok := unparen(e).(*ast.Ident)
 	return ok && id.Name == "_"
 }
@@ -727,11 +730,33 @@ func resultDiscarded(stack []ast.Node) bool {
 	case *ast.ExprStmt, *ast.DeferStmt, *ast.GoStmt:
 		return true
 	case *ast.AssignStmt:
-		return len(parent.Rhs) == 1 && parent.Rhs[0] == child && len(parent.Lhs) > 0 && isBlank(parent.Lhs[0])
+		return isBlank(boundTarget(parent.Lhs, parent.Rhs, child))
 	case *ast.ValueSpec:
-		return len(parent.Values) == 1 && parent.Values[0] == child && len(parent.Names) > 0 && parent.Names[0].Name == "_"
+		names := make([]ast.Expr, len(parent.Names))
+		for j, name := range parent.Names {
+			names[j] = name
+		}
+		return isBlank(boundTarget(names, parent.Values, child))
 	}
 	return false
+}
+
+// boundTarget returns the target value is bound to: its own position when
+// targets and values pair up, or the first target when one call returns
+// several values, the first of which is a predicate's result.
+func boundTarget(targets, values []ast.Expr, value ast.Node) ast.Expr {
+	for i, v := range values {
+		if v != value {
+			continue
+		}
+		switch {
+		case len(targets) == len(values):
+			return targets[i]
+		case len(values) == 1 && len(targets) > 0:
+			return targets[0]
+		}
+	}
+	return nil
 }
 
 // witnessArgument returns the argument of a verifying call that holds the

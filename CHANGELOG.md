@@ -26,6 +26,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   "Where it stops" entry. gnark's own unconstrained-input check already
   rejects a proof that is left entirely unused, unless it is disabled.
 
+### Fixed
+
+- **`GNARK_DISCARDED_PREDICATE` missed several ways of dropping a result.**
+  It now also reports a predicate whose result is dropped in parentheses,
+  deferred, run with `go`, bound to `_` by a `var` declaration, or bound to
+  `_` in an assignment of several values. The exemption for calls on the
+  enclosing method's own receiver now covers only a hasher's `Sum` (also
+  through an embedded field, as in `w.MiMC.Sum()`), which is how a hasher
+  such as gnark's `MiMC.State` flushes itself, and not inside a circuit's
+  `Define`; an embedded verifier's discarded `IsValidProof`, an embedded
+  API's discarded `IsZero`, or a circuit dropping an embedded hasher's
+  digest is now reported. "Where it stops" now names the forms the rule
+  does not see: method values, conversions, and predicates outside its list.
+
 ### Changed
 
 - `docs/releases.md` now describes the release tags as they are: unsigned
