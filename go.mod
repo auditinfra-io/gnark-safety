@@ -1,16 +1,16 @@
 module github.com/auditinfra-io/gnark-safety
 
-go 1.26.0
+go 1.26.8
 
 toolchain go1.27.1
 
 require (
-	github.com/consensys/gnark v0.16.3
-	github.com/consensys/gnark-crypto v0.21.0
+	github.com/consensys/gnark v0.16.4
+	github.com/consensys/gnark-crypto v0.21.1-0.20260913224755-1409fe592052
 	github.com/google/jsonschema-go v0.4.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	golang.org/x/mod v0.41.0
-	golang.org/x/tools v0.50.0
+	golang.org/x/mod v0.42.0
+	golang.org/x/tools v0.51.0
 )
 
 require (
