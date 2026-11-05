@@ -57,7 +57,7 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	destination := fs.String("output", "", "write output to a file")
 	sarifDestination := fs.String("sarif-output", "", "also write SARIF 2.1.0 to this file, in the same pass")
 	relativeTo := fs.String("relative-to", "", "report paths relative to this directory (default: the current directory)")
-	failOn := fs.String("fail-on", "high", "lowest severity that fails the scan: critical, high, medium, low, info, or none")
+	failOn := fs.String("fail-on", "high", "lowest severity that exits 1: critical, high, medium, low, info, or none")
 	allowEmpty := fs.Bool("allow-empty", false, "succeed even when no scanned package imports gnark")
 	allowPartial := fs.Bool("allow-partial", false, "succeed even when some requested packages failed to load and were not analyzed")
 	includeTests := fs.Bool("include-tests", false, "also analyze _test.go files")
@@ -67,12 +67,18 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	maxHints := fs.Int("max-hints", 10000, "maximum hint call sites")
 	maxOutput := fs.Int64("max-output-bytes", 16<<20, "maximum rendered output size")
 	field := fs.String("field", "unknown", "unknown, bn254, or bls12-381")
+	tags := fs.String("tags", "", "comma-separated build tags")
+	buildFlags := stringSliceFlag{}
+	fs.Var(&buildFlags, "build-flags", "repeatable Go build flag; safe subset only")
+	cgo := fs.Bool("cgo", true, "enable cgo while loading packages")
+	goos := fs.String("goos", "", "target GOOS for package loading")
+	goarch := fs.String("goarch", "", "target GOARCH for package loading")
 	if fs.Parse(args[1:]) != nil {
 		usage(stderr)
 		return 2
 	}
 	threshold, gated := report.ParseSeverity(*failOn)
-	if fs.NArg() == 0 || (*format != "text" && *format != "json" && *format != "sarif") || (!gated && *failOn != "none") || *timeout <= 0 || *maxHints <= 0 || *maxOutput <= 0 || (*field != "unknown" && *field != "bn254" && *field != "bls12-381") {
+	if fs.NArg() == 0 || (*format != "text" && *format != "json" && *format != "sarif") || (!gated && *failOn != "none") || *timeout <= 0 || *maxHints <= 0 || *maxOutput <= 0 || (*field != "unknown" && *field != "bn254" && *field != "bls12-381") || !validBuildFlags(buildFlags) {
 		usage(stderr)
 		return 2
 	}
@@ -82,7 +88,7 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	if pathBase != "" && !filepath.IsAbs(pathBase) {
 		pathBase = filepath.Join(dir, pathBase)
 	}
-	opts := analyzer.Options{MaxHints: *maxHints, IncludeTests: *includeTests, IncludeExamples: *includeExamples, IncludeTestSupport: *includeTestSupport, SkipUnloadable: true, PathBase: pathBase}
+	opts := analyzer.Options{MaxHints: *maxHints, IncludeTests: *includeTests, IncludeExamples: *includeExamples, IncludeTestSupport: *includeTestSupport, SkipUnloadable: true, PathBase: pathBase, Tags: splitTags(*tags), BuildFlags: buildFlags, CGO: *cgo, GOOS: *goos, GOARCH: *goarch}
 	if *field == "bn254" {
 		opts.FieldModulus, opts.FieldName = ecc.BN254.ScalarField(), "BN254 scalar field"
 	} else if *field == "bls12-381" {
@@ -93,10 +99,8 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
 		return 2
 	}
-	// A scan that examined no gnark code must not read as a clean pass: a
-	// mistyped pattern or a moved package would otherwise turn CI green.
 	if r.Coverage.GnarkPackages == 0 && !*allowEmpty {
-		fmt.Fprintf(stderr, "gnark-safety: none of the %d scanned package(s) import gnark, so no circuit code was analyzed. Check the package patterns, or pass --allow-empty if no circuits are expected.\n", r.Coverage.Packages)
+		fmt.Fprintf(stderr, "gnark-safety: none of the %d scanned package(s) import gnark, so no circuit code was analyzed. Check the package patterns, or pass --allow-empty if no circuits are expected.\n", len(fs.Args()))
 		return 2
 	}
 	var rendered bytes.Buffer
@@ -113,8 +117,6 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
 		return 2
 	}
-	// Render everything before writing anything, so an output-limit or
-	// rendering error never leaves one file written and the other missing.
 	var sarifRendered bytes.Buffer
 	if *sarifDestination != "" {
 		if err := output.SARIF(&limitedWriter{writer: &sarifRendered, remaining: *maxOutput}, r); err != nil {
@@ -139,8 +141,6 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 		fmt.Fprintf(stderr, "gnark-safety: warning: %s\n", diagnostic)
 	}
 	fails := gated && hasFindingAtOrAbove(r, threshold)
-	// Like an empty scan, a partial one must not read as a clean pass: the
-	// packages that failed to load could hold the findings.
 	incomplete := len(r.Coverage.Skipped) > 0 && !*allowPartial
 	fmt.Fprintln(stderr, summary(r, *failOn, fails, incomplete))
 	if fails {
@@ -153,8 +153,6 @@ func run(args []string, stdout, stderr io.Writer, dir string) int {
 	return 0
 }
 
-// inventory lists every gnark hint call site without applying rules. It
-// replaces the deprecated gnark-hint-scan command.
 func inventory(args []string, stdout, stderr io.Writer, dir string) int {
 	fs := flag.NewFlagSet("inventory", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -163,13 +161,20 @@ func inventory(args []string, stdout, stderr io.Writer, dir string) int {
 	timeout := fs.Duration("timeout", 2*time.Minute, "package loading and analysis timeout")
 	maxHints := fs.Int("max-hints", 10000, "maximum hint call sites")
 	maxOutput := fs.Int64("max-output-bytes", 16<<20, "maximum rendered output size")
-	if fs.Parse(args) != nil || fs.NArg() == 0 || (*format != "text" && *format != "json") || *timeout <= 0 || *maxHints <= 0 || *maxOutput <= 0 {
+	tags := fs.String("tags", "", "comma-separated build tags")
+	cgo := fs.Bool("cgo", true, "enable cgo while loading packages")
+	goos := fs.String("goos", "", "target GOOS for package loading")
+	goarch := fs.String("goarch", "", "target GOARCH for package loading")
+	buildFlags := stringSliceFlag{}
+	fs.Var(&buildFlags, "build-flags", "repeatable Go build flag; safe subset only")
+	if fs.Parse(args) != nil || fs.NArg() == 0 || (*format != "text" && *format != "json") || *timeout <= 0 || *maxHints <= 0 || *maxOutput <= 0 || !validBuildFlags(buildFlags) {
 		usage(stderr)
 		return 2
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
-	r, err := analyzer.ScanContext(ctx, dir, fs.Args(), analyzer.Options{MaxHints: *maxHints, IncludeTests: *includeTests, IncludeExamples: true})
+	opts := analyzer.Options{MaxHints: *maxHints, IncludeTests: *includeTests, IncludeExamples: true, Tags: splitTags(*tags), BuildFlags: buildFlags, CGO: *cgo, GOOS: *goos, GOARCH: *goarch}
+	r, err := analyzer.ScanContext(ctx, dir, fs.Args(), opts)
 	if err != nil {
 		fmt.Fprintf(stderr, "gnark-safety: %v\n", err)
 		return 2
@@ -192,7 +197,6 @@ func inventory(args []string, stdout, stderr io.Writer, dir string) int {
 	return 0
 }
 
-// hasFindingAtOrAbove reports whether any finding meets the gate threshold.
 func hasFindingAtOrAbove(r report.Report, threshold report.Severity) bool {
 	for _, finding := range r.Findings {
 		if finding.Severity.Rank() >= threshold.Rank() {
@@ -202,9 +206,6 @@ func hasFindingAtOrAbove(r report.Report, threshold report.Severity) bool {
 	return false
 }
 
-// summary is the one-line stderr verdict. It always states coverage, including
-// how many hints the relation rule could check, so a quiet scan is never
-// silently quiet.
 func summary(r report.Report, failOn string, fails, incomplete bool) string {
 	verdict := "passes"
 	switch {
@@ -214,8 +215,6 @@ func summary(r report.Report, failOn string, fails, incomplete bool) string {
 		verdict = "incomplete"
 	}
 	c := r.Coverage
-	// A hint in the quotient/remainder shape is the only kind
-	// GNARK_HINT_RELATION_INCOMPLETE checks; the others go unchecked by it.
 	shaped := 0
 	for _, h := range r.Hints {
 		for _, invariant := range h.Invariants {
@@ -265,7 +264,7 @@ func summary(r report.Report, failOn string, fails, incomplete bool) string {
 
 func usage(w io.Writer) {
 	fmt.Fprintln(w, `usage: gnark-safety scan [flags] <package patterns...>
-       gnark-safety inventory [--format text|json] [--include-tests] <package patterns...>
+       gnark-safety inventory [--format text|json] [--include-tests] [--tags tag1,tag2] [--cgo=true|false] [--goos OS] [--goarch ARCH] <package patterns...>
        gnark-safety explain [rule-id]
        gnark-safety --version
 
@@ -274,15 +273,20 @@ scan flags:
   --output file                write output to a file instead of stdout
   --sarif-output file          also write SARIF 2.1.0 to a file in the same pass
   --relative-to dir            report paths relative to dir (default: current
-                               directory); use the repository root for SARIF
+                              directory); use the repository root for SARIF
   --fail-on severity|none      lowest severity that exits 1: critical, high,
-                               medium, low, info, or none (default high)
+                              medium, low, info, or none (default high)
   --allow-empty                exit 0 even if no scanned package imports gnark
   --allow-partial              exit 0 even if some packages failed to load
   --include-tests              also analyze _test.go files
   --include-examples           keep original severity in example directories
   --include-test-support       keep original severity in test-support directories
   --field unknown|bn254|bls12-381
+  --tags tag1,tag2            build tags passed to the Go loader
+  --build-flags flag          repeatable, safe Go build flag (CLI-only)
+  --cgo bool                  enable cgo while loading packages (default true)
+  --goos OS                   target GOOS for package loading
+  --goarch ARCH               target GOARCH for package loading
   --timeout duration           default 2m
   --max-hints n                default 10000
   --max-output-bytes n         default 16777216
@@ -304,3 +308,75 @@ func (w *limitedWriter) Write(p []byte) (int, error) {
 	w.remaining -= int64(n)
 	return n, err
 }
+
+type stringSliceFlag []string
+
+func (f *stringSliceFlag) String() string { return strings.Join(*f, ",") }
+
+func (f *stringSliceFlag) Set(value string) error {
+	for _, part := range strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '\n' }) {
+		if part == "" {
+			continue
+		}
+		if !isAllowedBuildFlag(part) {
+			return fmt.Errorf("unsupported build flag %q", part)
+		}
+		*f = append(*f, part)
+	}
+	return nil
+}
+
+func splitTags(value string) []string {
+	if value == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '\n' })
+	out := parts[:0]
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func validBuildFlags(flags []string) bool {
+	for _, flag := range flags {
+		if !isAllowedBuildFlag(flag) {
+			return false
+		}
+	}
+	return true
+}
+
+func isAllowedBuildFlag(flag string) bool {
+	if flag == "" {
+		return false
+	}
+	allowed := map[string]bool{
+		"-mod=mod": true,
+		"-mod=readonly": true,
+		"-mod=vendor": true,
+		"-trimpath": true,
+		"-buildvcs=false": true,
+		"-buildvcs=true": true,
+		"-race": true,
+		"-msan": true,
+		"-vet=off": true,
+		"-ldflags": true,
+		"-gcflags": true,
+		"-asmflags": true,
+		"-tags": true,
+		"-p": true,
+		"-work": true,
+		"-x": true,
+	}
+	if allowed[flag] {
+		return true
+	}
+	if strings.HasPrefix(flag, "-mod=") || strings.HasPrefix(flag, "-gcflags=") || strings.HasPrefix(flag, "-asmflags=") || strings.HasPrefix(flag, "-ldflags=") || strings.HasPrefix(flag, "-tags=") {
+		return true
+	}
+	return false
+}
+

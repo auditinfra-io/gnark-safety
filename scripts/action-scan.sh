@@ -2,10 +2,6 @@
 # Runs one gnark-safety scan for the GitHub Action. It writes SARIF and
 # records the exit status as step outputs; the action's later steps upload the
 # SARIF and enforce the gate. Inputs arrive only through the environment.
-#
-# Exit status: 0 when the scan completed (whether or not it found anything at
-# the gate), and the analyzer's status (2) when it could not scan, so a broken
-# scan never reads as a clean one.
 set -euo pipefail
 
 gnark_safety="${GNARK_SAFETY:-gnark-safety}"
@@ -21,6 +17,30 @@ args=(scan --fail-on "${FAIL_ON:-high}" --field "${FIELD:-unknown}" --sarif-outp
 if [ -n "${REPO_ROOT:-}" ]; then
   args+=(--relative-to "$REPO_ROOT")
 fi
+
+if [ -n "${TAGS:-}" ]; then
+  args+=(--tags "${TAGS}")
+fi
+if [ -n "${GOOS:-}" ]; then
+  args+=(--goos "${GOOS}")
+fi
+if [ -n "${GOARCH:-}" ]; then
+  args+=(--goarch "${GOARCH}")
+fi
+if [ -n "${CGO:-}" ]; then
+  case "${CGO}" in
+    true|false) args+=(--cgo "${CGO}") ;;
+    *) fail "cgo must be true or false, got '${CGO}'" ;;
+  esac
+fi
+if [ -n "${BUILD_FLAGS:-}" ]; then
+  # Split on whitespace while preserving repeated flags.
+  read -r -a flags <<< "${BUILD_FLAGS}"
+  for flag in "${flags[@]}"; do
+    args+=(--build-flags "$flag")
+  done
+fi
+
 for pair in "include-tests:${INCLUDE_TESTS:-false}:--include-tests" \
             "include-examples:${INCLUDE_EXAMPLES:-false}:--include-examples" \
             "include-test-support:${INCLUDE_TEST_SUPPORT:-false}:--include-test-support" \
@@ -34,7 +54,6 @@ for pair in "include-tests:${INCLUDE_TESTS:-false}:--include-tests" \
   esac
 done
 
-# Split the patterns on any whitespace, including newlines from a YAML block.
 patterns=()
 read -r -d '' -a patterns <<< "${SCAN_PATH:-./...}" || true
 if [ "${#patterns[@]}" -eq 0 ]; then
@@ -65,3 +84,4 @@ case "$status" in
     exit "$status"
     ;;
 esac
+

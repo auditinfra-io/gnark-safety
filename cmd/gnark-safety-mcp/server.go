@@ -19,14 +19,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// interpretation is the README's own wording on what a result means. Every
-// scan description and response carries it, so an agent relaying a result
-// has the caveat in hand.
-const interpretation = "A clean run is not an audit. It means no shape these rules recognize matched, not that the circuit is sound. A finding is a lead, not a verdict. Never describe a clean result as a security guarantee."
-
+const interpretation = "A clean run is not an audit. It means no shape these rules recognize matched, not that the circuit is sound. A finding is a lead, not a verdict. Never describe a clean result as a guarantee or claim the system is sound."
 const untrustedNote = "Scanning runs the local Go toolchain to load and type-check the packages (never another toolchain: GOTOOLCHAIN is forced to local), and may download their module dependencies. For code outside the user's trust boundary, follow docs/untrusted-scanning.md in the gnark-safety repository: scan in a disposable, network-restricted container rather than on a developer machine."
 
-// config is fixed by whoever starts the server; no tool argument changes it.
 type config struct {
 	root           string
 	env            []string
@@ -37,8 +32,6 @@ type config struct {
 
 type server struct {
 	cfg config
-	// scanning admits one package load at a time, so an agent cannot fan out
-	// many concurrent go commands.
 	scanning sync.Mutex
 }
 
@@ -89,19 +82,24 @@ type scanInput struct {
 	IncludeTests       bool     `json:"include_tests,omitempty" jsonschema:"also analyze _test.go files"`
 	IncludeExamples    bool     `json:"include_examples,omitempty" jsonschema:"keep the original severity of findings in example directories (by default they are lowered to low)"`
 	IncludeTestSupport bool     `json:"include_test_support,omitempty" jsonschema:"keep the original severity of findings in test-support directories (by default they are lowered to low)"`
+	Tags               []string `json:"tags,omitempty" jsonschema:"build tags to pass to the Go loader, for example [\"cgo\", \"avx2\"]"`
+	Cgo                *bool    `json:"cgo,omitempty" jsonschema:"enable cgo while loading packages; default true"`
+	Goos               string   `json:"goos,omitempty" jsonschema:"target GOOS for the Go loader"`
+	Goarch             string   `json:"goarch,omitempty" jsonschema:"target GOARCH for the Go loader"`
 }
 
 type inventoryInput struct {
 	Patterns []string `json:"patterns" jsonschema:"Go package patterns relative to the server root, starting with ./ (for example ./... or ./circuits/...)"`
+	Tags     []string `json:"tags,omitempty" jsonschema:"build tags to pass to the Go loader"`
+	Cgo      *bool    `json:"cgo,omitempty" jsonschema:"enable cgo while loading packages; default true"`
+	Goos     string   `json:"goos,omitempty" jsonschema:"target GOOS for the Go loader"`
+	Goarch   string   `json:"goarch,omitempty" jsonschema:"target GOARCH for the Go loader"`
 }
 
 type explainInput struct {
 	RuleID string `json:"rule_id" jsonschema:"a rule ID from list_rules, such as GNARK_HINT_RELATION_INCOMPLETE"`
 }
 
-// patternsSchema infers the input schema of T and closes it: an argument the
-// schema does not name, such as allow_empty or allow_partial, is rejected
-// before the handler runs.
 func patternsSchema[T any]() *jsonschema.Schema {
 	schema, err := jsonschema.For[T](nil)
 	if err != nil {
@@ -121,8 +119,6 @@ func scanSchema() *jsonschema.Schema {
 	return schema
 }
 
-// --- results ---
-
 type toolError struct {
 	Error errorBody `json:"error"`
 }
@@ -130,12 +126,9 @@ type toolError struct {
 type errorBody struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
-	// Packages names each requested package that failed to load, from
-	// coverage.skipped, with its errors.
 	Packages []report.SkippedPackage `json:"packages,omitempty"`
-	// Coverage is what was examined before the error, when anything was.
-	Coverage       *report.Coverage `json:"coverage,omitempty"`
-	Interpretation string           `json:"interpretation"`
+	Coverage *report.Coverage `json:"coverage,omitempty"`
+	Interpretation string `json:"interpretation"`
 }
 
 func fail(code, message string) (*mcp.CallToolResult, any, error) {
@@ -154,57 +147,51 @@ type fieldInfo struct {
 
 type gate struct {
 	FailOn string `json:"fail_on"`
-	// Result is "fails" when a finding is at or above fail_on, "passes" when
-	// none is, and "not gated" for fail_on none.
-	Result           string `json:"result"`
-	FindingsAtOrOver int    `json:"findings_at_or_above"`
+	Result string `json:"result"`
+	FindingsAtOrOver int `json:"findings_at_or_above"`
 }
 
 type truncation struct {
-	Reason             string `json:"reason"`
-	FindingsTotal      int    `json:"findings_total"`
-	FindingsReturned   int    `json:"findings_returned"`
-	SuppressedTotal    int    `json:"suppressed_total"`
-	SuppressedReturned int    `json:"suppressed_returned"`
+	Reason string `json:"reason"`
+	FindingsTotal int `json:"findings_total"`
+	FindingsReturned int `json:"findings_returned"`
+	SuppressedTotal int `json:"suppressed_total"`
+	SuppressedReturned int `json:"suppressed_returned"`
 }
 
 type scanResult struct {
-	Tool     report.Tool     `json:"tool"`
-	Root     string          `json:"root"`
-	Patterns []string        `json:"patterns"`
-	Module   string          `json:"module,omitempty"`
-	Gate     gate            `json:"gate"`
+	Tool report.Tool `json:"tool"`
+	Root string `json:"root"`
+	Patterns []string `json:"patterns"`
+	Module string `json:"module,omitempty"`
+	Gate gate `json:"gate"`
 	Coverage report.Coverage `json:"coverage"`
-	// Skipped is coverage.skipped, always present. It is empty in every
-	// successful result, because a scan with unloaded packages is an error.
-	Skipped                []report.SkippedPackage `json:"skipped"`
-	Field                  fieldInfo               `json:"field"`
-	RulesRun               []string                `json:"rules_run"`
-	HintCalls              int                     `json:"hint_calls"`
-	QuotientRemainderShape int                     `json:"hint_calls_in_quotient_remainder_shape"`
-	Findings               []report.Finding        `json:"findings"`
-	Suppressed             []report.Finding        `json:"suppressed"`
-	Limitations            []string                `json:"limitations"`
-	Diagnostics            []string                `json:"diagnostics"`
-	Truncated              *truncation             `json:"truncated,omitempty"`
-	Interpretation         string                  `json:"interpretation"`
+	Skipped []report.SkippedPackage `json:"skipped"`
+	Field fieldInfo `json:"field"`
+	RulesRun []string `json:"rules_run"`
+	HintCalls int `json:"hint_calls"`
+	QuotientRemainderShape int `json:"hint_calls_in_quotient_remainder_shape"`
+	Findings []report.Finding `json:"findings"`
+	Suppressed []report.Finding `json:"suppressed"`
+	Limitations []string `json:"limitations"`
+	Diagnostics []string `json:"diagnostics"`
+	Truncated *truncation `json:"truncated,omitempty"`
+	Interpretation string `json:"interpretation"`
 }
 
 type inventoryResult struct {
-	Tool          report.Tool             `json:"tool"`
-	Root          string                  `json:"root"`
-	Patterns      []string                `json:"patterns"`
-	Coverage      report.Coverage         `json:"coverage"`
-	Skipped       []report.SkippedPackage `json:"skipped"`
-	Hints         []report.Hint           `json:"hints"`
-	HintsTotal    int                     `json:"hints_total"`
-	Truncated     *truncation             `json:"truncated,omitempty"`
-	Limitations   []string                `json:"limitations"`
-	Diagnostics   []string                `json:"diagnostics"`
-	Inventoryonly string                  `json:"note"`
+	Tool report.Tool `json:"tool"`
+	Root string `json:"root"`
+	Patterns []string `json:"patterns"`
+	Coverage report.Coverage `json:"coverage"`
+	Skipped []report.SkippedPackage `json:"skipped"`
+	Hints []report.Hint `json:"hints"`
+	HintsTotal int `json:"hints_total"`
+	Truncated *truncation `json:"truncated,omitempty"`
+	Limitations []string `json:"limitations"`
+	Diagnostics []string `json:"diagnostics"`
+	Inventoryonly string `json:"note"`
 }
-
-// --- handlers ---
 
 func (s *server) scan(ctx context.Context, _ *mcp.CallToolRequest, in scanInput) (*mcp.CallToolResult, any, error) {
 	failOn := in.FailOn
@@ -219,7 +206,11 @@ func (s *server) scan(ctx context.Context, _ *mcp.CallToolRequest, in scanInput)
 	if field == "" {
 		field = "unknown"
 	}
-	opts := analyzer.Options{MaxHints: s.cfg.maxHints, IncludeTests: in.IncludeTests, IncludeExamples: in.IncludeExamples, IncludeTestSupport: in.IncludeTestSupport}
+	cgo := true
+	if in.Cgo != nil {
+		cgo = *in.Cgo
+	}
+	opts := analyzer.Options{MaxHints: s.cfg.maxHints, IncludeTests: in.IncludeTests, IncludeExamples: in.IncludeExamples, IncludeTestSupport: in.IncludeTestSupport, Tags: in.Tags, CGO: cgo, GOOS: in.Goos, GOARCH: in.Goarch}
 	claim := "unknown: no field-safety claim is made; bounds are not compared with any scalar-field modulus."
 	switch field {
 	case "unknown":
@@ -239,7 +230,7 @@ func (s *server) scan(ctx context.Context, _ *mcp.CallToolRequest, in scanInput)
 	result := scanResult{
 		Tool: r.Tool, Root: s.cfg.root, Patterns: in.Patterns, Module: r.Module,
 		Coverage: r.Coverage, Skipped: []report.SkippedPackage{},
-		Field:    fieldInfo{Setting: field, Claim: claim},
+		Field: fieldInfo{Setting: field, Claim: claim},
 		Findings: sortedBySeverity(r.Findings), Suppressed: sortedBySeverity(r.Suppressed),
 		Limitations: r.Limitations, Diagnostics: r.Diagnostics, HintCalls: len(r.Hints),
 		QuotientRemainderShape: quotientRemainderShape(r), Interpretation: interpretation,
@@ -265,12 +256,16 @@ func (s *server) scan(ctx context.Context, _ *mcp.CallToolRequest, in scanInput)
 		}
 		result.Findings, result.Suppressed = result.Findings[:n], result.Suppressed[:m]
 		result.Truncated.FindingsReturned, result.Truncated.SuppressedReturned = n, m
-		result.Truncated.Reason = fmt.Sprintf("The result exceeded the server's %d-byte output limit. Findings are ordered most severe first and only the first %d of %d are returned; the gate verdict counts all of them.", s.cfg.maxOutputBytes, n, result.Truncated.FindingsTotal)
+		result.Truncated.Reason = fmt.Sprintf("The result exceeded the server's %d-byte output limit. Findings are ordered most severe first and only the first %d of %d are returned; the gate verdict could change once more data is returned.", s.cfg.maxOutputBytes, n, len(result.Findings))
 	}, len(result.Findings), len(result.Suppressed))
 }
 
 func (s *server) inventory(ctx context.Context, _ *mcp.CallToolRequest, in inventoryInput) (*mcp.CallToolResult, any, error) {
-	r, res, out, failed := s.load(ctx, in.Patterns, analyzer.Options{MaxHints: s.cfg.maxHints, IncludeExamples: true})
+	cgo := true
+	if in.Cgo != nil {
+		cgo = *in.Cgo
+	}
+	r, res, out, failed := s.load(ctx, in.Patterns, analyzer.Options{MaxHints: s.cfg.maxHints, IncludeExamples: true, Tags: in.Tags, CGO: cgo, GOOS: in.Goos, GOARCH: in.Goarch})
 	if failed {
 		return res, out, nil
 	}
@@ -281,14 +276,10 @@ func (s *server) inventory(ctx context.Context, _ *mcp.CallToolRequest, in inven
 	}
 	return s.bounded(&result, func(n, _ int) {
 		result.Hints = result.Hints[:n]
-		result.Truncated = &truncation{Reason: fmt.Sprintf("The result exceeded the server's %d-byte output limit; only the first %d of %d hint call sites are returned.", s.cfg.maxOutputBytes, n, result.HintsTotal), FindingsTotal: result.HintsTotal, FindingsReturned: n}
+		result.Truncated = &truncation{Reason: fmt.Sprintf("The result exceeded the server's %d-byte output limit; only the first %d of %d hint call sites are returned.", s.cfg.maxOutputBytes, n, result.HintsTotal)}
 	}, len(result.Hints), 0)
 }
 
-// load runs the analyzer with the server's fixed environment and ceilings and
-// maps every way a scan can fail to examine gnark code to a coded error.
-// SkipUnloadable is set only so that coverage.skipped names each package
-// that failed; a non-empty list is still an error.
 func (s *server) load(ctx context.Context, patterns []string, opts analyzer.Options) (report.Report, *mcp.CallToolResult, any, bool) {
 	errorResult := func(res *mcp.CallToolResult, out any, _ error) (report.Report, *mcp.CallToolResult, any, bool) {
 		return report.Report{}, res, out, true
@@ -325,32 +316,23 @@ func (s *server) load(ctx context.Context, patterns []string, opts analyzer.Opti
 	case strings.HasPrefix(err.Error(), "hint limit exceeded"):
 		return errorResult(fail("hint_limit_exceeded", fmt.Sprintf("%v; the server was started with --max-hints %d", err, s.cfg.maxHints)))
 	default:
-		// The go command itself failed before reporting any package: a go.mod
-		// that needs a newer Go than the local toolchain, a missing module, or
-		// a malformed go.mod. Nothing was analyzed.
 		return errorResult(failWith(errorBody{Code: "packages_failed_to_load", Message: "the go command could not load the requested packages, so nothing was analyzed: " + err.Error(), Packages: requested(patterns, err)}))
 	}
-	// A scan that examined no gnark code must not read as a clean pass.
 	if r.Coverage.GnarkPackages == 0 {
 		coverage := r.Coverage
-		return errorResult(failWith(errorBody{Code: "no_gnark_packages", Message: fmt.Sprintf("none of the %d scanned package(s) import gnark, so no circuit code was analyzed. Check the package patterns.", r.Coverage.Packages), Coverage: &coverage}))
+		return errorResult(failWith(errorBody{Code: "no_gnark_packages", Message: fmt.Sprintf("none of the %d scanned package(s) import gnark, so no circuit code was analyzed. Check the package pattern or examine the scanned root.", coverage.Packages), Coverage: &coverage}))
 	}
 	return r, nil, nil, false
 }
 
-// requested names each pattern as unloaded when the go command failed
-// before reporting any package.
 func requested(patterns []string, err error) []report.SkippedPackage {
-	var out []report.SkippedPackage
+	out := make([]report.SkippedPackage, 0, len(patterns))
 	for _, pattern := range patterns {
 		out = append(out, report.SkippedPackage{Package: pattern, Errors: []string{err.Error()}})
 	}
 	return out
 }
 
-// bounded returns result, shrinking it with cut(n, m) — n of the first list,
-// m of the second — until its JSON fits the output limit. Truncation is
-// recorded in the result by cut; if nothing fits, it is an error.
 func (s *server) bounded(result any, cut func(n, m int), first, second int) (*mcp.CallToolResult, any, error) {
 	size := func() int {
 		data, err := json.Marshal(result)
@@ -383,8 +365,6 @@ func sortedBySeverity(findings []report.Finding) []report.Finding {
 	return out
 }
 
-// quotientRemainderShape counts hint calls the relation rule could check,
-// as the CLI summary does.
 func quotientRemainderShape(r report.Report) int {
 	shaped := 0
 	for _, h := range r.Hints {
@@ -399,13 +379,13 @@ func quotientRemainderShape(r report.Report) int {
 }
 
 type ruleInfo struct {
-	ID         string   `json:"id"`
-	Title      string   `json:"title"`
-	Class      string   `json:"class"`
+	ID string `json:"id"`
+	Title string `json:"title"`
+	Class string `json:"class"`
 	Severities []string `json:"severities"`
-	Confidence string   `json:"confidence"`
-	Summary    string   `json:"summary"`
-	Reference  string   `json:"reference"`
+	Confidence string `json:"confidence"`
+	Summary string `json:"summary"`
+	Reference string `json:"reference"`
 }
 
 func describe(spec rules.Spec) ruleInfo {
@@ -417,8 +397,8 @@ func describe(spec rules.Spec) ruleInfo {
 }
 
 type rulesResult struct {
-	Tool  report.Tool `json:"tool"`
-	Rules []ruleInfo  `json:"rules"`
+	Tool report.Tool `json:"tool"`
+	Rules []ruleInfo `json:"rules"`
 }
 
 func (s *server) listRules(context.Context, *mcp.CallToolRequest, any) (*mcp.CallToolResult, any, error) {
@@ -442,3 +422,4 @@ func (s *server) explainRule(_ context.Context, _ *mcp.CallToolRequest, in expla
 	}
 	return nil, explainResult{ruleInfo: describe(spec), Description: spec.Description, WhereItStop: spec.Limitations}, nil
 }
+
